@@ -28,6 +28,7 @@ const minute = 60_000;
 const interval = 20 * minute;
 const windowMs = 30_000;
 const activeMs = 15_000;
+const startingCoins = 30;
 const colors = ['#bd7050', '#789078', '#7988ab', '#ad7963'];
 
 export function createLibrary({ database = ':memory:', clock = Date.now } = {}) {
@@ -41,7 +42,8 @@ export function createLibrary({ database = ':memory:', clock = Date.now } = {}) 
     );
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY, user TEXT REFERENCES profiles(id), start INTEGER NOT NULL,
-      end INTEGER NOT NULL, checks INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL DEFAULT 'active'
+      end INTEGER NOT NULL, checks INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL DEFAULT 'active',
+      paused_at INTEGER, verification_due INTEGER
     );
     CREATE UNIQUE INDEX IF NOT EXISTS one_active_session ON sessions(user) WHERE state = 'active';
     CREATE TABLE IF NOT EXISTS coin_ledger (
@@ -67,15 +69,22 @@ export function createLibrary({ database = ':memory:', clock = Date.now } = {}) 
       throw error;
     }
   };
+  transaction(() => {
+    const columns = new Set(all('PRAGMA table_info(sessions)').map(column => column.name));
+    for (const column of ['paused_at', 'verification_due']) {
+      if (!columns.has(column)) db.exec(`ALTER TABLE sessions ADD COLUMN ${column} INTEGER`);
+    }
+  });
   const active = (id) => get("SELECT * FROM sessions WHERE user = ? AND state = 'active'", id);
-  const nextCheck = (session) => session.start + interval * (session.checks + 1);
+  const nextCheck = (session) => session.verification_due ??
+    (session.paused_at === null ? session.start + interval * (session.checks + 1) : Infinity);
   const settle = (id, now) => {
     const session = active(id);
     if (!session) return;
     const next = nextCheck(session);
     if (next < session.end && now >= next + windowMs) {
       run("UPDATE sessions SET state = 'invalid' WHERE id = ?", session.id);
-    } else if (now >= session.end) {
+    } else if (session.paused_at === null && now >= session.end) {
       const reward = Math.floor((session.end - session.start) / (5 * minute));
       run("UPDATE sessions SET state = 'completed' WHERE id = ?", session.id);
       run('INSERT INTO coin_ledger VALUES (?, ?, ?)', session.id, id, reward);
@@ -86,7 +95,7 @@ export function createLibrary({ database = ':memory:', clock = Date.now } = {}) 
   const state = (id, now) => {
     const profile = get('SELECT name, avatar, room, status, coins FROM profiles WHERE id = ?', id);
     if (profile) profile.avatar = JSON.parse(profile.avatar);
-    const session = id && get('SELECT start, end, checks, state FROM sessions WHERE user = ? ORDER BY rowid DESC LIMIT 1', id);
+    const session = id && get('SELECT start, end, checks, state, paused_at, verification_due FROM sessions WHERE user = ? ORDER BY rowid DESC LIMIT 1', id);
     const counts = all('SELECT room, count(*) AS total FROM profiles WHERE seen > ? GROUP BY room', now - activeMs);
     const members = profile?.room ? all('SELECT id, name, avatar, status FROM profiles WHERE room = ? AND seen > ? ORDER BY rowid', profile.room, now - activeMs) : [];
     return {
@@ -111,18 +120,23 @@ export function createLibrary({ database = ':memory:', clock = Date.now } = {}) 
       const now = clock();
       let profile = id && get('SELECT * FROM profiles WHERE id = ?', id);
       if (!profile) id = null;
+      if (id) settle(id, now);
+      const current = id && active(id);
+      if (current?.paused_at === null) {
+        require(['state', 'status', 'verify'].includes(action), 'Diğer işlemler için önce mola ver.');
+      }
       if (action === 'profile') {
         const [name, avatar] = saveAvatar(input);
         if (id) run('UPDATE profiles SET name = ?, avatar = ? WHERE id = ?', name, avatar, id);
         else {
           id = randomUUID();
-          run('INSERT INTO profiles (id, name, avatar, seen) VALUES (?, ?, ?, ?)', id, name, avatar, now);
+          run('INSERT INTO profiles (id, name, avatar, seen, coins) VALUES (?, ?, ?, ?, ?)', id, name, avatar, now, startingCoins);
+          run('INSERT INTO coin_ledger VALUES (?, ?, ?)', 'welcome:' + id, id, startingCoins);
         }
       } else if (action !== 'state') {
         require(profile, 'Önce avatarını oluştur.');
       }
       if (id) {
-        settle(id, now);
         if (action === 'join' || (profile?.room && profile.seen <= now - activeMs)) {
           const destination = action === 'join' ? input.room : profile.room;
           require(rooms.some(room => room.id === destination), 'Oda bulunamadı.');
@@ -133,6 +147,15 @@ export function createLibrary({ database = ':memory:', clock = Date.now } = {}) 
         if (action === 'leave') run('UPDATE profiles SET room = NULL WHERE id = ?', id);
         if (action === 'status') {
           require(['desk', 'break'].includes(input.status), 'Durum geçersiz.');
+          if (current && input.status === 'break' && current.paused_at === null) {
+            const due = nextCheck(current);
+            run('UPDATE sessions SET paused_at = ?, verification_due = ? WHERE id = ?', now, due < current.end && due <= now ? due : null, current.id);
+          }
+          if (current?.paused_at != null && input.status === 'desk') {
+            require(get('SELECT room FROM profiles WHERE id = ?', id).room, 'Devam etmek için bir odaya katıl.');
+            const pauseLength = now - current.paused_at;
+            run('UPDATE sessions SET start = start + ?, end = end + ?, paused_at = NULL WHERE id = ?', pauseLength, pauseLength, current.id);
+          }
           run('UPDATE profiles SET status = ? WHERE id = ?', input.status, id);
         }
         if (action === 'start') {
@@ -145,7 +168,7 @@ export function createLibrary({ database = ':memory:', clock = Date.now } = {}) 
           const session = active(id);
           const next = session && nextCheck(session);
           require(session && next < session.end && now >= next && now < next + windowMs, 'Doğrulama penceresi kapalı.');
-          run('UPDATE sessions SET checks = checks + 1 WHERE id = ?', session.id);
+          run('UPDATE sessions SET checks = checks + 1, verification_due = NULL WHERE id = ?', session.id);
         }
         if (action === 'buy' || action === 'place') {
           const item = items.find(candidate => candidate.id === input.item);

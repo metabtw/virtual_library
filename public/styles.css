@@ -88,3 +88,22 @@ dialog::backdrop{background:#100b09aa}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 @media(max-width:950px){.controls{align-items:start;flex-direction:column}.sidebar{padding-inline:10px}body{grid-template-columns:178px minmax(0,1fr)}}
 @media(max-width:650px){body{display:block;padding-bottom:66px}.sidebar{height:auto;position:fixed;z-index:2;top:auto;bottom:0;left:0;right:0;padding:4px 5px;border:0;border-top:1px solid var(--line)}.brand,.sidebar-footer{display:none}nav{grid-template-columns:repeat(4,minmax(0,1fr));gap:2px}nav a{flex-direction:column;gap:3px;white-space:normal;text-align:center;font-size:10px;padding:5px 2px}header{height:55px}.heading{align-items:start;flex-direction:column}#content{padding-top:22px}.scene{padding:10px;min-height:460px}.seats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.seat{min-height:110px}.profile-card{gap:12px}.profile-card .sprite{width:78px;height:95px}#notice{bottom:66px}}
+
+.focusing .sidebar{opacity:.55}
+.control-actions{min-width:0}
+.dialog-actions{display:flex;flex-wrap:wrap;gap:8px}
+@media(max-width:650px){
+  body{padding-bottom:calc(66px + env(safe-area-inset-bottom))}
+  .sidebar{padding-bottom:calc(4px + env(safe-area-inset-bottom))}
+  nav a{min-height:48px;justify-content:center}
+  .controls{align-items:stretch;padding:14px}
+  .control-actions{display:grid;grid-template-columns:auto minmax(0,1fr)}
+  .control-actions>.primary:only-child,.status-group{grid-column:1/-1}
+  .status-group{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .control-actions button,.control-actions select,.dialog-actions button{min-height:44px}
+  .profile-card{flex-wrap:wrap}
+  .profile-card form{flex:1 1 220px;min-width:0}
+  .form-options label{flex:1 1 82px;min-width:0}
+  .seat-name{min-width:0}
+  #notice{bottom:calc(66px + env(safe-area-inset-bottom))}
+}

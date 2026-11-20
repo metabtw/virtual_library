@@ -12,6 +12,9 @@ let avatar = { hair: 0, outfit: 0, color: palette[0] };
 let editing = false;
 let lastView;
 let noticeTimeout;
+let pendingPauseAt;
+const focusSession = () => data?.session?.state === 'active' ? data.session : null;
+const isRunning = () => focusSession()?.paused_at === null;
 
 const escape = (value) => String(value).replace(/[&<>"']/g, character => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -69,12 +72,21 @@ function seat(member, index) {
 function roomView() {
   const room = data.rooms.find(item => item.id === data.profile?.room);
   const name = room?.name || data.rooms[0].name;
-  const active = data.session?.state === 'active';
+  const session = focusSession();
+  const running = isRunning();
+  const paused = session && !running;
+  const controls = running
+    ? '<button class="primary" data-action="status" data-value="break">Ⅱ &nbsp; Molaya geç</button>'
+    : paused && room
+      ? '<button class="primary" data-action="status" data-value="desk">▶ &nbsp; Çalışmaya devam et</button>'
+      : room
+        ? `<div class="status-group"><button data-action="status" data-value="desk" aria-pressed="${data.profile.status === 'desk'}">▣ Masada</button><button data-action="status" data-value="break" aria-pressed="${data.profile.status === 'break'}">☕ Molada</button></div><label class="sr-only" for="duration">Periyot süresi</label><select id="duration">${[25, 50, 90].map(option => `<option value="${option}" ${duration === option ? 'selected' : ''}>${option} dk</option>`).join('')}</select><button class="primary" data-action="start">▶ &nbsp; Çalışmaya başla</button>`
+        : '<button class="primary" data-action="join" data-value="night">Gece Kuşları odasına katıl →</button>';
   const count = room?.count || 0;
-  return `<div class="heading"><div><p class="eyebrow">☾ &nbsp; ORTAK ÇALIŞMA ALANI</p><h1>${name}</h1><p>Bir masa seç, çalışma süreni ayarla ve birlikte odaklan.</p></div><a class="secondary" href="#rooms">Tüm odalar <span>↗</span></a></div>
+  return `<div class="heading"><div><p class="eyebrow">☾ &nbsp; ORTAK ÇALIŞMA ALANI</p><h1>${name}</h1><p>Bir masa seç, çalışma süreni ayarla ve birlikte odaklan.</p></div>${running ? '' : '<a class="secondary" href="#rooms">Tüm odalar <span>↗</span></a>'}</div>
   <section class="scene" aria-label="${name}"><div class="scene-top"><span><span class="dot"></span> ${count} / 12 kişi</span><span>☾ &nbsp; Sessiz oda</span></div><div class="seats">${Array.from({ length: Math.max(6, data.members.length) }, (_, index) => seat(data.members[index], index)).join('')}</div></section>
-  <section class="controls"><div class="timer"><div class="timer-ring" id="timer-ring"><b id="timer">50:00</b></div><div><h2>Odak periyodu</h2><p>${active ? 'Çalışma sürüyor' : 'Her 20 dakikada bir doğrulama'}</p></div></div>
-  <div class="control-actions">${room ? `<div class="status-group"><button data-action="status" data-value="desk" aria-pressed="${data.profile.status === 'desk'}">▣ Masada</button><button data-action="status" data-value="break" aria-pressed="${data.profile.status === 'break'}">☕ Molada</button></div><label class="sr-only" for="duration">Periyot süresi</label><select id="duration" ${active ? 'disabled' : ''}>${[25, 50, 90].map(option => `<option value="${option}" ${duration === option ? 'selected' : ''}>${option} dk</option>`).join('')}</select><button class="primary" data-action="start" ${active ? 'disabled' : ''}>▶ &nbsp; ${active ? 'Çalışma sürüyor' : 'Çalışmaya başla'}</button>` : `<button class="primary" data-action="join" data-value="night">Gece Kuşları odasına katıl →</button>`}</div></section>`;
+  <section class="controls"><div class="timer"><div class="timer-ring" id="timer-ring"><b id="timer">50:00</b></div><div><h2>Odak periyodu</h2><p>${running ? 'Çalışma sürüyor' : paused ? 'Molada · Sayaç duraklatıldı' : 'Her 20 dakikada bir doğrulama'}</p></div></div>
+  <div class="control-actions">${controls}</div></section>`;
 }
 
 function roomsView() {
@@ -105,7 +117,11 @@ function profileView() {
 function render() {
   if (!data) return;
   const page = location.hash.slice(1);
-  const view = Object.hasOwn(labels, page) ? page : 'room';
+  const running = isRunning();
+  if (running && page && page !== 'room') history.replaceState(null, '', '#room');
+  const view = !running && Object.hasOwn(labels, page) ? page : 'room';
+  document.querySelector('.sidebar').inert = running;
+  document.body.classList.toggle('focusing', running);
   document.querySelector('#location').textContent = labels[view];
   document.querySelector('#balance').textContent = data.profile?.coins ?? 0;
   document.querySelectorAll('nav a').forEach(link => {
@@ -127,19 +143,20 @@ function render() {
 const format = (seconds) => [Math.floor(seconds / 60), seconds % 60].map(value => String(value).padStart(2, '0')).join(':');
 
 function updateClock() {
-  const session = data?.session;
+  const session = focusSession();
   const now = Date.now() + offset;
-  const active = session?.state === 'active';
-  const seconds = active ? Math.max(0, Math.ceil((session.end - now) / 1000)) : duration * 60;
+  const effectiveNow = session?.paused_at ?? pendingPauseAt ?? now;
+  const seconds = session ? Math.max(0, Math.ceil((session.end - effectiveNow) / 1000)) : duration * 60;
   const timer = document.querySelector('#timer');
   if (timer) {
     timer.textContent = format(seconds);
-    document.querySelector('#timer-ring').style.setProperty('--progress', active ? Math.max(0, Math.min(1, (session.end - now) / (session.end - session.start))) : 1);
+    document.querySelector('#timer-ring').style.setProperty('--progress', session ? Math.max(0, Math.min(1, (session.end - effectiveNow) / (session.end - session.start))) : 1);
   }
-  const next = active && session.start + 1_200_000 * (session.checks + 1);
+  const next = session?.verification_due ?? (isRunning() && session.start + 1_200_000 * (session.checks + 1));
   const remaining = next + 30_000 - now;
   if (next && next < session.end && now >= next && remaining > 0) {
     document.querySelector('#verify-time').textContent = Math.ceil(remaining / 1000) + ' sn';
+    dialog.querySelector('[data-value="break"]').disabled = !isRunning() || pendingPauseAt !== undefined;
     if (!dialog.open) dialog.showModal();
   } else if (dialog.open) dialog.close();
 }
@@ -174,6 +191,7 @@ document.addEventListener('click', async event => {
   const button = event.target.closest('[data-action]');
   if (!button) return;
   const { action, value } = button.dataset;
+  if (busy || (isRunning() && action !== 'verify' && !(action === 'status' && value === 'break'))) return;
   if (action === 'edit') {
     avatar = { ...data.profile.avatar };
     editing = true;
@@ -190,7 +208,17 @@ document.addEventListener('click', async event => {
     return;
   }
   const payload = { join: { room: value }, status: { status: value }, start: { duration }, buy: { item: value }, place: { item: value } };
-  if (await request(action, payload[action] || {})) {
+  const pausing = isRunning() && action === 'status' && value === 'break';
+  if (pausing) {
+    pendingPauseAt = Date.now() + offset;
+    updateClock();
+  }
+  const success = await request(action, payload[action] || {});
+  if (pausing) {
+    pendingPauseAt = undefined;
+    updateClock();
+  }
+  if (success) {
     if (action === 'join') location.hash = 'room';
     if (action === 'leave') location.hash = 'rooms';
     if (action === 'buy') toast('Eşya envanterine eklendi.');

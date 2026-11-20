@@ -53,8 +53,9 @@ test('a verified 50-minute session awards 10 coins once and permits one purchase
   advance(20 * minute);
   await api('verify', {});
   advance(10 * minute);
-  assert.equal((await api('state')).profile.coins, 10);
-  assert.equal((await api('state')).profile.coins, 10);
+  assert.equal((await api('state')).profile.coins, 40);
+  assert.equal((await api('state')).profile.coins, 40);
+  await api('buy', { item: 'cat' });
   await api('buy', { item: 'plant' }, 400);
   const bought = await api('buy', { item: 'lamp' });
   assert.equal(bought.profile.coins, 0);
@@ -72,7 +73,7 @@ test('missing a verification by exactly 30 seconds invalidates the session', asy
   await api('verify', {}, 400);
   assert.equal((await api('state')).session.state, 'invalid');
   advance(5 * minute);
-  assert.equal((await api('state')).profile.coins, 0);
+  assert.equal((await api('state')).profile.coins, 30);
 });
 
 test('isolated clients see room status and the server rejects a thirteenth member', async t => {
@@ -89,4 +90,45 @@ test('isolated clients see room status and the server rejects a thirteenth membe
   assert.equal(observer.members[0].own, false);
   await clients[0]('leave', {});
   assert.equal((await clients[12]('join', { room: 'night' })).members.length, 12);
+});
+
+test('mola freezes focus time and only running sessions lock other actions', async t => {
+  const { client, advance } = await fixture(t);
+  const api = client();
+  assert.equal((await api('profile', { ...avatar, name: 'Ada' })).profile.coins, 30);
+  assert.equal((await api('profile', { ...avatar, name: 'Ada 2' })).profile.coins, 30);
+  await api('join', { room: 'night' });
+  const started = await api('start', { duration: 25 });
+  await api('buy', { item: 'lamp' }, 400);
+  await api('join', { room: 'garden' }, 400);
+  await api('leave', {}, 400);
+  await api('profile', { ...avatar, name: 'Ada 3' }, 400);
+  advance(18 * minute);
+  const paused = await api('status', { status: 'break' });
+  assert.equal(paused.session.end - paused.session.paused_at, 7 * minute);
+  advance(60 * minute);
+  assert.equal((await api('state')).session.paused_at, paused.session.paused_at);
+  await api('buy', { item: 'lamp' });
+  const resumed = await api('status', { status: 'desk' });
+  assert.equal(resumed.session.paused_at, null);
+  assert.equal(resumed.session.end, started.session.end + 60 * minute);
+  await api('verify', {}, 400);
+  advance(2 * minute);
+  await api('verify', {});
+  advance(5 * minute);
+  assert.equal((await api('state')).profile.coins, 25);
+});
+
+test('pausing or resuming during an open verification does not extend its deadline', async t => {
+  const { client, advance } = await fixture(t);
+  const api = client();
+  await api('profile', { ...avatar, name: 'Ada' });
+  await api('join', { room: 'night' });
+  await api('start', { duration: 25 });
+  advance(20 * minute + 10_000);
+  await api('status', { status: 'break' });
+  advance(10_000);
+  await api('status', { status: 'desk' });
+  advance(10_000);
+  assert.equal((await api('state')).session.state, 'invalid');
 });
