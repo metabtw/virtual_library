@@ -1,4 +1,4 @@
-import { portrait } from './sprites.js';
+import { portrait, propImage } from './sprites.js';
 
 const content = document.querySelector('#content');
 const notice = document.querySelector('#notice');
@@ -15,7 +15,8 @@ const durationOptions = [['25', '25 dakika'], ['50', '50 dakika'], ['90', '90 da
 const focusDuration = () => Number(durationChoice === 'custom' ? customDuration : durationChoice);
 const validDuration = () => Number.isInteger(focusDuration()) && focusDuration() >= 5 && focusDuration() <= 180;
 let lastScene;
-let avatar = { hair: 0, outfit: 0, color: palette[0] };
+const genders = [['unspecified', 'Belirtmek istemiyorum'], ['female', 'Kadın'], ['male', 'Erkek']];
+let avatar = { gender: 'unspecified', hair: 0, outfit: 0, color: palette[0] };
 let editing = false;
 let lastView;
 let noticeTimeout;
@@ -74,13 +75,21 @@ function sprite(part, small = false) {
   return `<img alt="" class="sprite ${small ? 'small' : ''}" src="${portrait(part)}">`;
 }
 
+function deskItems(placed) {
+  return [
+    placed.includes('lamp') && `<span class="desk-prop desk-lamp"><img src="${propImage('lamp')}" alt="Masa Lambası"></span>`,
+    placed.includes('plant') && `<span class="desk-prop desk-plant"><img src="${propImage('leaves')}" class="plant-leaves" alt=""><img src="${propImage('pot')}" alt="Monstera"></span>`,
+    placed.includes('cat') && `<span class="desk-prop desk-cat"><img src="${propImage('cat')}" alt="Kedi"></span>`,
+  ].filter(Boolean).join('');
+}
+
 function seat(member, index, [column, row]) {
   const onBreak = member?.status === 'break';
   return `<div class="seat ${member?.own ? 'own' : member ? '' : 'empty'}" style="grid-column:${column};grid-row:${row}">
     ${member ? `<span class="seat-status ${onBreak ? 'break' : ''}"><span class="dot"></span> ${onBreak ? 'Molada' : 'Masada'}</span>` : ''}
     <div class="chair"></div>
     ${member && !onBreak ? sprite(member.placed.includes('sweater') ? { ...member.avatar, outfit: 0, color: '#d88b47' } : member.avatar, true) : ''}
-    <div class="desktop"><span class="${member && !onBreak ? 'laptop' : 'book'}" aria-hidden="true"></span><span>${member ? member.placed.filter(id => id !== 'sweater').map(id => data.items.find(item => item.id === id).icon).join(' ') || '☕' : ''}</span></div>
+    <div class="desktop"><span class="${member && !onBreak ? 'laptop' : 'book'}" aria-hidden="true"></span>${member ? deskItems(member.placed) : ''}</div>
     <div class="seat-name">${member ? escape(member.name) + (member.own ? ' · Sen' : '') : 'Boş masa ' + (index + 1)}</div>
   </div>`;
 }
@@ -140,6 +149,7 @@ function profileView() {
   return `<div class="heading"><div><p class="eyebrow">♙ &nbsp; SENİN KÖŞEN</p><h1>${profile ? 'Profil ve Envanter' : 'Avatarını oluştur'}</h1><p>${profile ? 'Avatarını ve çalışma masanı kişiselleştir.' : 'Kütüphaneye katılmak için bir ad ve avatar seç.'}</p></div></div>
   <section class="profile-card">${sprite(editing || !profile ? avatar : profile.avatar)}${editing || !profile ? `<form id="avatar-form"><label>Kullanıcı adı<input name="name" value="${name}" minlength="2" maxlength="24" required placeholder="Örn. berk_aydin"></label>
   <div class="form-options">
+    ${picker('gender', 'Cinsiyet', avatar.gender, genders)}
     ${picker('hair', 'Saç', avatar.hair, ['Kısa', 'Kaküllü', 'Topuz'].map((text, index) => [index, text]))}
     ${picker('outfit', 'Kıyafet', avatar.outfit, ['Kazak', 'Tişört', 'Hırka'].map((text, index) => [index, text]))}
     ${picker('color', 'Renk', avatar.color, ['Tarçın', 'Adaçayı', 'Gece mavisi', 'Kahve'].map((text, index) => [palette[index], text]))}
@@ -229,7 +239,7 @@ document.addEventListener('click', event => {
     document.querySelector(value === 'custom' ? '#custom-duration' : '[data-picker="duration"] summary').focus();
     return;
   }
-  avatar[name] = name === 'color' ? value : Number(value);
+  avatar[name] = name === 'hair' || name === 'outfit' ? Number(value) : value;
   picker.querySelector('summary span').textContent = option.textContent;
   picker.querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button === option)));
   picker.querySelector('summary').focus();

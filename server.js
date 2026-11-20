@@ -20,7 +20,7 @@ const rooms = [
 const items = [
   { id: 'lamp', icon: '🏮', name: 'Masa Lambası', price: 10, detail: 'Masana sıcak bir ışık kat.' },
   { id: 'plant', icon: '🪴', name: 'Monstera', price: 20, detail: 'Çalışma köşene biraz yeşillik.' },
-  { id: 'cat', icon: '🐈', name: 'Uyuyan Kedi', price: 30, detail: 'Sessiz bir çalışma arkadaşı.' },
+  { id: 'cat', icon: '🐈', name: 'Gezgin Kedi', price: 30, detail: 'Sessiz bir çalışma arkadaşı.' },
   { id: 'sweater', icon: '🧥', name: 'Turuncu Kazak', price: 20, detail: 'Avatarına sıcak bir kıyafet.' },
 ];
 
@@ -92,9 +92,10 @@ export function createLibrary({ database = ':memory:', clock = Date.now } = {}) 
     }
   };
   const inventory = (id) => all('SELECT item, placed FROM user_items WHERE user = ?', id);
+  const readAvatar = (json) => ({ gender: 'unspecified', ...JSON.parse(json) });
   const state = (id, now) => {
     const profile = get('SELECT name, avatar, room, status, coins FROM profiles WHERE id = ?', id);
-    if (profile) profile.avatar = JSON.parse(profile.avatar);
+    if (profile) profile.avatar = readAvatar(profile.avatar);
     const session = id && get('SELECT start, end, checks, state, paused_at, verification_due FROM sessions WHERE user = ? ORDER BY rowid DESC LIMIT 1', id);
     const counts = all('SELECT room, count(*) AS total FROM profiles WHERE seen > ? GROUP BY room', now - activeMs);
     const members = profile?.room ? all('SELECT id, name, avatar, status FROM profiles WHERE room = ? AND seen > ? ORDER BY rowid', profile.room, now - activeMs) : [];
@@ -102,17 +103,21 @@ export function createLibrary({ database = ':memory:', clock = Date.now } = {}) 
       now, profile, session, items, inventory: id ? inventory(id) : [],
       rooms: rooms.map(room => ({ ...room, count: counts.find(row => row.room === room.id)?.total ?? 0 })),
       members: members.map(member => ({
-        ...member, own: member.id === id, id: undefined, avatar: JSON.parse(member.avatar),
+        ...member, own: member.id === id, id: undefined, avatar: readAvatar(member.avatar),
         placed: inventory(member.id).filter(item => item.placed).map(item => item.item),
       })),
     };
   };
   const require = (condition, message) => { if (!condition) throw new Error(message); };
-  const saveAvatar = (input) => {
+  const saveAvatar = (input, previous) => {
     const name = typeof input.name === 'string' ? input.name.trim() : '';
+    const gender = input.gender === undefined
+      ? (previous ? readAvatar(previous).gender : 'unspecified')
+      : input.gender;
     require(name.length >= 2 && name.length <= 24, 'Kullanıcı adı 2–24 karakter olmalı.');
+    require(['female', 'male', 'unspecified'].includes(gender), 'Geçerli bir cinsiyet seç.');
     require([0, 1, 2].includes(input.hair) && [0, 1, 2].includes(input.outfit) && colors.includes(input.color), 'Avatar parçalarını seç.');
-    return [name, JSON.stringify({ hair: input.hair, outfit: input.outfit, color: input.color })];
+    return [name, JSON.stringify({ gender, hair: input.hair, outfit: input.outfit, color: input.color })];
   };
 
   function dispatch(id, action, input) {
@@ -126,7 +131,7 @@ export function createLibrary({ database = ':memory:', clock = Date.now } = {}) 
         require(['state', 'status', 'verify'].includes(action), 'Diğer işlemler için önce mola ver.');
       }
       if (action === 'profile') {
-        const [name, avatar] = saveAvatar(input);
+        const [name, avatar] = saveAvatar(input, profile?.avatar);
         if (id) run('UPDATE profiles SET name = ?, avatar = ? WHERE id = ?', name, avatar, id);
         else {
           id = randomUUID();

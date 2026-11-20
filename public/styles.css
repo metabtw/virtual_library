@@ -153,9 +153,11 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
   border: 3px solid #855a59;
 }
 .desktop {
+  --prop-size: clamp(14px, 2.7vw, 29px);
+  position: relative;
   grid-row: 2;
-  width: min(96%,160px);
-  height: clamp(22px,3.5vw,32px);
+  width: min(74%,108px);
+  height: clamp(18px,2.7vw,25px);
   padding: 0 clamp(3px,1vw,9px);
   font-size: clamp(8px,1.5vw,14px);
   border: 0;
@@ -165,7 +167,68 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
   background: repeating-linear-gradient(0deg,#9c6146 0 4px,#a76a4c 4px 8px);
   box-shadow: 0 5px #331e2a,0 9px 12px #170d16ac;
 }
-.desktop span:last-child {white-space: nowrap;overflow: hidden}
+.own .desktop {
+  --prop-size: clamp(20px, 3.6vw, 40px);
+  width: min(100%,188px);
+  height: clamp(29px,4.5vw,42px);
+  border-top-color: #ffc088;
+}
+.desk-prop {
+  position: absolute;
+  bottom: calc(100% - 3px);
+  width: var(--prop-size);
+  aspect-ratio: 1;
+  pointer-events: none;
+}
+.desk-prop img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  image-rendering: pixelated;
+}
+.desk-lamp {left: 9%}
+.desk-lamp::before {
+  content: '';
+  position: absolute;
+  inset: -48% -55% -20%;
+  background: radial-gradient(ellipse, #ffc468a8, #ffcb7a00 69%);
+  animation: lamp-glow 3.8s ease-in-out infinite alternate;
+}
+.desk-plant {right: 7%}
+.plant-leaves {
+  transform-origin: 47% 73%;
+  animation: plant-sway 2.8s ease-in-out infinite alternate;
+}
+.desk-cat {
+  left: 2%;
+  bottom: calc(100% - var(--prop-size) * .37);
+  z-index: 1;
+  animation: cat-stroll 7s steps(20,end) infinite;
+}
+.desk-cat img {animation: cat-step .25s steps(2,end) infinite alternate}
+@keyframes lamp-glow {
+  from {opacity: .52; transform: scale(.83)}
+  to {opacity: .95; transform: scale(1.13)}
+}
+@keyframes plant-sway {
+  from {transform: rotate(-8deg)}
+  to {transform: rotate(8deg)}
+}
+@keyframes cat-stroll {
+  0% {left: 2%; transform: scaleX(1)}
+  44%,49.9% {left: calc(98% - var(--prop-size)); transform: scaleX(1)}
+  50% {left: calc(98% - var(--prop-size)); transform: scaleX(-1)}
+  94%,99.9% {left: 2%; transform: scaleX(-1)}
+  100% {left: 2%; transform: scaleX(1)}
+}
+@keyframes cat-step {
+  from {translate: 0 0}
+  to {translate: 0 -2px}
+}
+@media (prefers-reduced-motion: reduce) {
+  .desk-prop,.desk-prop img,.desk-lamp::before {animation: none}
+  .desk-cat {left: calc(50% - var(--prop-size) / 2)}
+}
 .laptop,.book {display:block;flex:none;height: 8px;background:#514357;border:1px solid #d2a89c;width:12px}
 .laptop {border-bottom:2px solid #201426}
 .book {height:5px;background:#b08860}
@@ -200,10 +263,10 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 .sprite.small {
   grid-row: 1;
   align-self: end;
-  width: min(75%,80px);
+  width: min(66%,63px);
   margin: 0;
 }
-.own .sprite {filter: drop-shadow(0 0 10px #ffc689a0)}
+.own .sprite {width: min(85%,92px);filter: drop-shadow(0 0 10px #ffc689a0)}
 .controls,.profile-card {
   min-width: 0;
   border-radius: 20px;
@@ -238,7 +301,7 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 .profile-card .secondary {max-width: 100%;white-space: normal;margin-block: 3px}
 .form-options {
   display: grid;
-  grid-template-columns: repeat(3,minmax(0,1fr));
+  grid-template-columns: repeat(2,minmax(0,1fr));
   gap: 9px;
 }
 .field,.profile-card label {

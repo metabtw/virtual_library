@@ -1,7 +1,7 @@
 const portraits = new Map();
 
-export function portrait({ hair, outfit, color }) {
-  const key = [hair, outfit, color].join('/');
+export function portrait({ gender = 'unspecified', hair, outfit, color }) {
+  const key = [gender, hair, outfit, color].join('/');
   if (portraits.has(key)) return portraits.get(key);
 
   const canvas = document.createElement('canvas');
@@ -32,6 +32,13 @@ export function portrait({ hair, outfit, color }) {
   paint('#301c29', [[11, 16, 2, 3], [20, 16, 2, 3], [15, 20, 3, 1]]);
   paint('#ffe7bd', [[11, 16, 1, 1], [20, 16, 1, 1]]);
   paint('#dd866e', [[9, 19, 3, 1], [21, 19, 3, 1]]);
+  if (gender === 'female') {
+    paint('#301c29', [[10, 16, 1, 1], [22, 16, 1, 1]]);
+    paint('#ffda8a', [[8, 20, 2, 2], [22, 20, 2, 2]]);
+  }
+  if (gender === 'male') {
+    paint('#784637', [[11, 14, 2, 1], [20, 14, 2, 1], [10, 21, 2, 1], [20, 21, 2, 1]]);
+  }
   paint(color, [[9, 26, 14, 6], [6, 28, 20, 4], [4, 30, 24, 2]]);
   paint('#372333', [[7, 30, 2, 2], [23, 30, 2, 2]]);
   const trim = [
@@ -43,5 +50,55 @@ export function portrait({ hair, outfit, color }) {
 
   const image = canvas.toDataURL();
   portraits.set(key, image);
+  return image;
+}
+
+const propPalette = {
+  x: '#2a1928', a: '#c5733e', y: '#f6af5e', c: '#fff0b5', b: '#9d5e50',
+  g: '#417660', l: '#77a85c', m: '#afd486', r: '#e89770',
+};
+
+const propPixels = {
+  cat: [
+    '................', '.......x..x.....', '......xyxxyx....', 'x.....xyyyyx....',
+    'xx...xyxyxyx....', '.xa.xyyyyyyx....', '..xxyyyyycyx....', '...xyaayyaxx....',
+    '...xaaaaaaaaax..', '....xayxxayxx...', '.....xx..xx.....', '................',
+    '................', '................', '................', '................',
+  ],
+  lamp: [
+    '................', '......xxxx......', '.....xyyyyx.....', '....xyyyyyyx....',
+    '...xyyyyyyyyx...', '...xccccccccx...', '....xxxxxxxx....', '.......yb.......',
+    '.......yb.......', '.......yb.......', '.......yb.......', '.......yb.......',
+    '......xxyx......', '....xxyyybxx....', '....xxxxxxxx....', '................',
+  ],
+  leaves: [
+    '...........gg...', '..........gmlg..', '..gg....gglllg..', '.gmlg..gmlggg...',
+    '.glllg.glg......', '..gglggg....gg..', '....glg...ggmlg.', '.....g...glgllg.',
+    '.....g..ggllgg..', '......ggg.gg....', '......gg........', '.......g........',
+    '................', '................', '................', '................',
+  ],
+  pot: [
+    '................', '................', '................', '................',
+    '................', '................', '................', '................',
+    '................', '................', '....xxxxxxxx....', '....xrrrrrrx....',
+    '.....xrbbbx.....', '.....xrbbbx.....', '......xbbx......', '......xxxx......',
+  ],
+};
+const props = new Map();
+
+export function propImage(name) {
+  if (props.has(name)) return props.get(name);
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 16;
+  const context = canvas.getContext('2d');
+  propPixels[name].forEach((row, y) => {
+    Array.from(row).forEach((pixel, x) => {
+      if (pixel === '.') return;
+      context.fillStyle = propPalette[pixel];
+      context.fillRect(x, y, 1, 1);
+    });
+  });
+  const image = canvas.toDataURL();
+  props.set(name, image);
   return image;
 }

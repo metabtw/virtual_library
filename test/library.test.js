@@ -148,3 +148,17 @@ test('custom focus durations are validated and timed by the server', async t => 
   assert.equal(completed.session.state, 'completed');
   assert.equal(completed.profile.coins, 31);
 });
+
+test('avatar gender is optional, validated and visible to room members', async t => {
+  const { client } = await fixture(t);
+  const ada = client();
+  const observer = client();
+  assert.equal((await ada('profile', { ...avatar, name: 'Ada' })).profile.avatar.gender, 'unspecified');
+  await ada('profile', { ...avatar, name: 'Ada', gender: 'female' });
+  await ada('profile', { ...avatar, name: 'Ada 2', gender: 'invalid' }, 400);
+  assert.equal((await ada('profile', { ...avatar, name: 'Ada' })).profile.avatar.gender, 'female');
+  await ada('join', { room: 'night' });
+  await observer('profile', { ...avatar, name: 'Efe', gender: 'male' });
+  const room = await observer('join', { room: 'night' });
+  assert.deepEqual(room.members.map(member => member.avatar.gender), ['female', 'male']);
+});
