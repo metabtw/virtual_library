@@ -160,7 +160,8 @@ export function createLibrary({ database = ':memory:', clock = Date.now } = {}) 
         }
         if (action === 'start') {
           profile = get('SELECT * FROM profiles WHERE id = ?', id);
-          require(profile.room && !active(id) && [25, 50, 90].includes(input.duration), 'Bu periyot başlatılamadı.');
+          require(profile.room && !active(id), 'Bu periyot başlatılamadı.');
+          require(Number.isInteger(input.duration) && input.duration >= 5 && input.duration <= 180, 'Periyot süresi 5–180 dakika arasında tam sayı olmalı.');
           run('INSERT INTO sessions (id, user, start, end) VALUES (?, ?, ?, ?)', randomUUID(), id, now, now + input.duration * minute);
           run("UPDATE profiles SET status = 'desk' WHERE id = ?", id);
         }
@@ -193,6 +194,7 @@ export function createLibrary({ database = ':memory:', clock = Date.now } = {}) 
     '/': ['index.html', 'text/html; charset=utf-8'],
     '/styles.css': ['styles.css', 'text/css; charset=utf-8'],
     '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
+  '/sprites.js': ['sprites.js', 'text/javascript; charset=utf-8'],
     '/library.webp': ['library.webp', 'image/webp'],
   };
   const server = createServer(async (req, res) => {

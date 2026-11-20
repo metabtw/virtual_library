@@ -33,7 +33,7 @@ async function fixture(t) {
 
 test('serves the application and room illustration', async t => {
   const { origin } = await fixture(t);
-  for (const path of ['/', '/app.js', '/styles.css', '/library.webp']) {
+  for (const path of ['/', '/app.js', '/sprites.js', '/styles.css', '/library.webp']) {
     const response = await fetch(origin + path);
     assert.equal(response.status, 200);
     assert.ok((await response.arrayBuffer()).byteLength > 0);
@@ -131,4 +131,20 @@ test('pausing or resuming during an open verification does not extend its deadli
   await api('status', { status: 'desk' });
   advance(10_000);
   assert.equal((await api('state')).session.state, 'invalid');
+});
+
+test('custom focus durations are validated and timed by the server', async t => {
+  const { client, advance } = await fixture(t);
+  const api = client();
+  await api('profile', { ...avatar, name: 'Ada' });
+  await api('join', { room: 'night' });
+  for (const duration of [4, 181, 7.5, '7']) {
+    await api('start', { duration }, 400);
+  }
+  const { session } = await api('start', { duration: 7 });
+  assert.equal(session.end - session.start, 7 * minute);
+  advance(7 * minute);
+  const completed = await api('state');
+  assert.equal(completed.session.state, 'completed');
+  assert.equal(completed.profile.coins, 31);
 });
