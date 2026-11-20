@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#171513">
+  <title>Sanal Kütüphane</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="#room"><span>◫</span><b>Sanal<br>Kütüphane</b></a>
+    <nav aria-label="Ana menü">
+      <a href="#rooms"><i>⌂</i> Odalar</a>
+      <a href="#room"><i>▤</i> Kütüphane</a>
+      <a href="#shop"><i>♧</i> Mağaza</a>
+      <a href="#profile"><i>♙</i> Profil &amp; Envanter</a>
+    </nav>
+    <div class="sidebar-footer"><span class="dot"></span> Kütüphane açık</div>
+  </aside>
+  <main>
+    <header><span class="breadcrumb">Sanal Kütüphane <span>›</span> <b id="location">Kütüphane</b></span><div class="wallet"><span>◉</span> <b id="balance">0</b> jeton</div></header>
+    <section id="content" aria-label="Kütüphane"></section>
+  </main>
+  <p id="notice" role="status"></p>
+  <dialog id="verify-dialog"><h2>Hâlâ masada mısın?</h2><p>Çalışma periyodunu doğrulamak için kalan süre <b id="verify-time"></b>.</p><button class="primary" data-action="verify">Buradayım</button></dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
