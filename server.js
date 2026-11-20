@@ -1,8 +1,15 @@
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync } from 'node:fs';
-import { dirname } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+if (Number(process.versions.node.split('.')[0]) < 24) {
+  console.error(`Sanal Kütüphane için Node.js 24 veya üzeri gerekir. Yüklü sürüm: ${process.version}.`);
+  process.exit(1);
+}
+
+const { DatabaseSync } = await import('node:sqlite');
 
 const rooms = [
   { id: 'night', name: 'Gece Kuşları Kütüphanesi', icon: '☾', detail: 'Gece boyunca sessizce odaklan.' },
@@ -208,7 +215,7 @@ export function createLibrary({ database = ':memory:', clock = Date.now } = {}) 
   return server;
 }
 
-if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const database = process.env.LIBRARY_DB || '.data/library.sqlite';
   mkdirSync(dirname(database), { recursive: true });
   const port = Number(process.env.PORT || 3000);

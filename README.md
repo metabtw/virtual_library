@@ -6,6 +6,8 @@ Avatarlı ortak çalışma odaları için ilk oynanabilir web sürümü.
 
 Node.js 24 veya üzeri gerekir. Harici paket kurulumu gerekmez.
 
+Windows'ta Node.js 20 kullanıyorsan [Node.js 24 LTS](https://nodejs.org/en/download) sürümünü kur. Yeni bir PowerShell penceresi açıp proje klasöründe `node -v` komutuyla sürümü kontrol et. Hâlâ eski sürüm görünüyorsa `where.exe node` ile PowerShell'in hangi kurulumu kullandığını kontrol et.
+
 ```sh
 npm start
 ```
