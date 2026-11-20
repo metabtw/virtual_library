@@ -7,7 +7,7 @@ declare const EdgeRuntime: { waitUntil(work: Promise<unknown>): void };
 const url = Deno.env.get('SUPABASE_URL')!;
 const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 const auth = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!);
-const actions = new Set(['state', 'profile', 'join', 'leave', 'status', 'start', 'verify', 'buy', 'place', 'deleteAccount', 'pushRegister', 'pushRemove']);
+const actions = new Set(['state', 'profile', 'join', 'leave', 'status', 'start', 'verify', 'buy', 'place', 'deleteAccount', 'pushRegister', 'pushRemove', 'target', 'createRoom', 'joinCode', 'openBox', 'openChest', 'abandon']);
 
 Deno.serve(async (request) => {
   if (request.method !== 'POST') return Response.json({ error: 'method' }, { status: 405 });

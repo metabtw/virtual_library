@@ -7,7 +7,14 @@
       "expo-router",
       "expo-notifications",
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "userInterfaceStyle": "dark",
     "orientation": "portrait",
@@ -15,7 +22,10 @@
       "bundleIdentifier": "com.metabtw.sanalkutuphane"
     },
     "android": {
-      "package": "com.metabtw.sanalkutuphane"
+      "package": "com.metabtw.sanalkutuphane",
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "experiments": {
       "typedRoutes": true

@@ -65,6 +65,7 @@ export function drawAvatar({ gender = 'unspecified', hair, outfit, color }, pain
 const propPalette = {
   x: '#2a1928', a: '#c5733e', y: '#f6af5e', c: '#fff0b5', b: '#9d5e50',
   g: '#417660', l: '#77a85c', m: '#afd486', r: '#e89770',
+  n: '#62ccec', s: '#da75e4', v: '#8650ad',
 };
 
 const propPixels = {
@@ -91,6 +92,33 @@ const propPixels = {
     '................', '................', '................', '................',
     '................', '................', '....xxxxxxxx....', '....xrrrrrrx....',
     '.....xrbbbx.....', '.....xrbbbx.....', '......xbbx......', '......xxxx......',
+  ],
+  catSleep: [
+    '.............yy.', '............y...', '.............yy.', '................',
+    '................', '.......xx..xx...', '......xyyxxxyx..', '....xxyyyyyyyx..',
+    '...xyyyxyyxyyxx.', '..xyyyyycyyyyaa.', '.xaaaaayyyyyyax.', '.xxxxxxxxxxxxx..',
+  ],
+  catUpset: [
+    '................', '................', '................', '................',
+    '................', '........x..x....', '.....xxxaxxxax..', '....xaaaaaaaax..',
+    '...xaxaaxxxaaxx.', '..xaaaxaaxaaax..', '..xaaaaaaaaax...', '...xxxxxxxxx....',
+  ],
+  neon: [
+    '......xxxx......', '.....xnnnnx.....', '....xncscsnx....', '...xnnssssnnx...',
+    '...xccccccccx...', '....xxxxxxxx....', '.......nn.......', '.......ns.......',
+    '.......ns.......', '.......ns.......', '.......ns.......', '......xxx.......',
+    '....xxnnssxx....', '....xxxxxxxx....', '................', '................',
+  ],
+  goldKeys: [
+    '................', '................', '................', '................',
+    '................', '................', '................', '................',
+    '..xxxxxxxxxxxx..', '.xycycycycycyyx.', '.xyyyyyyyyyyyyx.', '.xycycycycycyax.',
+    '.xyyyyyyyyyyaax.', '..xxxxxxxxxxxx..',
+  ],
+  dragon: [
+    '................', '.........v......', '........vx......', '......xvxx......',
+    '.....xvvvx......', '....xvvsx...vv..', '..xxvvvsxxxxvx..', '.xvvvvssvvvx....',
+    '..xgxsvvvsxxx...', '...xvvvvssvvx...', '....xxvvvvxx....', '......xxxx......',
   ],
 };
 export function drawProp(name, paint) {

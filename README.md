@@ -59,3 +59,14 @@ Android ve iOS development build oluşturmak için Expo'nun `npx expo run:androi
 ## CI ve veritabanı kontrolü
 
 `npm ci && npm run test:postgres` migration'ları yerel Postgres üzerinde doğrular. GitHub Actions ayrıca web testlerini, mobil TypeScript kontrolünü, iOS/Android paket üretimini ve Edge Function tip kontrolünü çalıştırır.
+
+## Mobil çalışma kulüpleri
+
+- **Ne çalışıyorsun?** Profilde isteğe bağlı tek satırlık hedef seçilir. Oda görünümünde adının altında gösterilir ve oda listesinden hedef metniyle arama yapılabilir.
+- **Özel odalar** 10 jetona açılır ve en fazla 9 kişi alır. İlk katılım için altı rakamlı davet kodu gerekir. Davet kodu oda sahibinin ekranında gösterilir. Özel odalar yalnızca davetle daha önce erişim almış hesapların listesinde görünür.
+- **Kütüphane Ağacı** yalnızca başarıyla tamamlanan periyotların dakikasını, periyodun başladığı odaya ekler. Her 500 dakikada o sırada odada bulunan üyelere bir sandık verilir. İlk eşiğin ardından kuzey ışıklı arka plan açılır.
+- **Gizem Kutusu** 50 jetona koleksiyonda eksik olan bir nadir eşya verir. Oda sandıkları ücretsizdir. Nadir koleksiyon tamamlandığında ücretsiz sandık 10 jeton verir. Ücretli kutu koleksiyon tamamlandığında açılamaz.
+- **Ambiyans** yağmur, şömine, kafe ve lo-fi döngülerini ayrı ayrı karıştırır. Uzay İstasyonu ve Orman Kulübesi paketleri 30'ar jetondur. Oda ekranı kapanınca ses durur. Döngüler özgün sentezdir ve `python scripts/make-ambience.py` ile yeniden üretilebilir.
+- **Kedi** her 50 doğrulanmış dakika için bir seviye ilerler. Yarım bırakılan veya doğrulaması kaçırılan periyotta küser. Sonraki en az 50 dakikalık başarılı periyotta geliştirilen uyku görünümüne döner.
+
+Ambiyans için `expo-audio` yerel modülü kullanılır. Daha eski bir development build kullanıyorsan uygulamayı tekrar derle.

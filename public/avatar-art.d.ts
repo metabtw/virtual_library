@@ -7,6 +7,6 @@ export function drawAvatar(
   paint: (color: string, blocks: [number, number, number, number][]) => void,
 ): void;
 export function drawProp(
-  name: 'cat' | 'lamp' | 'leaves' | 'pot',
+  name: 'cat' | 'lamp' | 'leaves' | 'pot' | 'catSleep' | 'catUpset' | 'neon' | 'goldKeys' | 'dragon',
   paint: (color: string, x: number, y: number) => void,
 ): void;

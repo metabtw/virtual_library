@@ -121,7 +121,73 @@ try {
   await db.query('delete from auth.users where id = $1', [second]);
   assert.equal((await db.query('select 1 from public.coin_ledger where user_id = $1', [second])).rows.length, 0);
   assert.equal((await db.query('select 1 from public.reward_delivery')).rows.length, 1);
-  console.log('Postgres: migration, RLS, capacity, commerce, pause, verification, reward settlement, retry lease and account deletion passed.');
+  const outsider = users[9];
+  const room = await action(first, 'createRoom', { name: 'Akşam Grubu' });
+  const privateRoom = room.rooms.find(entry => entry.private);
+  assert.equal(room.profile.coins, 0);
+  assert.match(privateRoom.invite, /^\d{6}$/);
+  assert.equal((await action(first, 'createRoom', { name: 'Yedek' })).error, 'insufficientCoins');
+  assert.equal((await action(outsider, 'state')).rooms.some(entry => entry.private), false);
+  assert.equal((await action(outsider, 'join', { room: privateRoom.id })).error, 'inviteRequired');
+
+  const joined = await action(third, 'joinCode', { code: privateRoom.invite });
+  assert.equal(joined.profile.room, privateRoom.id);
+  assert.equal(joined.rooms.find(entry => entry.id === privateRoom.id).invite, null);
+  await action(third, 'target', { target: 'Matematik Vize' });
+  const shared = await action(first, 'state');
+  assert.deepEqual(shared.rooms.find(entry => entry.id === privateRoom.id).targets, ['Matematik Vize']);
+  assert.equal(shared.members.find(entry => entry.target === 'Matematik Vize').own, false);
+
+  await db.exec('set role authenticated');
+  await db.query("select set_config('request.jwt.claim.sub', $1, false)", [outsider]);
+  assert.equal((await db.query('select count(*)::int as count from public.rooms where is_private')).rows[0].count, 0);
+  await assert.rejects(db.query('select * from public.private_room_invites'));
+  await db.exec('reset role');
+  const wrongCode = privateRoom.invite === '000000' ? '000001' : '000000';
+  for (let attempt = 0; attempt < 6; attempt++) {
+    assert.equal((await action(outsider, 'joinCode', { code: wrongCode })).error, 'invalidInvite');
+  }
+  assert.equal((await action(outsider, 'joinCode', { code: privateRoom.invite })).error, 'inviteLimited');
+
+  await action(third, 'buy', { item: 'cat' });
+  await action(third, 'start', { duration: 50 });
+  await action(third, 'abandon');
+  assert.deepEqual((await action(third, 'state')).pet, { xp: 0, upset: true });
+  assert.equal((await action(third, 'state')).rooms.find(entry => entry.id === privateRoom.id).minutes, 0);
+  await db.query('insert into public.room_progress (room_id, minutes) values ($1,450)', [privateRoom.id]);
+  await action(third, 'start', { duration: 50 });
+  await shiftSession(third, 1200100);
+  await action(third, 'verify');
+  await shiftSession(third, 1200000);
+  await action(third, 'verify');
+  await shiftSession(third, 600000);
+  assert.equal(await settle(), 1);
+  assert.equal(await settle(), 0);
+  const milestone = await action(third, 'state');
+  assert.equal(milestone.rooms.find(entry => entry.id === privateRoom.id).minutes, 500);
+  assert.deepEqual(milestone.pet, { xp: 1, upset: false });
+  assert.equal(milestone.chests, 1);
+  assert.equal((await action(first, 'state')).chests, 1);
+  assert.equal((await action(outsider, 'state')).chests, 0);
+
+  const opening = await action(third, 'openChest');
+  assert.equal(opening.chests, 0);
+  assert.ok(['goldKeys', 'dragon', 'neon'].includes(opening.drop.item));
+  assert.equal((await action(third, 'openChest')).error, 'noChest');
+  assert.equal((await action(third, 'openBox')).error, 'insufficientCoins');
+  await db.query('update public.profiles set coins = 80 where id = $1', [third]);
+  assert.equal((await action(third, 'buy', { item: 'neon' })).error, 'itemMissing');
+  const box = await action(third, 'openBox');
+  assert.equal(box.profile.coins, 30);
+  assert.notEqual(box.drop.item, opening.drop.item);
+  assert.equal((await action(third, 'buy', { item: 'space' })).profile.coins, 0);
+  assert.equal((await action(third, 'place', { item: 'space' })).error, 'itemMissing');
+
+  await db.query('delete from auth.users where id = $1', [first]);
+  assert.equal((await action(third, 'state')).rooms.some(entry => entry.private), false);
+  assert.equal((await action(third, 'join', { room: privateRoom.id })).error, 'inviteRequired');
+
+  console.log('Postgres: migration, RLS, capacity, commerce, pause, verification, reward settlement, retry lease, private rooms, collections, group milestones, pet progression and account deletion passed.');
 } finally {
   await db.close();
 }
