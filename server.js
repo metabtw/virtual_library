@@ -29,6 +29,7 @@ const interval = 20 * minute;
 const windowMs = 30_000;
 const activeMs = 15_000;
 const startingCoins = 30;
+const roomCapacity = 9;
 const colors = ['#bd7050', '#789078', '#7988ab', '#ad7963'];
 
 export function createLibrary({ database = ':memory:', clock = Date.now } = {}) {
@@ -71,6 +72,12 @@ export function createLibrary({ database = ':memory:', clock = Date.now } = {}) 
   };
   transaction(() => {
     const columns = new Set(all('PRAGMA table_info(sessions)').map(column => column.name));
+    run(`UPDATE profiles SET room = NULL WHERE id IN (
+      SELECT id FROM (
+        SELECT id, row_number() OVER (PARTITION BY room ORDER BY seen DESC, rowid) AS seat
+        FROM profiles WHERE room IS NOT NULL AND seen > ?
+      ) WHERE seat > ?
+    )`, clock() - activeMs, roomCapacity);
     for (const column of ['paused_at', 'verification_due']) {
       if (!columns.has(column)) db.exec(`ALTER TABLE sessions ADD COLUMN ${column} INTEGER`);
     }
@@ -101,7 +108,7 @@ export function createLibrary({ database = ':memory:', clock = Date.now } = {}) 
     const members = profile?.room ? all('SELECT id, name, avatar, status FROM profiles WHERE room = ? AND seen > ? ORDER BY rowid', profile.room, now - activeMs) : [];
     return {
       now, profile, session, items, inventory: id ? inventory(id) : [],
-      rooms: rooms.map(room => ({ ...room, count: counts.find(row => row.room === room.id)?.total ?? 0 })),
+      rooms: rooms.map(room => ({ ...room, capacity: roomCapacity, count: counts.find(row => row.room === room.id)?.total ?? 0 })),
       members: members.map(member => ({
         ...member, own: member.id === id, id: undefined, avatar: readAvatar(member.avatar),
         placed: inventory(member.id).filter(item => item.placed).map(item => item.item),
@@ -146,8 +153,8 @@ export function createLibrary({ database = ':memory:', clock = Date.now } = {}) 
           const destination = action === 'join' ? input.room : profile.room;
           require(rooms.some(room => room.id === destination), 'Oda bulunamadı.');
           const count = get('SELECT count(*) AS total FROM profiles WHERE room = ? AND id <> ? AND seen > ?', destination, id, now - activeMs).total;
-          if (action === 'join') require(count < 12, 'Bu oda dolu.');
-          run('UPDATE profiles SET room = ? WHERE id = ?', count < 12 ? destination : null, id);
+          if (action === 'join') require(count < roomCapacity, 'Bu oda dolu.');
+          run('UPDATE profiles SET room = ? WHERE id = ?', count < roomCapacity ? destination : null, id);
         }
         if (action === 'leave') run('UPDATE profiles SET room = NULL WHERE id = ?', id);
         if (action === 'status') {
@@ -199,6 +206,7 @@ export function createLibrary({ database = ':memory:', clock = Date.now } = {}) 
     '/': ['index.html', 'text/html; charset=utf-8'],
     '/styles.css': ['styles.css', 'text/css; charset=utf-8'],
     '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
+  '/avatar-art.js': ['avatar-art.js', 'text/javascript; charset=utf-8'],
   '/sprites.js': ['sprites.js', 'text/javascript; charset=utf-8'],
     '/library.webp': ['library.webp', 'image/webp'],
   };

@@ -125,7 +125,8 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
   border-color: #ffd2a63b;
 }
 .seats {
-  grid-template-rows: repeat(var(--rows), minmax(88px, auto));
+  grid-template-columns: minmax(0,1fr) minmax(0,1.45fr) minmax(0,1fr);
+  grid-template-rows: repeat(3, minmax(84px, auto));
   align-items: end;
   gap: clamp(4px,1.4vw,16px);
   width: min(100%, 680px);
@@ -153,11 +154,11 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
   border: 3px solid #855a59;
 }
 .desktop {
-  --prop-size: clamp(14px, 2.7vw, 29px);
+  --prop-size: clamp(24px, 4vw, 42px);
   position: relative;
   grid-row: 2;
-  width: min(74%,108px);
-  height: clamp(18px,2.7vw,25px);
+  width: min(82%,108px);
+  height: clamp(17px,2.4vw,24px);
   padding: 0 clamp(3px,1vw,9px);
   font-size: clamp(8px,1.5vw,14px);
   border: 0;
@@ -168,9 +169,9 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
   box-shadow: 0 5px #331e2a,0 9px 12px #170d16ac;
 }
 .own .desktop {
-  --prop-size: clamp(20px, 3.6vw, 40px);
-  width: min(100%,188px);
-  height: clamp(29px,4.5vw,42px);
+  --prop-size: clamp(35px, 5.8vw, 63px);
+  width: min(100%,220px);
+  height: clamp(34px,5.5vw,52px);
   border-top-color: #ffc088;
 }
 .desk-prop {
@@ -256,17 +257,17 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
   flex: none;
   width: clamp(76px,16vw,144px);
   height: auto;
-  aspect-ratio: 1;
+  aspect-ratio: 40 / 52;
   image-rendering: pixelated;
   filter: drop-shadow(0 5px 4px #150c17a6);
 }
 .sprite.small {
   grid-row: 1;
   align-self: end;
-  width: min(66%,63px);
+  width: min(59%,56px);
   margin: 0;
 }
-.own .sprite {width: min(85%,92px);filter: drop-shadow(0 0 10px #ffc689a0)}
+.own .sprite {width: min(85%,114px);filter: drop-shadow(0 0 10px #ffc689a0)}
 .controls,.profile-card {
   min-width: 0;
   border-radius: 20px;

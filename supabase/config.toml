@@ -1,0 +1,8 @@
+project_id = "virtual-library"
+
+[auth]
+site_url = "sanalkutuphane://auth"
+additional_redirect_urls = ["sanalkutuphane://auth"]
+
+[functions.library]
+verify_jwt = false

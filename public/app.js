@@ -1,4 +1,5 @@
 import { portrait, propImage } from './sprites.js';
+import { hairStyles } from './avatar-art.js';
 
 const content = document.querySelector('#content');
 const notice = document.querySelector('#notice');
@@ -71,6 +72,10 @@ function picker(name, label, value, choices) {
   </details></div>`;
 }
 
+function pickerMarkupForHair() {
+  return picker('hair', 'Saç', avatar.hair, hairStyles[avatar.gender].tr.map((text, index) => [index, text]));
+}
+
 function sprite(part, small = false) {
   return `<img alt="" class="sprite ${small ? 'small' : ''}" src="${portrait(part)}">`;
 }
@@ -97,14 +102,9 @@ function seat(member, index, [column, row]) {
 function roomSeats() {
   const own = data.members.find(member => member.own);
   const others = data.members.filter(member => !member.own);
-  const rows = others.length > 8 ? 5 : 3;
-  const middle = (rows + 1) / 2;
-  const ring = [[1, middle], [3, middle], [2, middle - 1], [2, middle + 1],
-    [1, middle - 1], [3, middle - 1], [1, middle + 1], [3, middle + 1],
-    [1, 1], [3, 1], [2, 5]];
-  const sideSeats = Math.max(6, others.length);
-  return `<div class="seats" style="--rows:${rows}">${seat(own, sideSeats, [2, middle])}${Array.from({length: sideSeats}, (_, index) =>
-    seat(others[index], index, ring[index])).join('')}</div>`;
+  const ring = [[1, 2], [3, 2], [2, 1], [2, 3], [1, 1], [3, 1], [1, 3], [3, 3]];
+  return `<div class="seats">${seat(own, 4, [2, 2])}${ring.map((position, index) =>
+    seat(others[index], (position[1] - 1) * 3 + position[0] - 1, position)).join('')}</div>`;
 }
 
 function roomView() {
@@ -124,13 +124,13 @@ function roomView() {
         : '<button class="primary" data-action="join" data-value="night">Gece Kuşları odasına katıl →</button>';
   const count = room?.count || 0;
   return `<div class="heading"><div><p class="eyebrow">☾ &nbsp; ORTAK ÇALIŞMA ALANI</p><h1>${name}</h1><p>Çalışma süreni ayarla ve birlikte odaklan.</p></div>${running ? '' : '<a class="secondary" href="#rooms">Tüm odalar <span>↗</span></a>'}</div>
-  <section class="scene" aria-label="${name}"><div class="scene-top"><span><span class="dot"></span> <span id="room-count">${count}</span> / 12 kişi</span><span>☾ &nbsp; Sessiz oda</span></div><div id="room-seats">${roomSeats()}</div></section>
+  <section class="scene" aria-label="${name}"><div class="scene-top"><span><span class="dot"></span> <span id="room-count">${count}</span> / ${room?.capacity ?? data.rooms[0].capacity} kişi</span><span>☾ &nbsp; Sessiz oda</span></div><div id="room-seats">${roomSeats()}</div></section>
   <section class="controls"><div class="timer"><div class="timer-ring" id="timer-ring"><b id="timer">50:00</b></div><div><h2>Odak periyodu</h2><p>${running ? 'Çalışma sürüyor' : paused ? 'Molada · Sayaç duraklatıldı' : 'Her 20 dakikada bir doğrulama'}</p></div></div>
   <div class="control-actions">${controls}</div></section>`;
 }
 
 function roomsView() {
-  return `<div class="heading"><div><p class="eyebrow">⌂ &nbsp; ÇALIŞMA ALANLARI</p><h1>Odalar</h1><p>Bir çalışma odası seç ve masanı al.</p></div></div><div class="cards">${data.rooms.map(room => `<article class="card room-card"><span class="item-icon">${room.icon}</span><h2>${room.name}</h2><p>${room.detail}</p><p><span class="dot"></span> ${room.count} / 12 kişi</p><button class="primary" data-action="join" data-value="${room.id}" ${room.count >= 12 && data.profile?.room !== room.id ? 'disabled' : ''}>${data.profile?.room === room.id ? 'Odayı aç' : room.count >= 12 ? 'Oda dolu' : 'Odaya katıl'}</button></article>`).join('')}</div>`;
+  return `<div class="heading"><div><p class="eyebrow">⌂ &nbsp; ÇALIŞMA ALANLARI</p><h1>Odalar</h1><p>Bir çalışma odası seç ve masanı al.</p></div></div><div class="cards">${data.rooms.map(room => `<article class="card room-card"><span class="item-icon">${room.icon}</span><h2>${room.name}</h2><p>${room.detail}</p><p><span class="dot"></span> ${room.count} / ${room.capacity} kişi</p><button class="primary" data-action="join" data-value="${room.id}" ${room.count >= room.capacity && data.profile?.room !== room.id ? 'disabled' : ''}>${data.profile?.room === room.id ? 'Odayı aç' : room.count >= room.capacity ? 'Oda dolu' : 'Odaya katıl'}</button></article>`).join('')}</div>`;
 }
 
 function catalog(inventoryOnly) {
@@ -150,7 +150,7 @@ function profileView() {
   <section class="profile-card">${sprite(editing || !profile ? avatar : profile.avatar)}${editing || !profile ? `<form id="avatar-form"><label>Kullanıcı adı<input name="name" value="${name}" minlength="2" maxlength="24" required placeholder="Örn. berk_aydin"></label>
   <div class="form-options">
     ${picker('gender', 'Cinsiyet', avatar.gender, genders)}
-    ${picker('hair', 'Saç', avatar.hair, ['Kısa', 'Kaküllü', 'Topuz'].map((text, index) => [index, text]))}
+    ${pickerMarkupForHair()}
     ${picker('outfit', 'Kıyafet', avatar.outfit, ['Kazak', 'Tişört', 'Hırka'].map((text, index) => [index, text]))}
     ${picker('color', 'Renk', avatar.color, ['Tarçın', 'Adaçayı', 'Gece mavisi', 'Kahve'].map((text, index) => [palette[index], text]))}
   </div><button class="primary">Avatarı kaydet</button></form>` : `<div><h2>${name}</h2><p>${profile.status === 'desk' ? 'Masada' : 'Molada'}</p><button class="secondary" data-action="edit">Avatarı düzenle</button>${profile.room ? ' <button class="secondary" data-action="leave">Odadan ayrıl</button>' : ''}</div>`}</section>
@@ -240,6 +240,10 @@ document.addEventListener('click', event => {
     return;
   }
   avatar[name] = name === 'hair' || name === 'outfit' ? Number(value) : value;
+  if (name === 'gender') {
+    const hairPicker = document.querySelector('[data-picker="hair"]').closest('.field');
+    hairPicker.outerHTML = pickerMarkupForHair();
+  }
   picker.querySelector('summary span').textContent = option.textContent;
   picker.querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button === option)));
   picker.querySelector('summary').focus();

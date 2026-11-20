@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Sanal Kütüphane",
+    "slug": "sanal-kutuphane",
+    "scheme": "sanalkutuphane",
+    "plugins": [
+      "expo-router",
+      "expo-notifications",
+      "expo-secure-store",
+      "expo-web-browser"
+    ],
+    "userInterfaceStyle": "dark",
+    "orientation": "portrait",
+    "ios": {
+      "bundleIdentifier": "com.metabtw.sanalkutuphane"
+    },
+    "android": {
+      "package": "com.metabtw.sanalkutuphane"
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "platforms": [
+      "ios",
+      "android"
+    ]
+  }
+}

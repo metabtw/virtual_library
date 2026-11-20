@@ -33,7 +33,7 @@ async function fixture(t) {
 
 test('serves the application and room illustration', async t => {
   const { origin } = await fixture(t);
-  for (const path of ['/', '/app.js', '/sprites.js', '/styles.css', '/library.webp']) {
+  for (const path of ['/', '/app.js', '/sprites.js', '/avatar-art.js', '/styles.css', '/library.webp']) {
     const response = await fetch(origin + path);
     assert.equal(response.status, 200);
     assert.ok((await response.arrayBuffer()).byteLength > 0);
@@ -76,20 +76,20 @@ test('missing a verification by exactly 30 seconds invalidates the session', asy
   assert.equal((await api('state')).profile.coins, 30);
 });
 
-test('isolated clients see room status and the server rejects a thirteenth member', async t => {
+test('isolated clients see room status and the server rejects a tenth member', async t => {
   const { client } = await fixture(t);
-  const clients = Array.from({ length: 13 }, client);
+  const clients = Array.from({ length: 10 }, client);
   for (const [index, api] of clients.entries()) {
     await api('profile', { ...avatar, name: 'Okur ' + index });
-    await api('join', { room: 'night' }, index < 12 ? 200 : 400);
+    await api('join', { room: 'night' }, index < 9 ? 200 : 400);
   }
   await clients[0]('status', { status: 'break' });
   const observer = await clients[1]('state');
-  assert.equal(observer.members.length, 12);
+  assert.equal(observer.members.length, 9);
   assert.equal(observer.members[0].status, 'break');
   assert.equal(observer.members[0].own, false);
   await clients[0]('leave', {});
-  assert.equal((await clients[12]('join', { room: 'night' })).members.length, 12);
+  assert.equal((await clients[9]('join', { room: 'night' })).members.length, 9);
 });
 
 test('mola freezes focus time and only running sessions lock other actions', async t => {
