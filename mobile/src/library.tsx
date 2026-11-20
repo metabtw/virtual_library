@@ -6,7 +6,7 @@ import { hairStyles } from '../../public/avatar-art';
 import { deleteAccount, library, supabase } from './api';
 import type { Avatar, Command, Focus, Item, Profile, Snapshot } from './model';
 import { RoomScene, Sprite } from './scene';
-import { allowReminders, removeRemoteReminders, useReminder } from './reminders';
+import { allowReminders, syncRemoteReminders, removeRemoteReminders, useReminder } from './reminders';
 import { hasAnalytics, setUsageMeasurement, trackUsage } from './telemetry';
 import { message, usePreferences, words, type Locale, type Translation } from './strings';
 import { Button, Field, Options, ui } from './ui';
@@ -45,7 +45,13 @@ function Period({ focus, remaining, pending, onAction, t, canStart }: {
   focus: Focus | null; remaining: number; pending: boolean; onAction: (action: Action) => void;
   t: Translation; canStart: boolean;
 }) {
-  const [duration, setDuration] = useState('50');
+  const preferred = usePreferences(s => s.duration);
+  const remember = usePreferences(s => s.setDuration);
+  const [duration, setDuration] = useState(preferred);
+  const chooseDuration = (value: string) => {
+    setDuration(value);
+    if (/^\d{1,3}$/.test(value) && Number(value) >= 5 && Number(value) <= 180) remember(value);
+  };
   const value = Number(duration);
   const valid = /^\d{1,3}$/.test(duration) && value >= 5 && value <= 180;
   const seconds = focus ? Math.max(0, Math.ceil(remaining / 1000)) : valid ? value * 60 : 0;
@@ -60,8 +66,8 @@ function Period({ focus, remaining, pending, onAction, t, canStart }: {
       onAction({ name: 'status', payload: { status: paused ? 'desk' : 'break' } })}>
       {paused ? t.resume : t.pause}
     </Button> : <>
-      <Options label={t.focus} value={duration} values={['25', '50', '90'].map(value => [value, value])} onChange={setDuration} />
-      <Field label={t.duration} keyboardType="number-pad" value={duration} onChangeText={setDuration} maxLength={3} />
+      <Options label={t.focus} value={duration} values={['25', '50', '90'].map(value => [value, value])} onChange={chooseDuration} />
+      <Field label={t.duration} keyboardType="number-pad" value={duration} onChangeText={chooseDuration} maxLength={3} />
       <Button disabled={pending || !valid || !canStart} onPress={() => onAction({ name: 'start', payload: { duration: value } })}>
         {t.start}
       </Button>
@@ -114,6 +120,13 @@ export function Library({ id }: { id: string }) {
   const observed = moment + offset;
   const verify = next !== null && observed >= next && observed < next + 30000;
   useReminder(alerts, next, offset, t);
+  useEffect(() => {
+    setUsageMeasurement(usage);
+    return () => setUsageMeasurement(false);
+  }, [usage]);
+  useEffect(() => {
+    if (alerts) void syncRemoteReminders(locale).catch(() => {});
+  }, [alerts, locale]);
 
   const mutation = useMutation({
     onMutate: async () => {
@@ -239,11 +252,11 @@ export function Library({ id }: { id: string }) {
         <Options label="TR / EN" values={([['tr', 'Türkçe'], ['en', 'English']] as const)} value={locale} onChange={setLocale} />
         <View style={ui.row}><Text style={ui.heading}>{t.alerts}</Text><Switch accessibilityLabel={t.alerts} value={alerts}
           onValueChange={value => {
-            if (value) void allowReminders(locale).then(setAlerts).catch(() => setAlerts(false));
+            if (value) void allowReminders().then(setAlerts).catch(() => setAlerts(false));
             else { setAlerts(false); void removeRemoteReminders().catch(error => setActionError(message(t, error))); }
           }} /></View>
         {hasAnalytics && <View style={ui.row}><Text style={ui.heading}>{t.usage}</Text><Switch accessibilityLabel={t.usage}
-          value={usage} onValueChange={value => { setUsage(value); setUsageMeasurement(value); }} /></View>}
+          value={usage} onValueChange={setUsage} /></View>}
         <Text style={ui.heading}>{t.privacy}</Text><Text style={ui.small}>{t.privacyBody}</Text>
         <Button muted disabled={pending} onPress={() => void signOut()}>{t.signOut}</Button>
         <Button muted disabled={pending} onPress={requestDeletion}>{t.deleteAccount}</Button>

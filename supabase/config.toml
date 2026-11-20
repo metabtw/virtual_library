@@ -6,3 +6,6 @@ additional_redirect_urls = ["sanalkutuphane://auth"]
 
 [functions.library]
 verify_jwt = false
+
+[functions.reward-worker]
+verify_jwt = false

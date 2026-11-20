@@ -38,10 +38,9 @@ npm test
 
 ### Supabase
 
-1. Bir Supabase projesi oluştur. Supabase CLI ile depoyu projeye bağla, `supabase db push` ile migration'ları uygula ve `supabase functions deploy library` ile Edge Function'ı dağıt.
-2. E-posta girişini aç. Magic Link e-posta şablonunda uygulamanın kod girişine uygun `{{ .Token }}` değişkenini kullan. Apple ve Google sağlayıcılarını Supabase Auth ayarlarında etkinleştir, sağlayıcı panellerine Supabase OAuth callback adresini ve Supabase yönlendirme listesine `sanalkutuphane://auth` adresini ekle. Mobilde misafir girişi kapalıdır.
-3. `mobile/.env.example` dosyasından `mobile/.env` oluştur. Proje URL'sini ve yalnızca istemciye dağıtılabilen publishable key'i gir. Service-role anahtarı Edge Function ortamında kalır. Function kullanıcıyı Supabase Auth ile doğrular. Jeton ve oturum yazımları RLS ile istemcilere kapalıdır.
-4. Odaya özel görsel kullanmak için herkese açık `room-art` Storage bucket'ına `night.webp`, `garden.webp` veya `archive.webp` yükleyip `EXPO_PUBLIC_ROOM_ART_FROM_STORAGE=true` ayarla. Uygulamada paketli bir varsayılan sahne bulunur.
+[Adım adım Supabase, e-posta, Google ve Apple giriş rehberi](docs/supabase-kurulum.md) proje bağlantısını, migration'ları, Edge Function dağıtımını ve zamanlanmış ödül işini kapsar. E-posta koduyla giriş temel akıştır. Sosyal giriş düğmeleri sağlayıcılar hazır olduğunda ortam değişkenleriyle açılır. Mobilde misafir girişi kapalıdır.
+
+Odaya özel görsel kullanmak için herkese açık `room-art` Storage alanına `night.webp`, `garden.webp` veya `archive.webp` yükleyip `EXPO_PUBLIC_ROOM_ART_FROM_STORAGE=true` ayarla. Uygulamada paketli bir varsayılan sahne bulunur.
 
 ### Yerel geliştirme
 
@@ -52,6 +51,11 @@ npm run typecheck
 npm start
 ```
 
-Android ve iOS development build oluşturmak için Expo'nun `npx expo run:android` veya `npx expo run:ios` komutunu kullan. iOS derlemesi macOS ve Xcode gerektirir. Yerel doğrulama hatırlatmaları kullanıcı bildirim iznini açtığında çalışır. Periyot tamamlandığında ödül bildirimi göndermek için gerçek cihazda EAS development build, EAS proje kimliği, APNs/FCM kimlik bilgileri ve Supabase Edge Function ortamında `EXPO_PUSH_ACCESS_TOKEN` gerekir.
+Android ve iOS development build oluşturmak için Expo'nun `npx expo run:android` veya `npx expo run:ios` komutunu kullan. iOS derlemesi macOS ve Xcode gerektirir. Yerel doğrulama hatırlatmaları kullanıcı bildirim iznini açtığında çalışır. Uygulama kapalıyken periyodu sonuçlandırmak için [zamanlanmış ödül işini](docs/supabase-kurulum.md#ödül-işini-zamanla) etkinleştir. Ödül bildirimi göndermek için gerçek cihazda EAS development build, EAS proje kimliği, APNs/FCM kimlik bilgileri ve Supabase Edge Function ortamında `EXPO_PUSH_ACCESS_TOKEN` gerekir.
 
-İsteğe bağlı gözlemleme için örnek ortam dosyasında Sentry DSN ve PostHog alanları var. PostHog, kullanıcı ölçümü açtığında sınırlı sayıda akış olayı toplar. TR/EN aydınlatma metni uygulamada bulunur. Yayın öncesinde metni veri sorumlusu, iletişim bilgisi, işleme sebepleri, aktarımlar ve saklama süreleriyle tamamlayın. Hesap silme işlemi Supabase Auth hesabını ve uygulama kayıtlarını kaldırır.
+İsteğe bağlı gözlemleme için örnek ortam dosyasında Sentry DSN ve PostHog alanları var. PostHog, kullanıcı ölçümü açtığında sınırlı sayıda akış olayı toplar. TR/EN aydınlatma metni uygulamada bulunur. Yayın öncesinde metni [yayın bilgileriyle](docs/kvkk-yayin-notlari.md) tamamla. Hesap silme işlemi Supabase Auth hesabını ve uygulama kayıtlarını kaldırır.
+
+
+## CI ve veritabanı kontrolü
+
+`npm ci && npm run test:postgres` migration'ları yerel Postgres üzerinde doğrular. GitHub Actions ayrıca web testlerini, mobil TypeScript kontrolünü, iOS/Android paket üretimini ve Edge Function tip kontrolünü çalıştırır.

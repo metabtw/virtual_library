@@ -1,12 +1,14 @@
 import type { Session } from '@supabase/supabase-js';
 import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AppState, ScrollView, Text, View } from 'react-native';
 import { supabase } from './api';
 import { Button, Field, ui } from './ui';
 import { usePreferences, words } from './strings';
 
 const callback = 'sanalkutuphane://auth';
+const appleEnabled = process.env.EXPO_PUBLIC_AUTH_APPLE === 'true';
+const googleEnabled = process.env.EXPO_PUBLIC_AUTH_GOOGLE === 'true';
 WebBrowser.maybeCompleteAuthSession();
 
 export function Login() {
@@ -16,8 +18,15 @@ export function Login() {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [sent, setSent] = useState(false);
+  const [resendLocked, setResendLocked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!resendLocked) return;
+    const timer = setTimeout(() => setResendLocked(false), 60000);
+    return () => clearTimeout(timer);
+  }, [resendLocked]);
 
   async function run(work: () => Promise<void>) {
     setBusy(true);
@@ -30,7 +39,9 @@ export function Login() {
   async function emailCode() {
     const { error } = await supabase!.auth.signInWithOtp({ email: email.trim() });
     if (error) throw error;
+    setCode('');
     setSent(true);
+    setResendLocked(true);
   }
 
   async function confirmCode() {
@@ -62,8 +73,9 @@ export function Login() {
       {sent && <Field label={t.code} value={code} onChangeText={setCode} keyboardType="number-pad" autoComplete="one-time-code" />}
       <Button disabled={busy || (sent ? code.trim().length < 6 : !email.includes('@'))}
         onPress={() => void run(sent ? confirmCode : emailCode)}>{sent ? t.signIn : t.sendCode}</Button>
-      <Button muted disabled={busy} onPress={() => void run(() => oauth('apple'))}>{t.apple}</Button>
-      <Button muted disabled={busy} onPress={() => void run(() => oauth('google'))}>{t.google}</Button>
+      {sent && <Button muted disabled={busy || resendLocked} onPress={() => void run(emailCode)}>{t.resend}</Button>}
+      {appleEnabled && <Button muted disabled={busy} onPress={() => void run(() => oauth('apple'))}>{t.apple}</Button>}
+      {googleEnabled && <Button muted disabled={busy} onPress={() => void run(() => oauth('google'))}>{t.google}</Button>}
       {failed && <Text accessibilityLiveRegion="polite" style={ui.warning}>{t.authError}</Text>}
     </View>}
     <View style={ui.card}>

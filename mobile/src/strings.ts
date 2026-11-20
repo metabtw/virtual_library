@@ -1,18 +1,34 @@
+import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 
 export type Locale = 'tr' | 'en';
 type Page = 'rooms' | 'room' | 'shop' | 'profile';
-export const usePreferences = create<{
-  locale: Locale; page: Page; alerts: boolean; usage: boolean;
-  setLocale: (locale: Locale) => void; setPage: (page: Page) => void; setAlerts: (value: boolean) => void; setUsage: (value: boolean) => void;
-}>(set => ({
-  locale: 'tr', page: 'rooms', alerts: false, usage: false,
-  setLocale: locale => set({ locale }), setPage: page => set({ page }), setAlerts: alerts => set({ alerts }), setUsage: usage => set({ usage }),
+type Preferences = {
+  locale: Locale; page: Page; alerts: boolean; usage: boolean; duration: string;
+  setLocale: (locale: Locale) => void; setPage: (page: Page) => void;
+  setAlerts: (value: boolean) => void; setUsage: (value: boolean) => void;
+  setDuration: (duration: string) => void;
+};
+export const usePreferences = create<Preferences>()(persist(set => ({
+  locale: 'tr', page: 'rooms', alerts: false, usage: false, duration: '50',
+  setLocale: locale => set({ locale }), setPage: page => set({ page }),
+  setAlerts: alerts => set({ alerts }), setUsage: usage => set({ usage }),
+  setDuration: duration => set({ duration }),
+}), {
+  name: 'library-preferences-v1',
+  skipHydration: true,
+  storage: createJSONStorage(() => ({
+    getItem: SecureStore.getItemAsync,
+    setItem: SecureStore.setItemAsync,
+    removeItem: SecureStore.deleteItemAsync,
+  })),
+  partialize: ({ locale, alerts, usage, duration }) => ({ locale, alerts, usage, duration }),
 }));
 
 const tr = {
   app: 'Sanal Kütüphane', rooms: 'Odalar', room: 'Oda', shop: 'Mağaza', profile: 'Profil',
-  email: 'E-posta', code: 'E-posta kodu', sendCode: 'Kod gönder', signIn: 'Giriş yap',
+  email: 'E-posta', code: 'E-posta kodu', sendCode: 'Kod gönder', resend: 'Yeni kod gönder', signIn: 'Giriş yap',
   apple: 'Apple ile giriş', google: 'Google ile giriş', signOut: 'Çıkış yap',
   privacy: 'Kişisel veri aydınlatması', privacyBody: 'Hesabınızı yönetmek için e-posta adresiniz ve giriş sağlayıcınız işlenir. Avatarınız, oda durumunuz, çalışma ve jeton geçmişiniz hizmeti sunmak için saklanır. Adınız, avatarınız ve oda durumunuz aynı odanın katılımcılarına görünür. Bildirim ve kullanım ölçümü tercihe bağlıdır. Yapılandırılmışsa anonimleştirilmiş hata raporları hizmetin işletilmesi için kullanılır. Hesap silme işlemi profil ve ilişkili kayıtları kaldırır.',
   cancel: 'Vazgeç', deleteAccount: 'Hesabı sil', confirmDelete: 'Profilini, envanterini ve çalışma geçmişini kalıcı olarak silmek istiyor musun?',
@@ -35,7 +51,7 @@ const tr = {
 
 const en: Record<keyof typeof tr, string> = {
   app: 'Virtual Library', rooms: 'Rooms', room: 'Room', shop: 'Shop', profile: 'Profile',
-  email: 'Email', code: 'Email code', sendCode: 'Send code', signIn: 'Sign in',
+  email: 'Email', code: 'Email code', sendCode: 'Send code', resend: 'Send a new code', signIn: 'Sign in',
   apple: 'Sign in with Apple', google: 'Sign in with Google', signOut: 'Sign out',
   privacy: 'Privacy notice', privacyBody: 'We use your email address and sign-in provider to manage your account. Your avatar, room status, study and coin history are stored to provide the service. Your name, avatar and room status are visible to members in the same room. Notifications and usage measurement are optional. When configured, de-identified error reports are used to maintain the service. Deleting your account removes your profile and related records.',
   cancel: 'Cancel', deleteAccount: 'Delete account', confirmDelete: 'Permanently delete your profile, inventory and study history?',

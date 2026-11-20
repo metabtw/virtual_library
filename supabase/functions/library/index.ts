@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.106.2';
 
-import { notifyReward } from './push.ts';
+import { deliverRewards } from '../_shared/rewards.ts';
 
 declare const EdgeRuntime: { waitUntil(work: Promise<unknown>): void };
 
@@ -46,7 +46,7 @@ Deno.serve(async (request) => {
     return Response.json({ error: 'server' }, { status: 500 });
   }
   if (typeof result?.awarded === 'number') {
-    EdgeRuntime.waitUntil(notifyReward(admin, data.user.id, result.awarded));
+    EdgeRuntime.waitUntil(deliverRewards(admin).catch(() => console.error('reward_delivery_unavailable')));
   }
   return Response.json(result);
 });

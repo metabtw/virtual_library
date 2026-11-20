@@ -10,6 +10,7 @@ const channelId = 'focus';
 const notificationId = 'focus-verification';
 const storageKey = 'registered-expo-push-token';
 let reminderWork = Promise.resolve();
+let remoteWork = Promise.resolve();
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -17,33 +18,40 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export async function allowReminders(locale: Locale) {
+export async function allowReminders() {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync(channelId, {
       name: 'Focus', importance: Notifications.AndroidImportance.HIGH,
     });
   }
-  const permission = await Notifications.requestPermissionsAsync();
-  if (!permission.granted) return false;
-  const projectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || Constants.easConfig?.projectId;
-  if (projectId) {
-    // Local reminders remain available if this device cannot obtain a push token.
-    try {
-      const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
-      const previous = await SecureStore.getItemAsync(storageKey);
-      if (previous && previous !== data) await updateDevice('pushRemove', previous);
-      await updateDevice('pushRegister', data, locale);
-      await SecureStore.setItemAsync(storageKey, data);
-    } catch {}
-  }
-  return true;
+  return (await Notifications.requestPermissionsAsync()).granted;
 }
 
-export async function removeRemoteReminders() {
-  const token = await SecureStore.getItemAsync(storageKey);
-  if (!token) return;
-  await updateDevice('pushRemove', token);
-  await SecureStore.deleteItemAsync(storageKey);
+function runRemote(operation: () => Promise<void>) {
+  const attempt = remoteWork.then(operation);
+  remoteWork = attempt.catch(() => {});
+  return attempt;
+}
+
+export function syncRemoteReminders(locale: Locale) {
+  return runRemote(async () => {
+    const projectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || Constants.easConfig?.projectId;
+    if (!projectId || !(await Notifications.getPermissionsAsync()).granted) return;
+    const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
+    const previous = await SecureStore.getItemAsync(storageKey);
+    if (previous && previous !== data) await updateDevice('pushRemove', previous);
+    await updateDevice('pushRegister', data, locale);
+    await SecureStore.setItemAsync(storageKey, data);
+  });
+}
+
+export function removeRemoteReminders() {
+  return runRemote(async () => {
+    const token = await SecureStore.getItemAsync(storageKey);
+    if (!token) return;
+    await updateDevice('pushRemove', token);
+    await SecureStore.deleteItemAsync(storageKey);
+  });
 }
 
 export function useReminder(enabled: boolean, due: number | null, offset: number, t: Translation) {
