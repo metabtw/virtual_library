@@ -2,11 +2,10 @@ import type { Session } from '@supabase/supabase-js';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { AppState, ScrollView, Text, View } from 'react-native';
-import { supabase } from './api';
+import { authCallbackUrl, completeAuthCode, supabase } from './api';
 import { Button, Field, ui } from './ui';
 import { usePreferences, words } from './strings';
 
-const callback = 'sanalkutuphane://auth';
 const appleEnabled = process.env.EXPO_PUBLIC_AUTH_APPLE === 'true';
 const googleEnabled = process.env.EXPO_PUBLIC_AUTH_GOOGLE === 'true';
 WebBrowser.maybeCompleteAuthSession();
@@ -37,7 +36,9 @@ export function Login() {
   }
 
   async function emailCode() {
-    const { error } = await supabase!.auth.signInWithOtp({ email: email.trim() });
+    const { error } = await supabase!.auth.signInWithOtp({
+      email: email.trim(), options: { emailRedirectTo: authCallbackUrl },
+    });
     if (error) throw error;
     setCode('');
     setSent(true);
@@ -51,15 +52,14 @@ export function Login() {
 
   async function oauth(provider: 'apple' | 'google') {
     const { data, error } = await supabase!.auth.signInWithOAuth({
-      provider, options: { redirectTo: callback, skipBrowserRedirect: true },
+      provider, options: { redirectTo: authCallbackUrl, skipBrowserRedirect: true },
     });
     if (error || !data.url) throw error ?? Error();
-    const result = await WebBrowser.openAuthSessionAsync(data.url, callback);
+    const result = await WebBrowser.openAuthSessionAsync(data.url, authCallbackUrl);
     if (result.type !== 'success') return;
     const code = new URL(result.url).searchParams.get('code');
     if (!code) throw Error();
-    const { error: exchange } = await supabase!.auth.exchangeCodeForSession(code);
-    if (exchange) throw exchange;
+    await completeAuthCode(code);
   }
 
   return <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
@@ -70,7 +70,10 @@ export function Login() {
     {!supabase ? <Text style={ui.warning}>{t.missingConfig}</Text> : <View style={ui.card}>
       <Field label={t.email} value={email} autoCapitalize="none" autoComplete="email" keyboardType="email-address"
         onChangeText={value => { setEmail(value); setSent(false); }} />
-      {sent && <Field label={t.code} value={code} onChangeText={setCode} keyboardType="number-pad" autoComplete="one-time-code" />}
+      {sent && <>
+        <Text accessibilityLiveRegion="polite" style={ui.small}>{t.emailSent}</Text>
+        <Field label={t.code} value={code} onChangeText={setCode} keyboardType="number-pad" autoComplete="one-time-code" />
+      </>}
       <Button disabled={busy || (sent ? code.trim().length < 6 : !email.includes('@'))}
         onPress={() => void run(sent ? confirmCode : emailCode)}>{sent ? t.signIn : t.sendCode}</Button>
       {sent && <Button muted disabled={busy || resendLocked} onPress={() => void run(emailCode)}>{t.resend}</Button>}

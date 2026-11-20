@@ -28,7 +28,9 @@ export const usePreferences = create<Preferences>()(persist(set => ({
 
 const tr = {
   app: 'Sanal Kütüphane', rooms: 'Odalar', room: 'Oda', shop: 'Mağaza', profile: 'Profil',
-  email: 'E-posta', code: 'E-posta kodu', sendCode: 'Kod gönder', resend: 'Yeni kod gönder', signIn: 'Giriş yap',
+  email: 'E-posta', code: 'E-posta kodu', sendCode: 'Giriş e-postası gönder', resend: 'Yeni giriş e-postası gönder',
+  emailSent: 'Giriş için e-postandaki bağlantıyı aynı cihazda aç. E-posta bir kod içeriyorsa kodu da girebilirsin.',
+  authLinkError: 'Bu giriş bağlantısı kullanılamadı. Aynı cihazda yeni bir giriş e-postası iste.', signIn: 'Giriş yap',
   apple: 'Apple ile giriş', google: 'Google ile giriş', signOut: 'Çıkış yap',
   privacy: 'Kişisel veri aydınlatması', privacyBody: 'Hesabınızı yönetmek için e-posta adresiniz ve giriş sağlayıcınız işlenir. Avatarınız, oda durumunuz, çalışma ve jeton geçmişiniz hizmeti sunmak için saklanır. Adınız, avatarınız ve oda durumunuz aynı odanın katılımcılarına görünür. Bildirim ve kullanım ölçümü tercihe bağlıdır. Yapılandırılmışsa anonimleştirilmiş hata raporları hizmetin işletilmesi için kullanılır. Hesap silme işlemi profil ve ilişkili kayıtları kaldırır.',
   cancel: 'Vazgeç', deleteAccount: 'Hesabı sil', confirmDelete: 'Profilini, envanterini ve çalışma geçmişini kalıcı olarak silmek istiyor musun?',
@@ -51,7 +53,9 @@ const tr = {
 
 const en: Record<keyof typeof tr, string> = {
   app: 'Virtual Library', rooms: 'Rooms', room: 'Room', shop: 'Shop', profile: 'Profile',
-  email: 'Email', code: 'Email code', sendCode: 'Send code', resend: 'Send a new code', signIn: 'Sign in',
+  email: 'Email', code: 'Email code', sendCode: 'Send sign-in email', resend: 'Send another sign-in email',
+  emailSent: 'Open the link from your email on this device to sign in. If the email includes a code, you can also enter it below.',
+  authLinkError: 'This sign-in link could not be used. Request another sign-in email on this device.', signIn: 'Sign in',
   apple: 'Sign in with Apple', google: 'Sign in with Google', signOut: 'Sign out',
   privacy: 'Privacy notice', privacyBody: 'We use your email address and sign-in provider to manage your account. Your avatar, room status, study and coin history are stored to provide the service. Your name, avatar and room status are visible to members in the same room. Notifications and usage measurement are optional. When configured, de-identified error reports are used to maintain the service. Deleting your account removes your profile and related records.',
   cancel: 'Cancel', deleteAccount: 'Delete account', confirmDelete: 'Permanently delete your profile, inventory and study history?',

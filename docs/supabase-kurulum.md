@@ -1,6 +1,6 @@
 # Supabase ve mobil giriş kurulumu
 
-Sanal Kütüphane önce e-posta koduyla açılabilir. Google ve Apple girişleri kendi sağlayıcı ayarları hazır olduğunda etkinleştirilir.
+Sanal Kütüphane önce e-postadaki giriş bağlantısıyla açılabilir. Google ve Apple girişleri kendi sağlayıcı ayarları hazır olduğunda etkinleştirilir.
 
 ## Supabase projesini bağla
 
@@ -20,11 +20,11 @@ npx supabase functions deploy reward-worker --project-ref cqvrxlttlyjjlibitrvh
 
 Migration geçmişi beklenmedikse ya da kuru çalıştırma daha önce oluşturulmuş tablolar bildirirse değişiklik uygulamadan önce mevcut şemayı incele. Supabase proje URL'sini ve istemciye dağıtılabilen publishable key'i `mobile/.env.local` dosyasına yaz. `mobile/.env.example` alan adlarını gösterir. Sunucu anahtarları, OAuth sırları ve veritabanı parolası mobil ortama girilmez.
 
-## E-posta koduyla giriş
+## E-postayla giriş
 
-1. Supabase Dashboard'da **Authentication → Sign In / Providers → Email** bölümünü aç ve e-posta sağlayıcısını etkinleştir.
-2. E-posta şablonlarında **Magic Link** şablonuna doğrulama kodu için `{{ .Token }}` ekle. Arayüz kullanıcıdan e-postayla gelen kodu ister.
-3. Geliştirme dışındaki kullanım için kendi SMTP sağlayıcını yapılandır, gönderen adresini doğrula ve gerçek bir cihazda ilk kayıt ile tekrar giriş akışını dene. Supabase'in varsayılan e-posta gönderim servisi testle sınırlıdır.
+1. Supabase Dashboard'da **Authentication → Sign In / Providers → Email** bölümünü aç ve e-posta sağlayıcısını etkinleştir. **Authentication → URL Configuration** yönlendirme listesine `sanalkutuphane://auth` ekle.
+2. Development build'de **Giriş e-postası gönder** düğmesine bas ve gelen bağlantıyı aynı cihazda aç. Uygulama bağlantıdaki tek kullanımlık kodu oturuma çevirir.
+3. Supabase'in varsayılan gönderim servisi testle sınırlıdır. Diğer kullanıcılara e-posta göndermek ve ücretsiz planda şablonu özelleştirmek için özel SMTP sağlayıcısı yapılandır. Kodla giriş sunacaksan hem **Magic Link** hem **Confirm signup** şablonuna `{{ .Token }}` ekle. Kullanıcı e-postada kod yer alıyorsa uygulamadaki alana yazabilir.
 
 [Supabase e-posta OTP](https://supabase.com/docs/guides/auth/auth-email-passwordless) · [SMTP ayarları](https://supabase.com/docs/guides/auth/auth-smtp)
 

@@ -5,6 +5,7 @@ import type { Snapshot } from './model';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const key = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+export const authCallbackUrl = 'sanalkutuphane://auth';
 
 export const supabase = url && key ? createClient(url, key, {
   auth: {
@@ -19,6 +20,19 @@ export const supabase = url && key ? createClient(url, key, {
     flowType: 'pkce',
   },
 }) : null;
+
+// The browser session and Expo Router can both receive the same one-use PKCE code.
+let lastExchange: { code: string; result: Promise<void> } | undefined;
+export function completeAuthCode(code: string): Promise<void> {
+  if (lastExchange?.code === code) return lastExchange.result;
+  const result = (async () => {
+    if (!supabase) throw Error('missingConfig');
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) throw error;
+  })();
+  lastExchange = { code, result };
+  return result;
+}
 
 async function invoke<T>(action: string, payload?: object): Promise<T> {
   if (!supabase) throw Error('missingConfig');
