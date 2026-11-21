@@ -2,7 +2,8 @@ import { Canvas, ImageFormat, Rect, Skia } from '@shopify/react-native-skia';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, Animated, AppState, Easing, Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { avatarSize, drawAvatar, writingSize } from '../../public/avatar-art';
-import type { Member, Pet, ThemeChoice } from './model';
+import type { ItemId, Member, Pet, ThemeChoice } from './model';
+import { itemAssets } from './asset-art';
 import { dressedAvatar, type AvatarLook } from './cosmetics';
 import { resolveTheme, roomThemes } from './themes';
 import { supabase } from './api';
@@ -49,28 +50,23 @@ const writingFrames = [
   require('../assets/animations/writing-3.png'),
 ];
 const propSources = {
+  ...itemAssets,
   cat: require('../assets/animations/cat.png'),
-  catSleep: require('../assets/items/cat.png'),
+  catSleep: itemAssets.cat,
   catUpset: require('../assets/animations/catUpset.png'),
-  lamp: require('../assets/items/lamp.png'),
-  neon: require('../assets/items/neon.png'),
   pot: require('../assets/animations/pot.png'),
   leaves: require('../assets/animations/leaves.png'),
-  goldKeys: require('../assets/items/goldKeys.png'),
-  dragon: require('../assets/items/dragon.png'),
-  teaSet: require('../assets/items/teaSet.png'),
-  hourglass: require('../assets/items/hourglass.png'),
-  miniGlobe: require('../assets/items/miniGlobe.png'),
-  crystalTerrarium: require('../assets/items/crystalTerrarium.png'),
 };
 
 type PropName = keyof typeof propSources;
-type DeskItem = Exclude<PropName, 'catSleep' | 'catUpset' | 'pot' | 'leaves'> | 'plant';
 
-const deskItems: DeskItem[] = [
-  'lamp', 'neon', 'plant', 'goldKeys', 'dragon', 'teaSet', 'hourglass',
-  'miniGlobe', 'crystalTerrarium', 'cat',
-];
+const deskItems = [
+  'lamp', 'neon', 'mushroomLamp', 'plant', 'goldKeys', 'dragon', 'teaSet', 'hourglass',
+  'foxMug', 'retroRadio', 'miniGlobe', 'crystalTerrarium', 'jellyTank', 'origamiCrane', 'cat',
+] as const satisfies readonly ItemId[];
+type DeskItem = typeof deskItems[number];
+
+const lightColors = { lamp: '#ffb84d', neon: '#5de5ff', mushroomLamp: '#ff856b' };
 
 function useAnimationClock(enabled: boolean, duration: number) {
   const [progress] = useState(() => new Animated.Value(0));
@@ -133,10 +129,9 @@ function DeskProp({ item, size, width, clock, pet }: {
   switch (item) {
     case 'lamp':
     case 'neon':
+    case 'mushroomLamp':
       return <View style={specs}>
-        <Animated.View style={[styles.glow, {
-          backgroundColor: item === 'neon' ? '#5de5ff' : '#ffb84d', opacity: light,
-        }]} />
+        <Animated.View style={[styles.glow, { backgroundColor: lightColors[item], opacity: light }]} />
         {art(item)}
       </View>;
     case 'plant':
@@ -168,12 +163,22 @@ function DeskProp({ item, size, width, clock, pet }: {
         <Animated.View style={[styles.spark, { backgroundColor: '#eab9f6', opacity: sparkle }]} />
       </View>;
     case 'teaSet':
+    case 'foxMug':
       return <View style={specs}>
         {art(item)}
         <Animated.View style={[styles.steam, {
           height: size * .16, opacity: sparkle, transform: [{ translateY: pulse(clock, 1, -4) }],
+        }, item === 'foxMug' && { top: '4%', left: '39%' }]} />
+      </View>;
+    case 'retroRadio': {
+      const led = Math.max(2, size * .095);
+      return <View style={specs}>
+        {art(item)}
+        <Animated.View style={[styles.shine, {
+          top: '55%', left: '68%', width: led, height: led, backgroundColor: '#ffd382', opacity: sparkle,
         }]} />
       </View>;
+    }
     case 'hourglass':
       return <View style={specs}>
         {art(item)}
@@ -183,10 +188,14 @@ function DeskProp({ item, size, width, clock, pet }: {
         }]} />
       </View>;
     case 'miniGlobe':
+    case 'origamiCrane':
       return <Animated.View style={{ transform: [{ rotate: sway(clock, 12) }] }}>{art(item)}</Animated.View>;
     case 'crystalTerrarium':
+    case 'jellyTank':
       return <View style={specs}>
-        <Animated.View style={[styles.glow, { backgroundColor: '#da75e4', opacity: light }]} />
+        <Animated.View style={[styles.glow, {
+          backgroundColor: item === 'jellyTank' ? '#69deef' : '#da75e4', opacity: light,
+        }]} />
         {art(item)}
         <Animated.View style={[styles.spark, { backgroundColor: '#fff0ff', opacity: sparkle }]} />
       </View>;

@@ -68,10 +68,16 @@ avatar('avatars/reader.png', base);
 avatar('avatars/long-waves.png', { ...base, gender: 'female', color: '#bd7050' });
 avatar('avatars/side-part.png', { ...base, gender: 'male', color: '#789078' });
 
-for (const item of ['sweater', 'auroraHood', 'archiveVest', 'moonCoat', 'copperCurls', 'silverBraid', 'midnightFade']) {
+for (const item of [
+  'sweater', 'auroraHood', 'archiveVest', 'moonCoat', 'autumnPoncho', 'starlightJacket', 'mossOveralls',
+  'copperCurls', 'silverBraid', 'midnightFade', 'lavenderBuns', 'mintBob',
+]) {
   avatar('items/' + item + '.png', dressedAvatar(base, [item]));
 }
-for (const item of ['lamp', 'goldKeys', 'dragon', 'neon', 'teaSet', 'hourglass', 'miniGlobe', 'crystalTerrarium']) {
+for (const item of [
+  'lamp', 'goldKeys', 'dragon', 'neon', 'teaSet', 'hourglass', 'miniGlobe', 'crystalTerrarium',
+  'mushroomLamp', 'foxMug', 'retroRadio', 'jellyTank', 'origamiCrane',
+]) {
   prop('items/' + item + '.png', item);
 }
 prop('items/cat.png', 'catSleep');

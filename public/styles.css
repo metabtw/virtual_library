@@ -211,9 +211,10 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
   width: 100%;
   image-rendering: pixelated;
 }
-.desk-lamp {left: 1%;--lamp-color:#ffc468b8}
-.desk-lamp.desk-neon {--lamp-color:#a999ffcc}
-.desk-lamp::before {
+.desk-light {left: 1%;--lamp-color:#ffc468b8}
+.desk-neon {--lamp-color:#a999ffcc}
+.desk-mushroomLamp {--lamp-color:#ff856baa}
+.desk-light::before {
   content: '';
   position: absolute;
   inset: -48% -55% -20%;
@@ -468,9 +469,9 @@ button.seat-name:hover { outline: 1px solid #ffb469; }
   animation: pet-breathe 1.9s ease-in-out infinite alternate;
 }
 .desk-cat.pet-rest {animation: none;left: max(2%, calc(50% - var(--prop-size) / 2))}
-.desk-teaSet, .desk-hourglass {left: 2%;bottom: calc(100% - var(--prop-size) * .27)}
-.desk-lamp ~ :is(.desk-teaSet, .desk-hourglass) {bottom: calc(100% - var(--prop-size) * .55)}
-.desk-teaSet::after {
+:is(.desk-teaSet, .desk-hourglass, .desk-foxMug, .desk-retroRadio) {left: 2%;bottom: calc(100% - var(--prop-size) * .27)}
+.desk-light ~ :is(.desk-teaSet, .desk-hourglass, .desk-foxMug, .desk-retroRadio) {bottom: calc(100% - var(--prop-size) * .55)}
+:is(.desk-teaSet, .desk-foxMug)::after {
   content: '';
   position: absolute;
   left: 31%;
@@ -481,17 +482,32 @@ button.seat-name:hover { outline: 1px solid #ffb469; }
   border-radius: 50%;
   animation: tea-steam 1.7s ease-out infinite;
 }
+.desk-foxMug::after {left: 40%;bottom: 77%}
+.desk-retroRadio::after {
+  content: '';
+  position: absolute;
+  left: 68%;
+  top: 54%;
+  width: 11%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #ffd382;
+  box-shadow: 0 0 5px #ff9b55;
+  animation: radio-light 1.5s ease-in-out infinite alternate;
+}
 .desk-hourglass img {
   transform-origin: 50% 39%;
   animation: hourglass-flip 5s ease-in-out infinite;
 }
-.desk-miniGlobe, .desk-crystalTerrarium {right: 2%;bottom: calc(100% - var(--prop-size) * .25)}
-.desk-plant ~ :is(.desk-miniGlobe, .desk-crystalTerrarium) {bottom: calc(100% - var(--prop-size) * .59)}
-.desk-miniGlobe img {
+:is(.desk-miniGlobe, .desk-crystalTerrarium, .desk-jellyTank, .desk-origamiCrane) {right: 2%;bottom: calc(100% - var(--prop-size) * .25)}
+.desk-plant ~ :is(.desk-miniGlobe, .desk-crystalTerrarium, .desk-jellyTank, .desk-origamiCrane) {bottom: calc(100% - var(--prop-size) * .59)}
+:is(.desk-miniGlobe, .desk-origamiCrane) img {
   transform-origin: 46% 70%;
   animation: globe-rock 2.8s ease-in-out infinite alternate;
 }
-.desk-crystalTerrarium img {animation: crystal-glow 2.1s ease-in-out infinite alternate}
+.desk-crystalTerrarium {--display-glow:#da92f0}
+.desk-jellyTank {--display-glow:#69deef}
+:is(.desk-crystalTerrarium, .desk-jellyTank) img {animation: display-glow 2.1s ease-in-out infinite alternate}
 @keyframes keyboard-glow {
   from {filter: brightness(.96)}
   to {filter: brightness(1.5) drop-shadow(0 0 4px #ffce70)}
@@ -504,6 +520,10 @@ button.seat-name:hover { outline: 1px solid #ffb469; }
   from {opacity: .78;transform: translate(0, 3px) scale(.66)}
   to {opacity: 0;transform: translate(5px, -12px) scale(1.6)}
 }
+@keyframes radio-light {
+  from {opacity: .22}
+  to {opacity: 1}
+}
 @keyframes hourglass-flip {
   0%, 44% {transform: rotate(0deg)}
   56%, 91% {transform: rotate(180deg)}
@@ -513,14 +533,15 @@ button.seat-name:hover { outline: 1px solid #ffb469; }
   from {transform: rotate(-11deg)}
   to {transform: rotate(11deg)}
 }
-@keyframes crystal-glow {
-  from {filter: brightness(.96) drop-shadow(0 0 1px #b67cff38)}
-  to {filter: brightness(1.36) drop-shadow(0 0 6px #c398ffc4)}
+@keyframes display-glow {
+  from {filter: brightness(.96) drop-shadow(0 0 1px var(--display-glow))}
+  to {filter: brightness(1.36) drop-shadow(0 0 6px var(--display-glow))}
 }
 @media (prefers-reduced-motion: reduce) {
-  .desk-writing img,.desk-prop,.desk-prop img,.desk-lamp::before,.desk-teaSet::after {animation: none}
+  .desk-writing img,.desk-prop,.desk-prop img,.desk-light::before,
+  :is(.desk-teaSet, .desk-foxMug, .desk-retroRadio)::after {animation: none}
   .desk-cat {left: calc(50% - var(--prop-size) / 2)}
-  .desk-teaSet::after {display: none}
+  :is(.desk-teaSet, .desk-foxMug)::after {display: none}
 }
 .item-preview { min-height: 96px; display: grid; place-items: center; }
 .item-preview img, .catalog-plant { width: 72px; height: 72px; object-fit: contain; image-rendering: pixelated; }

@@ -1,9 +1,10 @@
 type Gender = 'unspecified' | 'female' | 'male';
-export type HairSkin = 'copperCurls' | 'silverBraid' | 'midnightFade';
-export type OutfitSkin = 'auroraHood' | 'archiveVest' | 'moonCoat';
+export type HairSkin = 'copperCurls' | 'silverBraid' | 'midnightFade' | 'lavenderBuns' | 'mintBob';
+export type OutfitSkin = 'auroraHood' | 'archiveVest' | 'moonCoat' | 'autumnPoncho' | 'starlightJacket' | 'mossOveralls';
 export type PropName =
   | 'cat' | 'lamp' | 'leaves' | 'pot' | 'catSleep' | 'catUpset' | 'neon' | 'goldKeys' | 'dragon'
-  | 'teaSet' | 'hourglass' | 'miniGlobe' | 'crystalTerrarium';
+  | 'teaSet' | 'hourglass' | 'miniGlobe' | 'crystalTerrarium'
+  | 'mushroomLamp' | 'foxMug' | 'retroRadio' | 'jellyTank' | 'origamiCrane';
 
 export const avatarSize: { width: number; height: number };
 export const writingSize: { width: number; height: number; frames: number };
@@ -20,6 +21,7 @@ export function drawWritingHands(
   frame: number,
   paint: (color: string, blocks: [number, number, number, number][]) => void,
 ): void;
+export function hasPropArt(name: string): name is PropName;
 export function drawProp(
   name: PropName,
   paint: (color: string, x: number, y: number) => void,

@@ -189,9 +189,13 @@ try {
 
   const shopper = users[3];
   const catalog = {
+    lamp: ['desk', 10],
     auroraHood: ['wearable', 24], archiveVest: ['wearable', 20], moonCoat: ['wearable', 28],
     copperCurls: ['hair', 14], silverBraid: ['hair', 18], midnightFade: ['hair', 12],
     teaSet: ['desk', 9], hourglass: ['desk', 11], miniGlobe: ['desk', 16], crystalTerrarium: ['desk', 22],
+    autumnPoncho: ['wearable', 21], starlightJacket: ['wearable', 27], mossOveralls: ['wearable', 23],
+    lavenderBuns: ['hair', 17], mintBob: ['hair', 15], mushroomLamp: ['desk', 18],
+    foxMug: ['desk', 8], retroRadio: ['desk', 15], jellyTank: ['desk', 26], origamiCrane: ['desk', 13],
   };
   const priceTotal = Object.values(catalog).reduce((sum, [, price]) => sum + price, 0);
   await db.query('update public.profiles set coins = $2 where id = $1', [shopper, priceTotal]);
@@ -223,6 +227,27 @@ try {
   const off = await action(shopper, 'place', { item: 'archiveVest' });
   assert.equal(off.inventory.find(entry => entry.item === 'archiveVest').placed, false);
   assert.equal(off.inventory.find(entry => entry.item === 'auroraHood').placed, false);
+
+  for (const replacements of [
+    ['auroraHood', 'autumnPoncho', 'starlightJacket', 'mossOveralls'],
+    ['copperCurls', 'lavenderBuns', 'mintBob'],
+    ['lamp', 'mushroomLamp'],
+    ['teaSet', 'foxMug', 'retroRadio'],
+    ['miniGlobe', 'jellyTank', 'origamiCrane'],
+  ]) {
+    let previous;
+    for (const item of replacements) {
+      const result = await action(shopper, 'place', { item });
+      assert.ok(result.members.find(member => member.own).placed.includes(item), `${item} appears at the owner's desk`);
+      if (previous) assert.equal(result.inventory.find(entry => entry.item === previous).placed, false);
+      previous = item;
+    }
+  }
+  const newStyle = await action(shopper, 'state');
+  assert.deepEqual(newStyle.profile.avatar, baseAvatar);
+  assert.equal(newStyle.profile.coins, 0);
+  assert.deepEqual(newStyle.members.find(member => member.own).placed,
+    ['mintBob', 'mossOveralls', 'mushroomLamp', 'origamiCrane', 'retroRadio']);
 
   // Reactions use room-scoped desk references and only reach their recipient.
   const recipientState = await action(third, 'state');

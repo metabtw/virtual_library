@@ -6,7 +6,9 @@ export type Volume = 0 | 1 | 2 | 3;
 export type ItemId =
   | 'lamp' | 'plant' | 'cat' | 'sweater' | 'goldKeys' | 'dragon' | 'neon' | 'space' | 'forest'
   | 'auroraHood' | 'archiveVest' | 'moonCoat' | 'copperCurls' | 'silverBraid' | 'midnightFade'
-  | 'teaSet' | 'hourglass' | 'miniGlobe' | 'crystalTerrarium';
+  | 'teaSet' | 'hourglass' | 'miniGlobe' | 'crystalTerrarium'
+  | 'autumnPoncho' | 'starlightJacket' | 'mossOveralls' | 'lavenderBuns' | 'mintBob'
+  | 'mushroomLamp' | 'foxMug' | 'retroRadio' | 'jellyTank' | 'origamiCrane';
 export type ItemKind = 'desk' | 'wearable' | 'hair' | 'rare' | 'ambience';
 export type Item = { id: ItemId; name: string; name_en: string; price: number; kind: ItemKind };
 export type ThemeChoice = 'auto' | 'classic' | 'rain' | 'garden' | 'stars';

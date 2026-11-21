@@ -3,7 +3,7 @@ import { config } from './config.js';
 import { invokeLibrary } from './library-client.js';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from './focus-clock.js';
 import { portrait, propImage, writingFrames } from './sprites.js';
-import { dressedAvatar, hairStyles, writingSize } from './avatar-art.js';
+import { dressedAvatar, hairStyles, hasPropArt, writingSize } from './avatar-art.js';
 import { createRoomPreferences } from './room-preferences.js';
 import { downloadStudyCard, messageFor, reactionArt } from './web-social.js';
 
@@ -20,10 +20,11 @@ const palette = ['#bd7050', '#789078', '#7988ab', '#ad7963'];
 const baseAvatar = { gender: 'unspecified', hair: 0, outfit: 0, color: palette[0] };
 const roomIcons = { night: '☾', garden: '❧', archive: '✦' };
 const itemIcons = { space: '🪐', forest: '🌲' };
-const propIcons = {
-  lamp: 'lamp', neon: 'neon', cat: 'catSleep', goldKeys: 'goldKeys', dragon: 'dragon',
-  teaSet: 'teaSet', hourglass: 'hourglass', miniGlobe: 'miniGlobe', crystalTerrarium: 'crystalTerrarium',
-};
+const deskLights = ['neon', 'mushroomLamp', 'lamp'];
+const deskDecorations = [
+  'goldKeys', 'dragon', 'teaSet', 'hourglass', 'foxMug', 'retroRadio',
+  'miniGlobe', 'crystalTerrarium', 'jellyTank', 'origamiCrane',
+];
 const genders = [['unspecified', 'Belirtmek istemiyorum'], ['female', 'Kadın'], ['male', 'Erkek']];
 const durationOptions = [['25', '25 dakika'], ['50', '50 dakika'], ['90', '90 dakika'], ['custom', 'Özel süre']];
 const draft = { email: '', code: '', target: null, roomName: '', invite: '' };
@@ -182,12 +183,11 @@ function sprite(part, small = false) {
 }
 
 function deskItems(equipped, pet) {
-  const light = equipped.includes('neon') ? 'neon' : equipped.includes('lamp') ? 'lamp' : null;
-  const compact = ['goldKeys', 'dragon', 'teaSet', 'hourglass', 'miniGlobe', 'crystalTerrarium'];
+  const light = deskLights.find(item => equipped.includes(item));
   return [
-    light && `<span class="desk-prop desk-lamp${light === 'neon' ? ' desk-neon' : ''}"><img src="${propImage(light)}" alt=""></span>`,
+    light && `<span class="desk-prop desk-light desk-${light}"><img src="${propImage(light)}" alt=""></span>`,
     equipped.includes('plant') && `<span class="desk-prop desk-plant"><img src="${propImage('leaves')}" class="plant-leaves" alt=""><img src="${propImage('pot')}" alt=""></span>`,
-    ...compact.filter(item => equipped.includes(item)).map(item =>
+    ...deskDecorations.filter(item => equipped.includes(item)).map(item =>
       `<span class="desk-prop desk-${item}"><img src="${propImage(item)}" alt=""></span>`),
     equipped.includes('cat') && `<span class="desk-prop desk-cat ${pet?.upset || pet?.xp > 0 ? 'pet-rest' : ''}">
       <img src="${propImage(pet?.upset ? 'catUpset' : pet?.xp > 0 ? 'catSleep' : 'cat')}" alt=""></span>`,
@@ -259,8 +259,8 @@ function roomsView() {
 function itemImage(item) {
   if (item.kind === 'wearable' || item.kind === 'hair') return sprite(dressedAvatar(data.profile.avatar, [item.id]));
   if (item.id === 'plant') return `<span class="catalog-plant"><img src="${propImage('leaves')}" alt=""><img src="${propImage('pot')}" alt=""></span>`;
-  const prop = propIcons[item.id];
-  return prop ? `<img src="${propImage(prop)}" alt="">` : itemIcons[item.id] ?? '✦';
+  const prop = item.id === 'cat' ? 'catSleep' : item.id;
+  return hasPropArt(prop) ? `<img src="${propImage(prop)}" alt="">` : itemIcons[item.id] ?? '✦';
 }
 
 function catalog(inventoryOnly) {
