@@ -128,7 +128,12 @@ function syncPresence() {
     .on('broadcast', { event: 'desk_status' }, ({ payload }) => {
       if (presence !== channel) return;
       const next = recordDeskStatus(deskUpdates, payload);
-      if (next !== deskUpdates) { deskUpdates = next; render(); }
+      if (next === deskUpdates) return;
+      deskUpdates = next;
+      render();
+      if (data.profile?.status !== payload.status && data.members.some(member => member.own && member.desk_ref === payload.desk)) {
+        refreshState();
+      }
     })
     .subscribe(status => {
       if (presence !== channel) return;

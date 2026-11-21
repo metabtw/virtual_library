@@ -6,7 +6,7 @@ import { avatarOptions, avatarPresets, defaultAvatar, hairStyles, pickAvatarStyl
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../../public/focus-clock';
 import { displayDeskStatuses, recordDeskStatus, type DeskUpdates } from '../../public/desk-status';
 import { deleteAccount, library, supabase } from './api';
-import type { Avatar, Command, Drop, Focus, Member, Profile } from './model';
+import type { Avatar, Command, Drop, Focus, Member, Profile, Snapshot } from './model';
 import { RoomScene, Sprite } from './scene';
 import { allowReminders, hasExactReminderSettings, openExactReminderSettings, syncRemoteReminders,
   removeRemoteReminders, useReminder } from './reminders';
@@ -260,7 +260,13 @@ export function Library({ id }: { id: string }) {
     channel.on('presence', { event: 'sync' }, () => {
       void queryClient.invalidateQueries({ queryKey: ['library', id] });
     }).on('broadcast', { event: 'desk_status' }, ({ payload }) => {
-      if (presence.current === channel) setDeskUpdates(previous => recordDeskStatus(previous, payload));
+      if (presence.current !== channel) return;
+      setDeskUpdates(previous => recordDeskStatus(previous, payload));
+      const current = queryClient.getQueryData<Snapshot>(['library', id]);
+      if (current && current.profile?.status !== payload?.status
+        && current.members.some(member => member.own && member.desk_ref === payload?.desk)) {
+        void queryClient.invalidateQueries({ queryKey: ['library', id] });
+      }
     }).subscribe(status => {
       if (presence.current !== channel) return;
       setPresenceReadyRoom(null);

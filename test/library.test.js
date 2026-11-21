@@ -155,7 +155,7 @@ test('a desk update appears immediately and a newer snapshot takes precedence', 
   const stale = recordDeskStatus(updates, { desk: peer.desk_ref, status: 'desk', at: 2500 });
   assert.equal(stale, updates);
   assert.equal(recordDeskStatus(updates, { desk: peer.desk_ref, status: 'unknown', at: 4000 }), updates);
-  assert.deepEqual(displayDeskStatuses([own, peer], 1000, updates), [own, { ...peer, status: 'break' }]);
+  assert.deepEqual(displayDeskStatuses([own, peer], 1000, updates), [{ ...own, status: 'break' }, { ...peer, status: 'break' }]);
   assert.deepEqual(displayDeskStatuses([own, peer], 4000, updates), [own, peer]);
 });
 

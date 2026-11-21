@@ -13,7 +13,7 @@ export function displayDeskStatuses(members, snapshotTime, updates) {
   if (updates.size === 0) return members;
   return members.map(member => {
     const update = updates.get(member.desk_ref);
-    return !member.own && update?.at >= snapshotTime && update.status !== member.status
+    return update?.at >= snapshotTime && update.status !== member.status
       ? { ...member, status: update.status } : member;
   });
 }
