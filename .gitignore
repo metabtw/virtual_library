@@ -5,3 +5,5 @@ mobile/dist/
 mobile/.env*
 !mobile/.env.example
 supabase/.temp/
+/.env*
+!/.env.example

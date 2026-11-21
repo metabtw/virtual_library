@@ -12,5 +12,9 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.17"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.106.2",
+    "esbuild": "0.28.1"
   }
 }

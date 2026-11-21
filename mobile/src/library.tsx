@@ -1,10 +1,11 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, AppState, Modal, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { hairStyles } from '../../public/avatar-art';
+import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../../public/focus-clock';
 import { deleteAccount, library, supabase } from './api';
-import type { Avatar, Command, Drop, Focus, Profile } from './model';
+import type { Avatar, Command, Drop, Focus, Member, Profile } from './model';
 import { RoomScene, Sprite } from './scene';
 import { allowReminders, syncRemoteReminders, removeRemoteReminders, useReminder } from './reminders';
 import { hasAnalytics, setUsageMeasurement, trackUsage } from './telemetry';
@@ -15,12 +16,12 @@ import { Ambience } from './ambience';
 import { Catalog, ItemIllustration } from './catalog';
 import { dressedAvatar } from './cosmetics';
 import { ThemePicker } from './themes';
+import { LeaderboardModal, StudyCardModal } from './study';
 
 type Action = { [K in keyof Command]: { name: K; payload?: Command[K] } }[keyof Command];
 
 const baseAvatar: Avatar = { gender: 'unspecified', hair: 0, outfit: 0, color: '#bd7050' };
 const minute = 60000;
-const interval = 20 * minute;
 
 function AvatarEditor({ profile, onSave, pending, t, locale }: {
   profile: Profile | null; onSave: (data: Command['profile']) => void;
@@ -89,7 +90,17 @@ export function Library({ id }: { id: string }) {
   const t = words[locale];
   const [prize, setPrize] = useState<Drop | null>(null);
   const [editing, setEditing] = useState(false);
-  const [moment, setMoment] = useState(Date.now);
+  const [moment, setMoment] = useState(() => performance.now());
+  const [foreground, setForeground] = useState((AppState.currentState ?? 'active') === 'active');
+  const [refreshAfter, setRefreshAfter] = useState(0);
+  const lastServerTime = useRef(0);
+  const [pendingPauseAt, setPendingPauseAt] = useState<number>();
+  const [peer, setPeer] = useState<Member>();
+  const [rankingOpen, setRankingOpen] = useState(false);
+  const [cardOpen, setCardOpen] = useState(false);
+  const [reactionMessage, setReactionMessage] = useState('');
+  const reactionTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const seenReactions = useRef(new Set<string>());
   const [actionError, setActionError] = useState('');
   const [deleting, setDeleting] = useState(false);
   const presence = useRef<RealtimeChannel | null>(null);
@@ -100,16 +111,44 @@ export function Library({ id }: { id: string }) {
     refetchInterval: query => query.state.data?.profile?.room || query.state.data?.session?.state === 'active' ? 1000 : 5000,
   });
   const snapshot = query.data;
-  const offset = snapshot ? snapshot.now - query.dataUpdatedAt : 0;
+  const inventory = snapshot?.inventory;
+  const equipped = useMemo(() => inventory?.filter(item => item.placed).map(item => item.item) ?? [], [inventory]);
+  const serverSample = snapshot?.now;
+  const clock = useMemo(() => serverSample === undefined ? undefined : markServerTime(serverSample, query.dataUpdatedAt),
+    [serverSample, query.dataUpdatedAt]);
+  useEffect(() => { lastServerTime.current = serverSample ?? 0; }, [serverSample]);
   const localRoom = snapshot?.profile?.room;
   const focus = snapshot?.session?.state === 'active' ? snapshot.session : null;
   const running = focus?.paused_at === null;
   const effectivePage = running || (page === 'room' && localRoom) ? 'room' : page === 'room' ? 'rooms' : page;
-  const due = focus?.verification_due ?? (running ? focus.start + (focus.checks + 1) * interval : null);
-  const next = due !== null && focus && due < focus.end ? due : null;
-  const observed = moment + offset;
-  const verify = next !== null && observed >= next && observed < next + 30000;
-  useReminder(alerts, next, offset, t);
+  const observed = clock ? serverTimeAt(clock, moment) : 0;
+  const remainingCheck = foreground && (serverSample ?? 0) > refreshAfter ? verificationRemaining(focus, observed) : 0;
+  const verify = remainingCheck > 0;
+  useReminder(alerts, focus?.next_check_at ?? null, clock, t);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', status => {
+      setForeground(status === 'active');
+      if (status === 'active') {
+        setRefreshAfter(lastServerTime.current);
+        setMoment(performance.now());
+        void queryClient.invalidateQueries({ queryKey: ['library', id] }, { cancelRefetch: false });
+      }
+    });
+    return () => subscription.remove();
+  }, [id, queryClient]);
+  useEffect(() => {
+    const incoming = (snapshot?.reactions ?? []).filter(event => !seenReactions.current.has(event.id));
+    if (!incoming.length) return;
+    for (const event of incoming) seenReactions.current.add(event.id);
+    if (seenReactions.current.size > 128) {
+      for (const key of [...seenReactions.current].slice(0, 64)) seenReactions.current.delete(key);
+    }
+    setReactionMessage(incoming.map(event =>
+      `${event.kind === 'coffee' ? '☕' : '👏'} ${event.name} ${event.kind === 'coffee' ? t.coffeeReceived : t.clapReceived}`).join(' · '));
+    clearTimeout(reactionTimeout.current);
+    reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
+  }, [snapshot?.reactions, t]);
+  useEffect(() => () => clearTimeout(reactionTimeout.current), []);
   useEffect(() => {
     setUsageMeasurement(usage);
     return () => setUsageMeasurement(false);
@@ -126,27 +165,32 @@ export function Library({ id }: { id: string }) {
     mutationFn: ({ name, payload }: Action) => library(name, payload),
     onSuccess: (data, action) => {
       queryClient.setQueryData(key, data);
-      setMoment(Date.now());
+      setMoment(performance.now());
       if (action.name === 'profile') setEditing(false);
       if (['join', 'joinCode', 'createRoom'].includes(action.name)) { setPage('room'); trackUsage('room_joined'); }
       if (action.name === 'start') trackUsage('focus_started');
       if (action.name === 'verify') trackUsage('focus_confirmed');
       if (action.name === 'leave') setPage('rooms');
       if (data.drop) setPrize(data.drop);
-      if (action.name === 'status' || action.name === 'start' || action.name === 'place' || action.name === 'target' || action.name === 'abandon') {
+      if (action.name === 'react') {
+        setPeer(undefined);
+        setReactionMessage(t.reactionSent);
+        clearTimeout(reactionTimeout.current);
+        reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
+      }
+      if (action.name === 'rankingVisibility') void queryClient.invalidateQueries({ queryKey: ['leaderboard', id] });
+      if (['status', 'start', 'place', 'target', 'abandon', 'react'].includes(action.name)) {
         void presence.current?.track({ changed: data.now });
       }
     },
     onError: error => setActionError(message(t, error)),
+    onSettled: () => setPendingPauseAt(undefined),
   });
-
-  const pendingPause = mutation.isPending && mutation.variables?.name === 'status' && mutation.variables.payload?.status === 'break';
-  const timerNow = pendingPause ? mutation.submittedAt + offset : observed;
 
   useEffect(() => {
     if (!focus) return;
-    const timer = setInterval(() => setMoment(Date.now()), 200);
-    setMoment(Date.now());
+    const timer = setInterval(() => setMoment(performance.now()), 200);
+    setMoment(performance.now());
     return () => clearInterval(timer);
   }, [Boolean(focus)]);
   useEffect(() => {
@@ -162,13 +206,15 @@ export function Library({ id }: { id: string }) {
     return () => { presence.current = null; void client.removeChannel(channel); };
   }, [id, localRoom, queryClient]);
 
-  async function signOut() {
-    await removeRemoteReminders().catch(() => {});
+  async function signOut(accountDeleted = false) {
+    await removeRemoteReminders(accountDeleted).catch(() => {});
     setAlerts(false);
     setUsage(false);
     setUsageMeasurement(false);
     await supabase!.auth.signOut({ scope: 'local' });
     queryClient.removeQueries({ queryKey: key });
+    queryClient.removeQueries({ queryKey: ['studySummary', id] });
+    queryClient.removeQueries({ queryKey: ['leaderboard', id] });
     setPage('rooms');
   }
 
@@ -177,7 +223,7 @@ export function Library({ id }: { id: string }) {
       { text: t.cancel, style: 'cancel' },
       { text: t.deleteAccount, style: 'destructive', onPress: () => {
         setDeleting(true);
-        void deleteAccount().then(signOut).catch(error => setActionError(message(t, error)))
+        void deleteAccount().then(() => signOut(true)).catch(error => setActionError(message(t, error)))
           .finally(() => setDeleting(false));
       } },
     ]);
@@ -192,12 +238,12 @@ export function Library({ id }: { id: string }) {
   const profile = snapshot.profile;
   const room = snapshot.rooms.find(room => room.id === localRoom);
   const aurora = (room?.minutes ?? 0) >= 500;
-  const equipped = snapshot.inventory.filter(item => item.placed).map(item => item.item);
   const prizeItem = prize && 'item' in prize ? snapshot.items.find(item => item.id === prize.item) : undefined;
   const label = (item: { name: string; name_en: string }) => locale === 'tr' ? item.name : item.name_en;
   const pending = mutation.isPending || deleting;
   function act(action: Action) {
     if (pending) return;
+    if (running && action.name === 'status' && action.payload?.status === 'break') setPendingPauseAt(observed);
     mutation.mutate(action);
   }
 
@@ -207,23 +253,30 @@ export function Library({ id }: { id: string }) {
         <Text style={[ui.title, { flexShrink: 1 }]}>{t.app}</Text>
         {profile && <Text style={ui.balance}>{profile.coins} {t.coins}</Text>}
       </View>
+      {reactionMessage !== '' && <Text accessibilityLiveRegion="polite" style={ui.accent}>{reactionMessage}</Text>}
       {actionError !== '' && <Text accessibilityLiveRegion="polite" style={ui.warning}>{actionError}</Text>}
       {!profile ? <AvatarEditor profile={null} onSave={payload => act({ name: 'profile', payload })} pending={pending} t={t} locale={locale} /> :
-        effectivePage === 'rooms' ? <Directory rooms={snapshot.rooms} current={profile.room} pending={pending}
+        effectivePage === 'rooms' ? <>
+          <Button muted onPress={() => setRankingOpen(true)}>{t.leaderboard}</Button>
+          <Directory rooms={snapshot.rooms} current={profile.room} pending={pending}
           coins={profile.coins} locale={locale} t={t}
           join={room => room === localRoom ? setPage('room') : act({ name: 'join', payload: { room } })}
           enter={code => act({ name: 'joinCode', payload: { code } })}
-          create={name => act({ name: 'createRoom', payload: { name } })} /> : effectivePage === 'room' ? <>
+          create={name => act({ name: 'createRoom', payload: { name } })} />
+        </> : effectivePage === 'room' ? <>
           {room && <View style={ui.row}>
             <Text style={ui.heading}>{label(room)}</Text><Text style={ui.small}>{room.count}/{room.capacity}</Text>
           </View>}
-          <RoomScene room={localRoom ?? null} members={snapshot.members} aurora={aurora} theme={theme} t={t} />
+          <RoomScene room={localRoom ?? null} members={snapshot.members} aurora={aurora} theme={theme} t={t} onDeskPress={running ? undefined : setPeer} />
           {room && !running && <ThemePicker value={theme} room={room.id} aurora={aurora} onChange={setTheme} t={t} />}
           {room && <RoomGoal minutes={room.minutes ?? 0} t={t} />}
           {room && !running && <Invite room={room} t={t} />}
-          {snapshot.session?.state === 'completed' && <Text style={ui.accent}>{t.reward}</Text>}
+          {snapshot.session?.state === 'completed' && <>
+            <Text style={ui.accent}>{t.reward}</Text>
+            <Button muted onPress={() => setCardOpen(true)}>{t.studyCard}</Button>
+          </>}
           {snapshot.session?.state === 'invalid' && <Text style={ui.warning}>{t.invalid}</Text>}
-          <Period focus={focus} remaining={focus ? focus.end - (focus.paused_at ?? timerNow) : 0}
+          <Period focus={focus} remaining={focus ? focusRemaining(focus, pendingPauseAt ?? observed) : 0}
             t={t} pending={pending} canStart={Boolean(room)} onAction={act} />
           {!focus && room && <View style={ui.card}>
             <Options label={label(room)} values={([['desk', t.desk], ['break', t.break]] as const)}
@@ -245,6 +298,7 @@ export function Library({ id }: { id: string }) {
                 <Button disabled={pending} onPress={() => setEditing(true)}>{t.editAvatar}</Button>
               </View>}
             <TargetEditor initial={profile.target ?? ''} pending={pending} t={t} save={target => act({ name: 'target', payload: { target } })} />
+            <Button muted onPress={() => setCardOpen(true)}>{t.studyCard}</Button>
             <Catalog snapshot={snapshot} inventory t={t} locale={locale} pending={pending}
               action={item => act({ name: 'place', payload: { item } })} />
           </>}
@@ -269,10 +323,24 @@ export function Library({ id }: { id: string }) {
           <Text style={[ui.navText, tab === effectivePage && ui.accent]}>{t[tab]}</Text>
         </Pressable>)}
     </View>}
+    {rankingOpen && !running && !verify && <LeaderboardModal user={id} t={t} close={() => setRankingOpen(false)}
+      pending={pending} changeVisibility={visible => act({ name: 'rankingVisibility', payload: { visible } })} />}
+    {cardOpen && profile && !running && !verify && <StudyCardModal user={id} profile={profile}
+      equipment={equipped} close={() => setCardOpen(false)} t={t} />}
+    <Modal visible={Boolean(peer?.desk_ref && !running && !verify)} transparent onRequestClose={() => setPeer(undefined)} accessibilityViewIsModal>
+      <View style={ui.modal}><View style={ui.card}>
+        <Text style={ui.heading}>{peer?.name}</Text>
+        {(['coffee', 'clap'] as const).map(kind => <Button key={kind} disabled={pending} onPress={() => {
+          if (peer?.desk_ref) act({ name: 'react', payload: { desk: peer.desk_ref, kind } });
+        }}>{kind === 'coffee' ? t.coffeeReaction : t.clapReaction}</Button>)}
+        {actionError !== '' && <Text style={ui.warning}>{actionError}</Text>}
+        <Button muted onPress={() => setPeer(undefined)}>{t.done}</Button>
+      </View></View>
+    </Modal>
     <Modal visible={prize !== null && !verify} transparent onRequestClose={() => setPrize(null)} accessibilityViewIsModal>
       <View style={ui.modal}><View style={ui.card}>
         <Text style={ui.heading}>✨ {t.prize}</Text>
-        {prizeItem && <ItemIllustration item={prizeItem} avatar={profile?.avatar} />}
+        {prizeItem && <ItemIllustration item={prizeItem} />}
         {prize && <Text style={ui.accent}>{'item' in prize
           ? label(prizeItem ?? { name: prize.item, name_en: prize.item })
           : `${prize.coins} ${t.coins}`}</Text>}
@@ -282,7 +350,7 @@ export function Library({ id }: { id: string }) {
     <Modal visible={verify} transparent onRequestClose={() => {}} accessibilityViewIsModal>
       <View style={ui.modal}><View style={ui.card}>
         <Text style={ui.heading}>{t.verify}</Text>
-        <Text style={ui.timer}>{Math.max(0, Math.ceil(((next ?? 0) + 30000 - observed) / 1000))}</Text>
+        <Text style={ui.timer}>{Math.ceil(remainingCheck / 1000)}</Text>
         <Button disabled={pending} onPress={() => act({ name: 'verify' })}>{t.here}</Button>
         {running && <Button muted disabled={pending} onPress={() => act({ name: 'status', payload: { status: 'break' } })}>{t.pause}</Button>}
         {actionError !== '' && <Text style={ui.warning}>{actionError}</Text>}

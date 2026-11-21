@@ -11,10 +11,10 @@
   <aside class="sidebar">
     <a class="brand" href="#room"><span>◫</span><b>Sanal<br>Kütüphane</b></a>
     <nav aria-label="Ana menü">
-      <a href="#rooms"><i>⌂</i> Odalar</a>
-      <a href="#room"><i>▤</i> Kütüphane</a>
-      <a href="#shop"><i>♧</i> Mağaza</a>
-      <a href="#profile"><i>♙</i> Profil &amp; Envanter</a>
+      <a href="#rooms"><i aria-hidden="true">⌂</i> Odalar</a>
+      <a href="#room"><i aria-hidden="true">▤</i> Kütüphane</a>
+      <a href="#shop"><i aria-hidden="true">♧</i> Mağaza</a>
+      <a href="#profile"><i aria-hidden="true">♙</i> Profil &amp; Envanter</a>
     </nav>
     <div class="sidebar-footer"><span class="dot"></span> Kütüphane açık</div>
   </aside>
@@ -24,6 +24,12 @@
   </main>
   <p id="notice" role="status"></p>
   <dialog id="verify-dialog"><h2>Hâlâ masada mısın?</h2><p>Çalışma periyodunu doğrulamak için kalan süre <b id="verify-time"></b>.</p><div class="dialog-actions"><button class="primary" data-action="verify">Buradayım</button><button class="secondary" data-action="status" data-value="break">Molaya geç</button></div></dialog>
+  <dialog id="reaction-dialog">
+    <h2>Masa tepkisi</h2>
+    <div class="dialog-actions"><button class="primary" data-action="react" data-value="coffee">☕ Kahve gönder</button>
+      <button class="secondary" data-action="react" data-value="clap">👏 Alkışla</button>
+      <form method="dialog"><button class="secondary">Kapat</button></form></div>
+  </dialog>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

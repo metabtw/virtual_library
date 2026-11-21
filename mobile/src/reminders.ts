@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
+import { type ServerClock } from '../../public/focus-clock';
 import { updateDevice } from './api';
 import type { Locale, Translation } from './strings';
 
@@ -10,6 +11,7 @@ const channelId = 'focus';
 const notificationId = 'focus-verification';
 const storageKey = 'registered-expo-push-token';
 let reminderWork = Promise.resolve();
+let scheduled: { due: number; localTime: number; title: string; body: string } | undefined;
 let remoteWork = Promise.resolve();
 
 Notifications.setNotificationHandler({
@@ -45,32 +47,40 @@ export function syncRemoteReminders(locale: Locale) {
   });
 }
 
-export function removeRemoteReminders() {
+export function removeRemoteReminders(accountDeleted = false) {
   return runRemote(async () => {
     const token = await SecureStore.getItemAsync(storageKey);
     if (!token) return;
-    await updateDevice('pushRemove', token);
+    if (!accountDeleted) await updateDevice('pushRemove', token);
     await SecureStore.deleteItemAsync(storageKey);
   });
 }
 
-export function useReminder(enabled: boolean, due: number | null, offset: number, t: Translation) {
-  // Round the server offset so regular heartbeats do not continually reschedule the same alarm.
-  const localDue = due === null ? null : due - Math.round(offset / 1000) * 1000;
+export function useReminder(enabled: boolean, due: number | null, clock: ServerClock | undefined, t: Translation) {
+  const localTime = due === null || !clock ? null : due + clock.receiveTime - clock.serverTime;
   useEffect(() => {
     let obsolete = false;
     reminderWork = reminderWork.then(async () => {
+      if (obsolete) return;
+      if (enabled && due !== null && localTime !== null && scheduled?.due === due
+        && scheduled.title === t.app && scheduled.body === t.verify
+        && Math.abs(scheduled.localTime - localTime) < 1500) return;
       await Notifications.cancelScheduledNotificationAsync(notificationId);
-      if (!enabled || obsolete || !localDue || localDue <= Date.now() + 1000) return;
+      scheduled = undefined;
+      if (!enabled || obsolete || due === null || localTime === null || localTime <= Date.now()) return;
       await Notifications.scheduleNotificationAsync({
         identifier: notificationId,
         content: { title: t.app, body: t.verify, sound: true },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(localDue), channelId },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(localTime), channelId },
       });
+      scheduled = { due, localTime, title: t.app, body: t.verify };
     }).catch(() => {});
-    return () => {
-      obsolete = true;
-      reminderWork = reminderWork.then(() => Notifications.cancelScheduledNotificationAsync(notificationId)).catch(() => {});
-    };
-  }, [enabled, localDue, t.app, t.verify]);
+    return () => { obsolete = true; };
+  }, [enabled, due, localTime, t.app, t.verify]);
+  useEffect(() => () => {
+    reminderWork = reminderWork.then(async () => {
+      await Notifications.cancelScheduledNotificationAsync(notificationId);
+      scheduled = undefined;
+    }).catch(() => {});
+  }, []);
 }

@@ -70,6 +70,15 @@ const outfitSkins = {
   },
 };
 
+export function dressedAvatar(avatar, equipped) {
+  const outfitSkin = Object.keys(outfitSkins).find(skin => equipped.includes(skin));
+  const hairSkin = Object.keys(hairSkins).find(skin => equipped.includes(skin));
+  const base = !outfitSkin && equipped.includes('sweater')
+    ? { ...avatar, outfit: 0, color: '#d88b47' }
+    : avatar;
+  return { ...base, outfitSkin, hairSkin };
+}
+
 export function drawAvatar({ gender = 'unspecified', hair, outfit, color, hairSkin, outfitSkin }, paint) {
   const feminine = gender === 'female';
   const hairStyle = hairSkins[hairSkin];

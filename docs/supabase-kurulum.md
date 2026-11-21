@@ -28,6 +28,10 @@ Migration geçmişi beklenmedikse ya da kuru çalıştırma daha önce oluşturu
 
 [Supabase e-posta OTP](https://supabase.com/docs/guides/auth/auth-email-passwordless) · [SMTP ayarları](https://supabase.com/docs/guides/auth/auth-smtp)
 
+## Web yönlendirmesi
+
+Web ve mobil aynı Supabase Auth ve Edge Function kurulumunu kullanır. **Authentication → URL Configuration** izin listesine yerel geliştirme için `http://localhost:3000/` ve `http://localhost:3000/account-deletion` adreslerini ekle. `127.0.0.1` veya farklı port kullanıyorsan o adresleri de ekle. Yayınlanan web uygulaması için HTTPS kök adresini ve hesap silme yolunu ayrıca kaydet.
+
 ## Google ile giriş
 
 1. Google Cloud Console'da OAuth izin ekranını yapılandır. Uygulama test modundaysa test kullanıcılarını ekle.

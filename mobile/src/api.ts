@@ -1,7 +1,8 @@
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
-import type { Snapshot } from './model';
+import { invokeLibrary } from '../../public/library-client';
+import type { Leaderboard, Snapshot, StudySummary } from './model';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const key = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -34,18 +35,10 @@ export function completeAuthCode(code: string): Promise<void> {
   return result;
 }
 
-async function invoke<T>(action: string, payload?: object): Promise<T> {
-  if (!supabase) throw Error('missingConfig');
-  const { data, error } = await supabase.functions.invoke<T & { error?: string }>('library', {
-    body: { action, payload },
-  });
-  if (error || !data) throw Error('server');
-  if (data.error) throw Error(data.error);
-  return data;
-}
-
+const invoke = <T>(action: string, payload?: object) => invokeLibrary<T>(supabase, action, payload);
 export const library = (action: string, payload?: object) => invoke<Snapshot>(action, payload);
 export const deleteAccount = () => invoke<{ deleted: boolean }>('deleteAccount');
-
+export const studySummary = () => invoke<StudySummary>('studySummary');
+export const leaderboard = () => invoke<Leaderboard>('leaderboard');
 export const updateDevice = (action: 'pushRegister' | 'pushRemove', token: string, locale?: string) =>
   invoke<{ ok: boolean }>(action, { token, locale });

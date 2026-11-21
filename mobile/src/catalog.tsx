@@ -1,8 +1,7 @@
 import { useState, type ReactNode } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { deskArt, dressedAvatar } from './cosmetics';
-import type { Avatar, Item, ItemId, ItemKind, Snapshot } from './model';
-import { PropArt, Sprite } from './scene';
+import { Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { itemAssets } from './asset-art';
+import type { Item, ItemId, ItemKind, Snapshot } from './model';
 import type { Locale, Translation } from './strings';
 import { Button, Options, ui } from './ui';
 
@@ -21,25 +20,15 @@ const swatches: Record<ItemKind, { surface: string; trim: string }> = {
   rare: { surface: '#392d4e', trim: '#dfb9f8' },
 };
 
-const sampleAvatar: Avatar = { gender: 'unspecified', hair: 0, outfit: 1, color: '#83778f' };
-
-export function ItemIllustration({ item, avatar = sampleAvatar }: { item: Item; avatar?: Avatar }) {
+export function ItemIllustration({ item }: { item: Item }) {
   const palette = swatches[item.kind] ?? swatches.desk;
-  const prop = deskArt[item.id];
+  const asset = itemAssets[item.id];
   return <View accessible={false} style={[styles.art, {
     backgroundColor: palette.surface, borderColor: palette.trim + '66',
   }]}>
-    {item.kind === 'wearable' || item.kind === 'hair' ?
-      <View style={item.kind === 'hair' ? styles.hairCrop : undefined}>
-        <Sprite avatar={dressedAvatar(avatar, [item.id])} width={63} />
-      </View> :
-      item.id === 'plant' ?
-        <View>
-          <PropArt name="leaves" size={70} />
-          <View style={StyleSheet.absoluteFill}><PropArt name="pot" size={70} /></View>
-        </View> :
-        prop ? <PropArt name={prop} size={68} /> :
-          <Text style={styles.soundIcon}>{item.id === 'space' ? '🪐' : item.id === 'forest' ? '🌲' : '♫'}</Text>}
+    {asset ? <Image source={asset} style={item.kind === 'hair' || item.kind === 'wearable' ? styles.skin : styles.prop}
+      resizeMode="contain" accessible={false} fadeDuration={0} />
+      : <Text style={styles.soundIcon}>✦</Text>}
   </View>;
 }
 
@@ -68,7 +57,7 @@ function ItemGrid({ items, inventory, owned, snapshot, t, locale, pending, actio
       const afford = (snapshot.profile?.coins ?? 0) >= item.price;
       return <View key={item.id} style={[styles.tile, compact && styles.full, item.kind === 'rare' && styles.rare,
         equipped && styles.equipped]}>
-        <ItemIllustration item={item} avatar={snapshot.profile?.avatar} />
+        <ItemIllustration item={item} />
         <View style={styles.details}>
           <Text style={styles.name}>{name}</Text>
           {chestOnly ? <Text style={styles.rewardLabel}>{t.chestReward}</Text>
@@ -135,7 +124,8 @@ const styles = StyleSheet.create({
   rare: { backgroundColor: '#2f253e', borderColor: '#8f6ba8' },
   equipped: { borderColor: '#88b693' },
   art: { minHeight: 94, borderRadius: 11, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  hairCrop: { height: 58, overflow: 'hidden' },
+  prop: { width: 70, height: 70 },
+  skin: { width: 62, height: 80 },
   details: { flexGrow: 1, gap: 4, paddingHorizontal: 2 },
   name: { color: '#fff0dc', fontSize: 14, fontWeight: '700' },
   soundIcon: { fontSize: 34, color: '#e7d9b1' },

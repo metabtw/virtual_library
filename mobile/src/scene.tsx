@@ -1,6 +1,6 @@
-import { Canvas, Rect } from '@shopify/react-native-skia';
+import { Canvas, ImageFormat, Rect, Skia } from '@shopify/react-native-skia';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, ImageBackground, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, Animated, ImageBackground, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { avatarSize, drawAvatar, drawProp, type PropName } from '../../public/avatar-art';
 import type { Member, Pet, ThemeChoice } from './model';
 import { dressedAvatar, type AvatarLook } from './cosmetics';
@@ -24,6 +24,22 @@ export function Sprite({ avatar, width }: { avatar: AvatarLook; width: number })
     {shapes.map(({ color, x, y, width, height }, index) => <Rect key={index} color={color}
       x={x * ratio} y={y * ratio} width={width * ratio} height={height * ratio} />)}
   </Canvas>;
+}
+
+export function avatarPng(avatar: AvatarLook) {
+  const scale = 5;
+  const surface = Skia.Surface.MakeOffscreen(avatarSize.width * scale, avatarSize.height * scale);
+  if (!surface) return null;
+  const canvas = surface.getCanvas();
+  const ink = Skia.Paint();
+  drawAvatar(avatar, (color, blocks) => {
+    ink.setColor(Skia.Color(color));
+    for (const [x, y, width, height] of blocks) {
+      canvas.drawRect(Skia.XYWHRect(x * scale, y * scale, width * scale, height * scale), ink);
+    }
+  });
+  surface.flush();
+  return 'data:image/png;base64,' + surface.makeImageSnapshot().encodeToBase64(ImageFormat.PNG);
 }
 
 const propNames: PropName[] = [
@@ -94,15 +110,20 @@ const decorations = [
 
 type ThemePalette = (typeof roomThemes)[keyof typeof roomThemes]['palette'];
 
-function Desk({ member, width, motion, palette, t }: {
+function Desk({ member, width, motion, palette, t, onDeskPress }: {
   member?: Member; width: number; motion: boolean; palette: ThemePalette; t: Translation;
+  onDeskPress?: (member: Member) => void;
 }) {
   const own = member?.own === true;
   const size = Math.min(own ? 58 : 37, width * (own ? .42 : .49));
   const surfaceWidth = width * (own ? .97 : .79);
   const avatar = member && dressedAvatar(member.avatar, member.placed);
   const description = member && [member.name, member.target, t[member.status]].filter(Boolean).join(', ');
-  return <View style={[styles.seat, { width }]} accessible accessibilityLabel={description || t.empty}>
+  const interactive = member?.desk_ref && !member.own && Boolean(onDeskPress);
+  const Seat = interactive ? Pressable : View;
+  return <Seat style={[styles.seat, { width }]} accessible accessibilityLabel={description || t.empty}
+    accessibilityRole={interactive ? 'button' : undefined}
+    onPress={interactive ? () => onDeskPress?.(member) : undefined}>
     <View style={[styles.seatArt, own && styles.ownArt]}>
       {member && <Text style={[styles.status, member.status === 'break' && styles.break]}>{t[member.status]}</Text>}
       {avatar && member?.status === 'desk' && <Sprite avatar={avatar} width={Math.min(own ? 99 : 51, width * (own ? .73 : .65))} />}
@@ -126,11 +147,12 @@ function Desk({ member, width, motion, palette, t }: {
       {member ? own ? `${t.you} · ${member.name}` : member.name : t.empty}
     </Text>
     {!!member?.target && <Text numberOfLines={1} style={styles.target}>{member.target}</Text>}
-  </View>;
+  </Seat>;
 }
 
-export const RoomScene = memo(function RoomScene({ room, members, aurora, theme, t }: {
+export const RoomScene = memo(function RoomScene({ room, members, aurora, theme, t, onDeskPress }: {
   room: string | null; members: Member[]; aurora: boolean; theme: ThemeChoice; t: Translation;
+  onDeskPress?: (member: Member) => void;
 }) {
   const { width } = useWindowDimensions();
   const board = Math.min(width - 48, 580);
@@ -157,7 +179,7 @@ export const RoomScene = memo(function RoomScene({ room, members, aurora, theme,
     style={[styles.scene, { borderColor: selected.palette.border }]} imageStyle={styles.image}>
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.scrim]} />
     {[0, 1, 2].map(row => <View key={row} style={styles.row}>
-      {columnWidth.map((size, column) => <Desk key={column} member={seats[row * 3 + column]} width={size} motion={motion} palette={selected.palette} t={t} />)}
+      {columnWidth.map((size, column) => <Desk key={column} member={seats[row * 3 + column]} width={size} motion={motion} palette={selected.palette} t={t} onDeskPress={onDeskPress} />)}
     </View>)}
   </ImageBackground>;
 });

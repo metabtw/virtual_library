@@ -12,12 +12,14 @@ export type Item = { id: ItemId; name: string; name_en: string; price: number; k
 export type ThemeChoice = 'auto' | 'classic' | 'rain' | 'garden' | 'stars';
 export type Pet = { xp: number; upset: boolean };
 export type Drop = { item: ItemId } | { coins: number };
-export type Member = { own: boolean; name: string; status: DeskStatus; avatar: Avatar; placed: ItemId[]; target?: string; pet?: Pet | null };
+export type ReactionKind = 'coffee' | 'clap';
+export type DeskReaction = { id: string; kind: ReactionKind; name: string };
+export type Member = { own: boolean; desk_ref?: string; name: string; status: DeskStatus; avatar: Avatar; placed: ItemId[]; target?: string; pet?: Pet | null };
 export type Profile = { name: string; coins: number; room: string | null; status: DeskStatus | null; avatar: Avatar; target?: string };
 export type Room = { id: string; name: string; name_en: string; count: number; capacity: number; private?: boolean; invite?: string | null; targets?: string[]; minutes?: number };
 export type Focus = {
   start: number; end: number; checks: number; state: 'active' | 'completed' | 'invalid';
-  paused_at: number | null; verification_due: number | null;
+  paused_at: number | null; next_check_at?: number | null; check_until?: number | null;
 };
 
 export type Snapshot = {
@@ -31,6 +33,14 @@ export type Snapshot = {
   pet?: Pet | null;
   chests?: number;
   drop?: Drop | null;
+  reactions?: DeskReaction[];
+};
+
+export type StudySummary = { date: string; minutes: number; streak: number };
+export type Leaderboard = {
+  starts: string; ends: string; visible: boolean;
+  own: { rank: number; minutes: number } | null;
+  rows: { rank: number; minutes: number; name: string }[];
 };
 
 export type Command = {
@@ -48,4 +58,6 @@ export type Command = {
   openBox: undefined;
   openChest: undefined;
   abandon: undefined;
+  react: { desk: string; kind: ReactionKind };
+  rankingVisibility: { visible: boolean };
 };

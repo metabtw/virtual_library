@@ -416,3 +416,28 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
   .scene-top>span {padding: 5px 8px}
 }
 [data-picker="duration"] .picker-options {inset: auto 0 calc(100% + 5px)}
+
+.account-card { width: min(100%, 32rem); margin: 2rem auto; align-items: stretch; gap: 14px; }
+.account-card h1 { font-size: clamp(24px, 5vw, 38px); }
+.account-card a { color: var(--amber, #ffb360); }
+.stacked { display: grid; gap: 10px; }
+.stacked label { display: grid; gap: 4px; }
+.toolbar, .dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.private-actions { margin-top: 16px; }
+.scene.scene-aurora { background-image: linear-gradient(#12101b22, #14121b90), url('/aurora.webp'); }
+.seat-target { color: #e5c9ad; background: #241a2ae0; font-size: 10px; padding: 2px 4px; border-radius: 5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.seat-name { cursor: pointer; color: inherit; }
+button.seat-name:hover { outline: 1px solid #ffb469; }
+.desktop .desk-keyboard, .desktop .desk-dragon, .desktop .desk-accent, .desktop .desk-display { position: absolute; bottom: -.2rem; }
+.desktop .desk-keyboard { left: 30%; }
+.desktop .desk-dragon, .desktop .desk-display { right: 10%; }
+.desktop .desk-accent { left: 20%; }
+.desk-cat.pet-rest, .desk-cat.pet-rest img { animation: none; left: 45%; }
+.item-preview { min-height: 96px; display: grid; place-items: center; }
+.item-preview img, .catalog-plant { width: 72px; height: 72px; object-fit: contain; image-rendering: pixelated; }
+.catalog-plant { position: relative; }
+.catalog-plant img { position: absolute; inset: 0; }
+.rare-card { border-color: #ad79bd; }
+.room-meta { color: #deb991; }
+.ranking-list { padding: 0; margin: 0; list-style: none; width: 100%; }
+.ranking-list li { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid #80605b55; }

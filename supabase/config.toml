@@ -2,7 +2,13 @@ project_id = "virtual-library"
 
 [auth]
 site_url = "sanalkutuphane://auth"
-additional_redirect_urls = ["sanalkutuphane://auth"]
+additional_redirect_urls = [
+  "sanalkutuphane://auth",
+  "http://localhost:3000/",
+  "http://localhost:3000/account-deletion",
+  "http://127.0.0.1:3000/",
+  "http://127.0.0.1:3000/account-deletion"
+]
 
 [functions.library]
 verify_jwt = false

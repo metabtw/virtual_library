@@ -70,13 +70,17 @@ try {
   assert.equal((await action(first, 'buy', { item: 'cat' })).error, 'insufficientCoins');
   assert.deepEqual((await action(first, 'place', { item: 'plant' })).members.find(member => member.own).placed, ['plant']);
 
-  await action(first, 'start', { duration: 50 });
+  const begin = await action(first, 'start', { duration: 50 });
+  assert.equal(begin.session.next_check_at, begin.session.start + 20 * 60000);
+  assert.equal(begin.session.check_until, begin.session.next_check_at + 30000);
   assert.equal((await action(first, 'leave')).error, 'working');
   const pause = await action(first, 'status', { status: 'break' });
   assert.ok(pause.session.paused_at);
+  assert.equal(pause.session.next_check_at, null);
   const resume = await action(first, 'status', { status: 'desk' });
   assert.equal(resume.session.paused_at, null);
   assert.equal(resume.session.end - resume.session.start, 50 * 60000);
+  assert.equal(resume.session.next_check_at, resume.session.start + 20 * 60000);
   await shiftSession(first, 1231000);
   assert.equal(await settle(), 1);
   assert.equal((await action(first, 'verify')).error, 'verificationClosed');
@@ -220,11 +224,72 @@ try {
   assert.equal(off.inventory.find(entry => entry.item === 'archiveVest').placed, false);
   assert.equal(off.inventory.find(entry => entry.item === 'auroraHood').placed, false);
 
+  // Reactions use room-scoped desk references and only reach their recipient.
+  const recipientState = await action(third, 'state');
+  const recipientDesk = recipientState.members.find(member => member.own).desk_ref;
+  const senderState = await action(first, 'state');
+  const senderDesk = senderState.members.find(member => member.own).desk_ref;
+  assert.equal((await action(first, 'react', { desk: senderDesk, kind: 'coffee' })).error, 'reactionUnavailable');
+  const coffee = await action(first, 'react', { desk: recipientDesk, kind: 'coffee' });
+  assert.equal(coffee.profile.coins, senderState.profile.coins);
+  assert.deepEqual(coffee.reactions, []);
+  assert.equal((await action(first, 'react', { desk: recipientDesk, kind: 'clap' })).error, 'reactionSlowDown');
+  assert.equal((await action(third, 'state')).reactions[0].kind, 'coffee');
+  assert.equal((await action(outsider, 'react', { desk: recipientDesk, kind: 'coffee' })).error, 'reactionUnavailable');
+  assert.deepEqual((await action(outsider, 'state')).reactions, []);
+  await db.query('update public.desk_reactions set created_ms=created_ms-13000 where from_user=$1', [first]);
+  assert.deepEqual((await action(third, 'state')).reactions, []);
+  const moved = await action(third, 'join', { room: 'archive' });
+  assert.notEqual(moved.members.find(member => member.own).desk_ref, recipientDesk);
+  assert.equal((await action(first, 'react', { desk: recipientDesk, kind: 'clap' })).error, 'reactionUnavailable');
+
+  const ranker = users[4];
+  const privateReader = users[5];
+  const { rows: [midnight] } = await db.query(`
+    select (extract(epoch from ((clock_timestamp() at time zone 'Europe/Istanbul')::date::timestamp
+      at time zone 'Europe/Istanbul'))*1000)::bigint as start
+  `);
+  const today = Number(midnight.start);
+  const day = 86400000;
+  const history = async (who, when, duration, state = 'completed') => {
+    await db.query('insert into public.sessions(user_id,start_ms,end_ms,state) values ($1,$2,$3,$4)',
+      [who, when - duration * 60000, when, state]);
+  };
+  await history(ranker, today + 1000, 40);
+  await history(ranker, today - day + 1000, 20);
+  await history(ranker, today - 2 * day + 1000, 30);
+  await history(ranker, today - 4 * day + 1000, 60);
+  await history(ranker, today + 2000, 100, 'invalid');
+  await history(privateReader, today + 3000, 120);
+  const daily = await action(ranker, 'studySummary');
+  assert.equal(daily.minutes, 40);
+  assert.equal(daily.streak, 3);
+  assert.equal((await action(ranker, 'leaderboard')).visible, false);
+  await action(ranker, 'rankingVisibility', { visible: true });
+  const table = await action(ranker, 'leaderboard');
+  assert.equal(table.visible, true);
+  assert.equal(table.rows.length, 1, 'the private reader must not appear in the ranking');
+  assert.equal(table.own.rank, 1);
+  assert.ok(table.own.minutes >= 40 && table.own.minutes <= 150);
+  await action(ranker, 'rankingVisibility', { visible: false });
+  assert.equal((await action(ranker, 'leaderboard')).rows.length, 0);
+
+  await db.exec('set role authenticated');
+  await db.query("select set_config('request.jwt.claim.sub', $1, false)", [ranker]);
+  for (const sql of [
+    'update public.profiles set coins=999, leaderboard_visible=true',
+    'update public.pets set xp=999',
+    'update public.sessions set checks=999',
+    'delete from public.coin_ledger',
+    'select * from public.desk_reactions',
+  ]) await assert.rejects(db.query(sql), /permission denied/);
+  await db.exec('reset role');
+
   await db.query('delete from auth.users where id = $1', [first]);
   assert.equal((await action(third, 'state')).rooms.some(entry => entry.private), false);
   assert.equal((await action(third, 'join', { room: privateRoom.id })).error, 'inviteRequired');
 
-  console.log('Postgres: migration, RLS, capacity, commerce, pause, verification, reward settlement, retry lease, private rooms, collections, group milestones, pets, wardrobe, chest restrictions and account deletion passed.');
+  console.log('Postgres: migration, RLS, capacity, commerce, pause, verification, reward settlement, retry lease, private rooms, collections, group milestones, pets, wardrobe, chests, server timer, reactions, ranking, streak and account deletion passed.');
 } finally {
   await db.close();
 }

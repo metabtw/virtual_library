@@ -2,15 +2,15 @@ import { avatarSize, drawAvatar, drawProp } from './avatar-art.js';
 
 const portraits = new Map();
 
-export function portrait({ gender = 'unspecified', hair, outfit, color }) {
-  const key = [gender, hair, outfit, color].join('/');
+export function portrait({ gender = 'unspecified', hair, outfit, color, hairSkin, outfitSkin }) {
+  const key = [gender, hair, outfit, color, hairSkin, outfitSkin].join('/');
   if (portraits.has(key)) return portraits.get(key);
 
   const canvas = document.createElement('canvas');
   canvas.width = avatarSize.width;
   canvas.height = avatarSize.height;
   const context = canvas.getContext('2d');
-  drawAvatar({ gender, hair, outfit, color }, (shade, blocks) => {
+  drawAvatar({ gender, hair, outfit, color, hairSkin, outfitSkin }, (shade, blocks) => {
     context.fillStyle = shade;
     for (const block of blocks) context.fillRect(...block);
   });

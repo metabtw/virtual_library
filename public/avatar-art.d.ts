@@ -7,8 +7,12 @@ export type PropName =
 
 export const avatarSize: { width: number; height: number };
 export const hairStyles: Record<Gender, { tr: string[]; en: string[] }>;
+type BaseAvatar = { gender?: Gender; hair: number; outfit: number; color: string };
+export function dressedAvatar<T extends BaseAvatar>(avatar: T, equipped: readonly string[]): T & {
+  hairSkin?: HairSkin; outfitSkin?: OutfitSkin;
+};
 export function drawAvatar(
-  avatar: { gender?: Gender; hair: number; outfit: number; color: string; hairSkin?: HairSkin; outfitSkin?: OutfitSkin },
+  avatar: BaseAvatar & { hairSkin?: HairSkin; outfitSkin?: OutfitSkin },
   paint: (color: string, blocks: [number, number, number, number][]) => void,
 ): void;
 export function drawProp(
