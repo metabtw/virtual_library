@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { hairStyles } from '../../public/avatar-art';
 import { deleteAccount, library, supabase } from './api';
-import type { Avatar, Command, Drop, Focus, Item, Profile, Snapshot } from './model';
+import type { Avatar, Command, Drop, Focus, Profile } from './model';
 import { RoomScene, Sprite } from './scene';
 import { allowReminders, syncRemoteReminders, removeRemoteReminders, useReminder } from './reminders';
 import { hasAnalytics, setUsageMeasurement, trackUsage } from './telemetry';
@@ -12,6 +12,9 @@ import { message, usePreferences, words, type Locale, type Translation } from '.
 import { Button, Field, Options, ui } from './ui';
 import { Boxes, Directory, Invite, RoomGoal, TargetEditor } from './clubs';
 import { Ambience } from './ambience';
+import { Catalog, ItemIllustration } from './catalog';
+import { dressedAvatar } from './cosmetics';
+import { ThemePicker } from './themes';
 
 type Action = { [K in keyof Command]: { name: K; payload?: Command[K] } }[keyof Command];
 
@@ -81,32 +84,8 @@ function Period({ focus, remaining, pending, onAction, t, canStart }: {
   </View>;
 }
 
-function Items({ snapshot, inventory, t, locale, pending, onAction }: {
-  snapshot: Snapshot; inventory: boolean; t: Translation; locale: Locale;
-  pending: boolean; onAction: (action: Action) => void;
-}) {
-  const owned = new Map(snapshot.inventory.map(entry => [entry.item, entry.placed]));
-  const icons: Record<Item['id'], string> = { lamp: '🏮', plant: '🪴', cat: '🐈', sweater: '🧥', goldKeys: '⌨️', dragon: '🐉', neon: '💡', space: '🪐', forest: '🌲' };
-  const visible = inventory ? snapshot.items.filter(item => owned.has(item.id)) : snapshot.items.filter(item => item.kind !== 'rare');
-  return <>
-    {inventory && <Text style={ui.heading}>{t.inventory}</Text>}
-    {visible.length === 0 && <Text style={ui.small}>{t.emptyInventory}</Text>}
-    {visible.map(item => <View style={[ui.card, ui.row]} key={item.id}>
-      <Text style={ui.heading}>{icons[item.id]} {locale === 'tr' ? item.name : item.name_en}</Text>
-      {inventory && item.id === 'cat' && <View style={{ flexShrink: 1 }}>
-        <Text style={ui.small}>{t.petName} {1 + (snapshot.pet?.xp ?? 0)}</Text>
-        <Text style={ui.small}>{snapshot.pet?.upset ? t.petUpset : t.petHappy}</Text>
-      </View>}
-      <Button muted={inventory} disabled={pending || (inventory ? item.kind === 'ambience' : owned.has(item.id))}
-        onPress={() => onAction({ name: inventory ? 'place' : 'buy', payload: { item: item.id } })}>
-        {inventory ? item.kind === 'ambience' ? t.owned : owned.get(item.id) ? t.remove : t.use : owned.has(item.id) ? t.owned : `${item.price} ${t.coins}`}
-      </Button>
-    </View>)}
-  </>;
-}
-
 export function Library({ id }: { id: string }) {
-  const { locale, setLocale, page, setPage, alerts, setAlerts, usage, setUsage } = usePreferences();
+  const { locale, setLocale, page, setPage, alerts, setAlerts, usage, setUsage, theme, setTheme } = usePreferences();
   const t = words[locale];
   const [prize, setPrize] = useState<Drop | null>(null);
   const [editing, setEditing] = useState(false);
@@ -212,6 +191,9 @@ export function Library({ id }: { id: string }) {
 
   const profile = snapshot.profile;
   const room = snapshot.rooms.find(room => room.id === localRoom);
+  const aurora = (room?.minutes ?? 0) >= 500;
+  const equipped = snapshot.inventory.filter(item => item.placed).map(item => item.item);
+  const prizeItem = prize && 'item' in prize ? snapshot.items.find(item => item.id === prize.item) : undefined;
   const label = (item: { name: string; name_en: string }) => locale === 'tr' ? item.name : item.name_en;
   const pending = mutation.isPending || deleting;
   function act(action: Action) {
@@ -223,7 +205,7 @@ export function Library({ id }: { id: string }) {
     <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
       <View style={ui.row}>
         <Text style={[ui.title, { flexShrink: 1 }]}>{t.app}</Text>
-        {profile && <Text style={ui.accent}>{profile.coins} {t.coins}</Text>}
+        {profile && <Text style={ui.balance}>{profile.coins} {t.coins}</Text>}
       </View>
       {actionError !== '' && <Text accessibilityLiveRegion="polite" style={ui.warning}>{actionError}</Text>}
       {!profile ? <AvatarEditor profile={null} onSave={payload => act({ name: 'profile', payload })} pending={pending} t={t} locale={locale} /> :
@@ -235,7 +217,8 @@ export function Library({ id }: { id: string }) {
           {room && <View style={ui.row}>
             <Text style={ui.heading}>{label(room)}</Text><Text style={ui.small}>{room.count}/{room.capacity}</Text>
           </View>}
-          <RoomScene room={localRoom ?? null} members={snapshot.members} aurora={(room?.minutes ?? 0) >= 500} t={t} />
+          <RoomScene room={localRoom ?? null} members={snapshot.members} aurora={aurora} theme={theme} t={t} />
+          {room && !running && <ThemePicker value={theme} room={room.id} aurora={aurora} onChange={setTheme} t={t} />}
           {room && <RoomGoal minutes={room.minutes ?? 0} t={t} />}
           {room && !running && <Invite room={room} t={t} />}
           {snapshot.session?.state === 'completed' && <Text style={ui.accent}>{t.reward}</Text>}
@@ -249,21 +232,21 @@ export function Library({ id }: { id: string }) {
           </View>}
           {room && <Ambience locked={running} inventory={snapshot.inventory} t={t} />}
         </> : effectivePage === 'shop' ?
-          <>
-            <Boxes snapshot={snapshot} pending={pending} t={t} open={name => act({ name })} />
-            <Items snapshot={snapshot} inventory={false} t={t} locale={locale} pending={pending} onAction={act} />
-          </> :
+          <Catalog snapshot={snapshot} t={t} locale={locale} pending={pending}
+            action={item => act({ name: 'buy', payload: { item } })}
+            boxes={<Boxes snapshot={snapshot} pending={pending} t={t} open={name => act({ name })} />} /> :
           <>
             {editing ? <AvatarEditor profile={profile} onSave={payload => act({ name: 'profile', payload })} pending={pending} t={t} locale={locale} /> :
               <View style={ui.card}>
-                <View style={ui.row}><Sprite avatar={profile.avatar} width={74} /><View style={{ flex: 1 }}>
+                <View style={ui.row}><Sprite avatar={dressedAvatar(profile.avatar, equipped)} width={74} /><View style={{ flex: 1 }}>
                   <Text style={ui.heading}>{profile.name}</Text>
                   {!!profile.target && <Text numberOfLines={1} style={ui.small}>{profile.target}</Text>}
                 </View></View>
                 <Button disabled={pending} onPress={() => setEditing(true)}>{t.editAvatar}</Button>
               </View>}
             <TargetEditor initial={profile.target ?? ''} pending={pending} t={t} save={target => act({ name: 'target', payload: { target } })} />
-            <Items snapshot={snapshot} inventory t={t} locale={locale} pending={pending} onAction={act} />
+            <Catalog snapshot={snapshot} inventory t={t} locale={locale} pending={pending}
+              action={item => act({ name: 'place', payload: { item } })} />
           </>}
       {(!profile || effectivePage === 'profile') && <View style={ui.card}>
         <Options label="TR / EN" values={([['tr', 'Türkçe'], ['en', 'English']] as const)} value={locale} onChange={setLocale} />
@@ -282,15 +265,16 @@ export function Library({ id }: { id: string }) {
     {profile && <View style={ui.nav}>
       {(['rooms', 'room', 'shop', 'profile'] as const).map(tab =>
         <Pressable key={tab} accessibilityRole="tab" disabled={running} onPress={() => setPage(tab)}
-          accessibilityState={{ selected: tab === effectivePage, disabled: running }} style={[ui.navTab, running && { opacity: .46 }]}>
+          accessibilityState={{ selected: tab === effectivePage, disabled: running }} style={[ui.navTab, tab === effectivePage && ui.navActive, running && { opacity: .46 }]}>
           <Text style={[ui.navText, tab === effectivePage && ui.accent]}>{t[tab]}</Text>
         </Pressable>)}
     </View>}
     <Modal visible={prize !== null && !verify} transparent onRequestClose={() => setPrize(null)} accessibilityViewIsModal>
       <View style={ui.modal}><View style={ui.card}>
         <Text style={ui.heading}>✨ {t.prize}</Text>
+        {prizeItem && <ItemIllustration item={prizeItem} avatar={profile?.avatar} />}
         {prize && <Text style={ui.accent}>{'item' in prize
-          ? label(snapshot.items.find(item => item.id === prize.item) ?? { name: prize.item, name_en: prize.item })
+          ? label(prizeItem ?? { name: prize.item, name_en: prize.item })
           : `${prize.coins} ${t.coins}`}</Text>}
         <Button onPress={() => setPrize(null)}>{t.done}</Button>
       </View></View>

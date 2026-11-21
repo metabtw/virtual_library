@@ -183,11 +183,48 @@ try {
   assert.equal((await action(third, 'buy', { item: 'space' })).profile.coins, 0);
   assert.equal((await action(third, 'place', { item: 'space' })).error, 'itemMissing');
 
+  const shopper = users[3];
+  const catalog = {
+    auroraHood: ['wearable', 24], archiveVest: ['wearable', 20], moonCoat: ['wearable', 28],
+    copperCurls: ['hair', 14], silverBraid: ['hair', 18], midnightFade: ['hair', 12],
+    teaSet: ['desk', 9], hourglass: ['desk', 11], miniGlobe: ['desk', 16], crystalTerrarium: ['desk', 22],
+  };
+  const priceTotal = Object.values(catalog).reduce((sum, [, price]) => sum + price, 0);
+  await db.query('update public.profiles set coins = $2 where id = $1', [shopper, priceTotal]);
+  const storefront = await action(shopper, 'state');
+  for (const [item, [kind, price]] of Object.entries(catalog)) {
+    assert.ok(storefront.items.some(entry => entry.id === item && entry.kind === kind && entry.price === price));
+    const purchase = await action(shopper, 'buy', { item });
+    assert.ok(purchase.inventory.some(entry => entry.item === item && !entry.placed));
+  }
+  assert.equal((await action(shopper, 'state')).profile.coins, 0);
+  assert.equal((await action(shopper, 'buy', { item: 'teaSet' })).error, 'itemOwned');
+  const rare = storefront.items.filter(entry => entry.kind === 'rare').map(entry => entry.id).sort();
+  assert.deepEqual(rare, ['dragon', 'goldKeys', 'neon']);
+  for (const item of rare) assert.equal((await action(shopper, 'buy', { item })).error, 'itemMissing');
+  const baseAvatar = storefront.profile.avatar;
+  await action(shopper, 'place', { item: 'auroraHood' });
+  await action(shopper, 'place', { item: 'archiveVest' });
+  await action(shopper, 'place', { item: 'copperCurls' });
+  await action(shopper, 'place', { item: 'silverBraid' });
+  await action(shopper, 'place', { item: 'teaSet' });
+  await action(shopper, 'place', { item: 'hourglass' });
+  await action(shopper, 'place', { item: 'miniGlobe' });
+  const style = await action(shopper, 'place', { item: 'crystalTerrarium' });
+  assert.deepEqual(style.profile.avatar, baseAvatar, 'gear should not overwrite the base avatar');
+  assert.equal(style.profile.coins, 0);
+  const worn = ['archiveVest', 'crystalTerrarium', 'hourglass', 'silverBraid'];
+  assert.deepEqual(style.inventory.filter(entry => entry.placed).map(entry => entry.item).sort(), worn);
+  assert.deepEqual(style.members.find(entry => entry.own).placed, worn);
+  const off = await action(shopper, 'place', { item: 'archiveVest' });
+  assert.equal(off.inventory.find(entry => entry.item === 'archiveVest').placed, false);
+  assert.equal(off.inventory.find(entry => entry.item === 'auroraHood').placed, false);
+
   await db.query('delete from auth.users where id = $1', [first]);
   assert.equal((await action(third, 'state')).rooms.some(entry => entry.private), false);
   assert.equal((await action(third, 'join', { room: privateRoom.id })).error, 'inviteRequired');
 
-  console.log('Postgres: migration, RLS, capacity, commerce, pause, verification, reward settlement, retry lease, private rooms, collections, group milestones, pet progression and account deletion passed.');
+  console.log('Postgres: migration, RLS, capacity, commerce, pause, verification, reward settlement, retry lease, private rooms, collections, group milestones, pets, wardrobe, chest restrictions and account deletion passed.');
 } finally {
   await db.close();
 }

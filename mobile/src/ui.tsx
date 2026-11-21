@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
-export function Button({ children, onPress, disabled, muted }: {
-  children: ReactNode; onPress: () => void; disabled?: boolean; muted?: boolean;
+export function Button({ children, onPress, disabled, muted, accessibilityLabel }: {
+  children: ReactNode; onPress: () => void; disabled?: boolean; muted?: boolean; accessibilityLabel?: string;
 }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
+  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
     style={({ pressed }) => [ui.button, muted && ui.mutedButton, (disabled || pressed) && { opacity: .54 }]}>
     <Text style={[ui.buttonText, muted && ui.ink]}>{children}</Text>
   </Pressable>;
@@ -42,6 +42,10 @@ export const ui = StyleSheet.create({
   small: { color: '#dfc2b6', fontSize: 13 },
   warning: { color: '#ffb9ac' },
   accent: { color: '#ffbe7c', fontWeight: '700' },
+  balance: {
+    color: '#ffdb9c', backgroundColor: '#412d37', borderColor: '#9a6c53', borderWidth: 1,
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6, fontWeight: '700', fontSize: 13,
+  },
   field: { gap: 5 },
   input: { color: '#fff0dc', borderRadius: 10, borderWidth: 1, borderColor: '#76545b',
     paddingHorizontal: 12, minHeight: 46, backgroundColor: '#251d2a', fontSize: 16 },
@@ -55,6 +59,7 @@ export const ui = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   nav: { flexDirection: 'row', padding: 6, gap: 4, backgroundColor: '#342632', borderTopWidth: 1, borderColor: '#76545b' },
   navTab: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, minHeight: 48 },
+  navActive: { backgroundColor: '#4d353e', borderRadius: 10 },
   navText: { textAlign: 'center', color: '#dfc2b6', fontSize: 12 },
   timer: { color: '#ffbf7b', fontSize: 34, fontVariant: ['tabular-nums'], fontWeight: '800' },
   modal: { flex: 1, backgroundColor: '#120e19b0', alignItems: 'center', justifyContent: 'center', padding: 24 },

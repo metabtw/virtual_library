@@ -3,8 +3,13 @@ export type Avatar = { gender: Gender; hair: number; outfit: number; color: stri
 export type DeskStatus = 'desk' | 'break';
 export type AmbienceTrack = 'rain' | 'fire' | 'cafe' | 'lofi' | 'space' | 'forest';
 export type Volume = 0 | 1 | 2 | 3;
-export type ItemId = 'lamp' | 'plant' | 'cat' | 'sweater' | 'goldKeys' | 'dragon' | 'neon' | 'space' | 'forest';
-export type Item = { id: ItemId; name: string; name_en: string; price: number; kind?: 'desk' | 'wearable' | 'rare' | 'ambience' };
+export type ItemId =
+  | 'lamp' | 'plant' | 'cat' | 'sweater' | 'goldKeys' | 'dragon' | 'neon' | 'space' | 'forest'
+  | 'auroraHood' | 'archiveVest' | 'moonCoat' | 'copperCurls' | 'silverBraid' | 'midnightFade'
+  | 'teaSet' | 'hourglass' | 'miniGlobe' | 'crystalTerrarium';
+export type ItemKind = 'desk' | 'wearable' | 'hair' | 'rare' | 'ambience';
+export type Item = { id: ItemId; name: string; name_en: string; price: number; kind: ItemKind };
+export type ThemeChoice = 'auto' | 'classic' | 'rain' | 'garden' | 'stars';
 export type Pet = { xp: number; upset: boolean };
 export type Drop = { item: ItemId } | { coins: number };
 export type Member = { own: boolean; name: string; status: DeskStatus; avatar: Avatar; placed: ItemId[]; target?: string; pet?: Pet | null };

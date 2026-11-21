@@ -70,3 +70,9 @@ Android ve iOS development build oluşturmak için Expo'nun `npx expo run:androi
 - **Kedi** her 50 doğrulanmış dakika için bir seviye ilerler. Yarım bırakılan veya doğrulaması kaçırılan periyotta küser. Sonraki en az 50 dakikalık başarılı periyotta geliştirilen uyku görünümüne döner.
 
 Ambiyans için `expo-audio` yerel modülü kullanılır. Daha eski bir development build kullanıyorsan uygulamayı tekrar derle.
+
+### Mağaza ve oda görünümü
+
+Mağazada kıyafet, saç, masa süsü ve ses paketi filtreleri bulunur. **Sandık ödülleri** bölümündeki eşyalar mağazadan tek tek satın alınamaz. Kazanılan ödüller envanterde kullanılır. Bir kıyafet, saç veya masa yuvasına yeni eşya kuşanıldığında önceki eşya envanterde kalır.
+
+Oda ekranındaki **Oda arka planı** menüsünden Klasik Kütüphane, Yağmurlu Gece, Cam Sera ve Yıldız Gözlemevi seçilebilir. Seçim cihazda saklanır. **Odaya göre** görünüm odanın varsayılan manzarasını ve 500 dakika eşiğindeki kuzey ışıklarını gösterir.

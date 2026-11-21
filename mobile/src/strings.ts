@@ -1,22 +1,24 @@
 import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { AmbienceTrack, Volume } from './model';
+import type { AmbienceTrack, ThemeChoice, Volume } from './model';
 
 export type Locale = 'tr' | 'en';
 type Page = 'rooms' | 'room' | 'shop' | 'profile';
 type Preferences = {
-  locale: Locale; page: Page; alerts: boolean; usage: boolean; duration: string; volumes: Partial<Record<AmbienceTrack, Volume>>;
+  locale: Locale; page: Page; alerts: boolean; usage: boolean; duration: string; volumes: Partial<Record<AmbienceTrack, Volume>>; theme: ThemeChoice;
   setLocale: (locale: Locale) => void; setPage: (page: Page) => void;
   setAlerts: (value: boolean) => void; setUsage: (value: boolean) => void;
   setDuration: (duration: string) => void;
+  setTheme: (theme: ThemeChoice) => void;
   setVolume: (track: AmbienceTrack, level: Volume) => void;
 };
 export const usePreferences = create<Preferences>()(persist(set => ({
-  locale: 'tr', page: 'rooms', alerts: false, usage: false, duration: '50', volumes: {},
+  locale: 'tr', page: 'rooms', alerts: false, usage: false, duration: '50', volumes: {}, theme: 'auto',
   setLocale: locale => set({ locale }), setPage: page => set({ page }),
   setAlerts: alerts => set({ alerts }), setUsage: usage => set({ usage }),
   setDuration: duration => set({ duration }),
+  setTheme: theme => set({ theme }),
   setVolume: (track, level) => set(current => ({ volumes: { ...current.volumes, [track]: level } })),
 }), {
   name: 'library-preferences-v1',
@@ -26,7 +28,7 @@ export const usePreferences = create<Preferences>()(persist(set => ({
     setItem: SecureStore.setItemAsync,
     removeItem: SecureStore.deleteItemAsync,
   })),
-  partialize: ({ locale, alerts, usage, duration, volumes }) => ({ locale, alerts, usage, duration, volumes }),
+  partialize: ({ locale, alerts, usage, duration, volumes, theme }) => ({ locale, alerts, usage, duration, volumes, theme }),
 }));
 
 const tr = {
@@ -57,7 +59,7 @@ const tr = {
   inviteRequired: 'Bu odaya davet koduyla katılabilirsin.', invalidInvite: 'Davet kodu geçersiz.',
   inviteLimited: 'Bir dakika sonra tekrar dene.', invalidRoomName: 'Oda adı 2–32 karakter olmalı.',
   invalidTarget: 'Hedef tek satır ve en fazla 48 karakter olmalı.', profileRequired: 'Önce avatarını oluştur.',
-  commonGoal: 'Kütüphane Ağacı', groupMinutes: 'Doğrulanmış çalışma', goalReached: 'Kuzey ışıkları göründü!',
+  commonGoal: 'Kütüphane Ağacı', groupMinutes: 'Doğrulanmış çalışma', goalReached: 'Kuzey ışıkları açıldı!',
   chest: 'Oda sandığı', openChest: 'Sandığı aç', noChest: 'Açılacak sandık yok.',
   box: 'Gizem Kutusu', openBox: '50 jetona aç', boxRules: 'Her kutu koleksiyonunda olmayan bir nadir eşya verir.',
   collectionComplete: 'Nadir eşya koleksiyonun tamamlandı.', prize: 'Kutudan çıkan ödül', done: 'Tamam',
@@ -66,6 +68,12 @@ const tr = {
   audioLow: 'Düşük', audioMid: 'Orta', audioHigh: 'Yüksek',
   petName: 'Kedinin seviyesi', petHappy: 'Huzurlu', petUpset: 'Küskün',
   abandon: 'Periyodu bırak', abandonConfirm: 'Bu periyottan jeton kazanamayacaksın.', noSession: 'Açık periyot yok.',
+  catalogAll: 'Tümü', catalogClothes: 'Kıyafet', catalogHair: 'Saç', catalogDesk: 'Masa süsü',
+  catalogSound: 'Ses paketi', catalogChests: 'Sandık ödülleri', catalogFilter: 'Kategori',
+  chestReward: 'Sandık hediyesi', chestCollectionInfo: 'Bu eşyalar sandık ve Gizem Kutusu ödülüdür. Tek tek satın alınamaz.',
+  catalogWear: 'Kuşan', catalogEquipped: 'Kuşanıldı', catalogEmpty: 'Bu kategoride eşya yok.',
+  themeTitle: 'Oda arka planı', themeAuto: 'Odaya göre', themeClassic: 'Klasik Kütüphane',
+  themeRain: 'Yağmurlu Gece', themeGarden: 'Cam Sera', themeStars: 'Yıldız Gözlemevi',
   itemMissing: 'Bu eşya burada kullanılamıyor.',
   itemOwned: 'Bu eşya zaten sende.', accountDeletion: 'Hesap silinemedi.', authError: 'Giriş tamamlanamadı.',
 };
@@ -98,7 +106,7 @@ const en: Record<keyof typeof tr, string> = {
   inviteRequired: 'An invite code is required for this room.', invalidInvite: 'Invalid invite code.',
   inviteLimited: 'Try again in a minute.', invalidRoomName: 'Room names must be 2–32 characters.',
   invalidTarget: 'Use one line and no more than 48 characters.', profileRequired: 'Create your avatar first.',
-  commonGoal: 'Library Tree', groupMinutes: 'Verified study time', goalReached: 'The northern lights are out!',
+  commonGoal: 'Library Tree', groupMinutes: 'Verified study time', goalReached: 'Northern lights unlocked!',
   chest: 'Room chest', openChest: 'Open chest', noChest: 'There is no chest to open.',
   box: 'Mystery Box', openBox: 'Open for 50 coins', boxRules: 'Each box contains a rare item you do not already own.',
   collectionComplete: 'You have collected every rare item.', prize: 'Your reward', done: 'Done',
@@ -107,6 +115,12 @@ const en: Record<keyof typeof tr, string> = {
   audioLow: 'Low', audioMid: 'Medium', audioHigh: 'High',
   petName: 'Cat level', petHappy: 'Content', petUpset: 'Sulking',
   abandon: 'End session', abandonConfirm: 'You will not earn coins for this session.', noSession: 'There is no active session.',
+  catalogAll: 'All', catalogClothes: 'Clothing', catalogHair: 'Hair', catalogDesk: 'Desk decor',
+  catalogSound: 'Sound pack', catalogChests: 'Chest rewards', catalogFilter: 'Category',
+  chestReward: 'Chest reward', chestCollectionInfo: 'These items come from chests or Mystery Boxes. Individual purchases are unavailable.',
+  catalogWear: 'Equip', catalogEquipped: 'Equipped', catalogEmpty: 'There are no items in this category.',
+  themeTitle: 'Room background', themeAuto: 'Match room', themeClassic: 'Classic Library',
+  themeRain: 'Rainy Night', themeGarden: 'Glass Conservatory', themeStars: 'Starlit Observatory',
   itemMissing: 'This item cannot be used here.',
   itemOwned: 'You already own this item.', accountDeletion: 'Could not delete the account.', authError: 'Could not sign in.',
 };
