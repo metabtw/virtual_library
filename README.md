@@ -8,7 +8,7 @@ Sanal Kütüphane, avatarla katılınan ortak odalarda odaklanmak için bir web 
 - Depoyu ilk kez indiriyorsan `git clone --branch sanal-kutuphane-mvp https://github.com/metabtw/virtual_library.git` komutunu kullan. Depo zaten bilgisayarındaysa `git fetch origin`, `git switch sanal-kutuphane-mvp` ve `git pull --ff-only` komutları güncel sürümü getirir.
 - Depodaki migration'lar, `library` ve `reward-worker` Edge Function'ları ile ödül zamanlayıcısı test projesinde kurulmuş olmalı. E-posta bağlantısı, yönlendirme adresleri, isteğe bağlı Google ve Apple girişi ve zamanlayıcı ayarları için kurulum rehberini kullan. [Supabase kurulum rehberi](docs/supabase-kurulum.md)
 - Web için kökteki `.env.example`, mobil için `mobile/.env.example` dosyasını kendi klasöründe `.env.local` olarak kopyala. Windows PowerShell’de `Copy-Item .env.example .env.local` kullanabilirsin. İki dosyada da aynı projenin `EXPO_PUBLIC_SUPABASE_URL` ve `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` değerlerini kullan. Bu dosyalara yalnızca istemciye açık değerler girilir.
-- E-posta bağlantısını giriş isteğini başlattığın tarayıcı profilinde veya mobil cihazda aç. Genel kullanıcılara e-posta göndermek için Supabase'de özel SMTP yapılandır. Kodla giriş, e-posta şablonunda kod etkin olduğunda kullanılabilir.
+- E-posta bağlantısını giriş isteğini başlattığın tarayıcı profilinde veya mobil cihazda aç. Genel kullanıcılara e-posta göndermek için Supabase'de özel SMTP yapılandır. E-posta şablonuna kod eklediğinde web ve mobilde `EXPO_PUBLIC_AUTH_EMAIL_CODE=true` ile kod alanını açabilirsin.
 
 Tarayıcı ve Expo istemcisi `library` Edge Function'ına bağlanır. Sayaç kuralları, jetonlar, XP, oda kapasitesi ve sandık ödülleri Supabase tarafında yürütülür. Eski SQLite prototip profilleri yerel dosyada kalır.
 
@@ -26,6 +26,7 @@ npm start
 3. Tarayıcının cihaz araç çubuğunda **320, 390, 768 ve 1440 piksel** genişliklerde oda listesini, dolu odayı, mağazayı, profili ve doğrulama penceresini kontrol et. Uzun ad ve hedef metni, dokuz masa, kuşanılmış eşyalar ve açılır seçimler ekranda sığmalı.
 4. İşletim sisteminde ya da tarayıcının geliştirici araçlarında `prefers-reduced-motion: reduce` aç. Oda sahnesinde açık defter ve eller tek pozda görünmeli. Eşyalar okunabilir boyutlarını korumalı.
 5. Odaya katıl ve **Oda arka planı** bölümünde tema seç. Sayfayı yenilediğinde seçimin korunmalı. **Ambiyans mikseri** bölümünde iki sesi ayrı seviyelerde aç. Tarayıcı otomatik oynatmayı engellerse **Sesleri oynat** düğmesini kullan. Oda ekranından çıktığında sesler durmalı. Satın alınan ses paketleri mikserde seçilebilir olmalı.
+6. Üst çubuktan **EN** seç. Oda adını veya hedefi ara, mağaza ve envanterde bir kategori seç. Sandık ödülleri ayrı görünür ve koleksiyon tamamlandığında ücretli kutu kapanır.
 
 `PORT` ile web portu değiştirilebilir. Varsayılan dışındaki port veya alan adı için gerçek giriş adresini ve `/account-deletion` yolunu Supabase Auth yönlendirme listesine ekle.
 
@@ -56,7 +57,7 @@ npm start -- --dev-client
 1. Geliştirme derlemesini aç, Metro'ya bağlan ve web ile aynı Supabase projesinde oturum aç.
 2. Dar bir telefon profili ve sistemde büyütülmüş yazıyla oda, mağaza, hedef alanı, hesaba giriş ve açılır pencereleri gez. Masadaki yazı hareketini kendi avatarında ve çevredeki katılımcılarda kontrol et. Android veya iOS'ta hareketi azaltma seçeneğini açıp durgun pozu da kontrol et.
 3. Oda ekranında **Oda arka planı** seçimini değiştir, uygulamayı kapatıp tekrar aç. Seçilen manzara cihazda korunmalı. Ambiyans mikserinde iki sesi ayrı seviyelerde çal ve odadan çıkınca seslerin durduğunu dinle.
-4. Profilde hatırlatmaları aç ve çalışan bir periyotta cihazı kilitle. Doğrulama zamanı geldiğinde yerel bildirimi ve uygulamaya dönüşte sunucu saatinin yenilenmesini gerçek cihazda kontrol et. Sistem izinleri ve güç tasarrufu bildirim teslimini etkileyebilir.
+4. Profilde hatırlatmaları aç. Android 12 ve üzerinde **Hatırlatmaları tam zamanında göster** seçeneğinden sistem iznini ver. Çalışan bir periyotta cihazı kilitle. Doğrulama zamanı geldiğinde yerel bildirimi ve uygulamaya dönüşte sunucu saatinin yenilenmesini gerçek cihazda kontrol et.
 5. Günlük çalışma kartını aç ve **Kartı paylaş** ile yerel paylaşım menüsünde PNG göründüğünü doğrula. EAS veya yerel geliştirme derlemesini gerçek cihazda kullan.
 
 Ödül push bildirimleri için ayrıca EAS proje kimliği, APNs/FCM kimlik bilgileri ve Edge Function ortamında `EXPO_PUSH_ACCESS_TOKEN` gerekir. Yerel doğrulama bildirimi uygulamanın cihazda planladığı bir hatırlatmadır. [Bildirim ve ödül kurulumu](docs/supabase-kurulum.md#ödül-işini-zamanla)
@@ -92,11 +93,12 @@ npm ci
 npm test
 npm run test:postgres
 deno check --no-lock --node-modules-dir=none supabase/functions/library/index.ts supabase/functions/reward-worker/index.ts
+deno test --no-lock --node-modules-dir=none --allow-env=EXPO_PUSH_ACCESS_TOKEN supabase/functions/_shared/rewards_test.ts
 ```
 
 - `npm test`, web sunucusunu, Supabase istemci sözleşmesini, sayaç sınırlarını ve ortak piksel animasyonunu kontrol eder.
 - `npm run test:postgres`, migration'ları geçici bir Postgres veritabanına uygular. RLS ve istemci yetkilerini, oda kapasitesini, doğrulamayı, jeton ve sandık işlemlerini, kuşanmayı, tepkileri, sıralamayı ve hesap silmeyi sınar. Çalışırken canlı Supabase'e bağlanmaz.
-- Deno komutu Edge Function'ların tip kontrolüdür. Deno kurulu olmalı.
+- Deno kontrolleri Edge Function tiplerini ve bir test Expo yanıtıyla push bileti ile teslim sonucu akışını sınar.
 
 Mobil paket kontrolü.
 
@@ -117,6 +119,4 @@ Web ve mobil aynı stereo ambiyans döngülerini kullanır. NumPy ve FFmpeg kuru
 
 Oda arka planlarında Klasik Kütüphane, Yağmurlu Gece, Cam Sera ve Yıldız Gözlemevi bulunur. Odaya özel görseller için Supabase Storage'daki `room-art` alanına `night.webp`, `garden.webp` veya `archive.webp` ekleyip mobilde `EXPO_PUBLIC_ROOM_ART_FROM_STORAGE=true` ayarlanabilir.
 
-`mobile/eas.json` geliştirme, önizleme ve mağaza profillerini içerir. EAS projesi ve imzalama bilgileri tanımlandığında `mobile/` klasöründen `npx eas-cli build --profile production --platform all` ile mağaza paketleri oluşturulabilir. Google Play hesap silme bağlantısı için yayımlanan web uygulamasının HTTPS adresindeki `/account-deletion` yolunu kullan.
-
-Sentry ve PostHog isteğe bağlı çevre değişkenleriyle etkinleşir. Yayımlamadan önce TR ve EN aydınlatma metnini kendi veri sorumlusu ve saklama bilgilerinle tamamla. [KVKK yayın notları](docs/kvkk-yayin-notlari.md)
+`mobile/eas.json` geliştirme, önizleme ve mağaza profillerini içerir. Web barındırma, SMTP, sosyal giriş, EAS imzalama, bildirimler ve mağaza öncesi cihaz testi adımları yayın rehberinde yer alır. [Yayın kurulumu](docs/yayin-kurulumu.md) · [KVKK yayın notları](docs/kvkk-yayin-notlari.md)

@@ -1,14 +1,25 @@
 import type { Session } from '@supabase/supabase-js';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { AppState, ScrollView, Text, View } from 'react-native';
+import { AppState, Linking, ScrollView, Text, View } from 'react-native';
 import { authCallbackUrl, completeAuthCode, supabase } from './api';
 import { Button, Field, ui } from './ui';
-import { usePreferences, words } from './strings';
+import { usePreferences, words, type Locale, type Translation } from './strings';
 
 const appleEnabled = process.env.EXPO_PUBLIC_AUTH_APPLE === 'true';
 const googleEnabled = process.env.EXPO_PUBLIC_AUTH_GOOGLE === 'true';
+const codeEnabled = process.env.EXPO_PUBLIC_AUTH_EMAIL_CODE === 'true';
+const privacyUrl = process.env.EXPO_PUBLIC_PRIVACY_URL;
 WebBrowser.maybeCompleteAuthSession();
+
+export function PrivacyLink({ locale, t }: { locale: Locale; t: Translation }) {
+  let url: URL;
+  try { url = new URL(privacyUrl ?? ''); }
+  catch { return null; }
+  if (url.protocol !== 'https:') return null;
+  url.searchParams.set('lang', locale);
+  return <Button muted onPress={() => void Linking.openURL(url.toString()).catch(() => {})}>{t.readPrivacy}</Button>;
+}
 
 export function Login() {
   const locale = usePreferences(s => s.locale);
@@ -35,7 +46,7 @@ export function Login() {
     finally { setBusy(false); }
   }
 
-  async function emailCode() {
+  async function sendEmail() {
     const { error } = await supabase!.auth.signInWithOtp({
       email: email.trim(), options: { emailRedirectTo: authCallbackUrl },
     });
@@ -71,18 +82,22 @@ export function Login() {
       <Field label={t.email} value={email} autoCapitalize="none" autoComplete="email" keyboardType="email-address"
         onChangeText={value => { setEmail(value); setSent(false); }} />
       {sent && <>
-        <Text accessibilityLiveRegion="polite" style={ui.small}>{t.emailSent}</Text>
-        <Field label={t.code} value={code} onChangeText={setCode} keyboardType="number-pad" autoComplete="one-time-code" />
+        <Text accessibilityLiveRegion="polite" style={ui.small}>{codeEnabled ? t.emailSent : t.emailLinkSent}</Text>
+        {codeEnabled && <Field label={t.code} value={code} onChangeText={setCode} keyboardType="number-pad"
+          autoComplete="one-time-code" maxLength={10} />}
       </>}
-      <Button disabled={busy || (sent ? code.trim().length < 6 : !email.includes('@'))}
-        onPress={() => void run(sent ? confirmCode : emailCode)}>{sent ? t.signIn : t.sendCode}</Button>
-      {sent && <Button muted disabled={busy || resendLocked} onPress={() => void run(emailCode)}>{t.resend}</Button>}
+      {!sent && <Button disabled={busy || !email.includes('@')}
+        onPress={() => void run(sendEmail)}>{t.sendCode}</Button>}
+      {sent && codeEnabled && <Button disabled={busy || !/^\d{6,10}$/.test(code.trim())}
+        onPress={() => void run(confirmCode)}>{t.signIn}</Button>}
+      {sent && <Button muted disabled={busy || resendLocked} onPress={() => void run(sendEmail)}>{t.resend}</Button>}
       {appleEnabled && <Button muted disabled={busy} onPress={() => void run(() => oauth('apple'))}>{t.apple}</Button>}
       {googleEnabled && <Button muted disabled={busy} onPress={() => void run(() => oauth('google'))}>{t.google}</Button>}
       {failed && <Text accessibilityLiveRegion="polite" style={ui.warning}>{t.authError}</Text>}
     </View>}
     <View style={ui.card}>
       <Text style={ui.heading}>{t.privacy}</Text><Text style={ui.small}>{t.privacyBody}</Text>
+      <PrivacyLink locale={locale} t={t} />
     </View>
   </ScrollView>;
 }

@@ -24,7 +24,7 @@ Migration geçmişi beklenmedikse ya da kuru çalıştırma daha önce oluşturu
 
 1. Supabase Dashboard'da **Authentication → Sign In / Providers → Email** bölümünü aç ve e-posta sağlayıcısını etkinleştir. **Authentication → URL Configuration** yönlendirme listesine `sanalkutuphane://auth` ekle.
 2. Development build'de **Giriş e-postası gönder** düğmesine bas ve gelen bağlantıyı aynı cihazda aç. Uygulama bağlantıdaki tek kullanımlık kodu oturuma çevirir.
-3. Supabase'in varsayılan gönderim servisi testle sınırlıdır. Diğer kullanıcılara e-posta göndermek ve ücretsiz planda şablonu özelleştirmek için özel SMTP sağlayıcısı yapılandır. Kodla giriş sunacaksan hem **Magic Link** hem **Confirm signup** şablonuna `{{ .Token }}` ekle. Kullanıcı e-postada kod yer alıyorsa uygulamadaki alana yazabilir.
+3. Genel kullanıcılara giriş e-postası göndermek için özel SMTP sağlayıcısı yapılandır. Kodla giriş de sunacaksan hem **Magic Link** hem **Confirm signup** şablonuna `{{ .Token }}` ekle ve web ile mobil ortamlarında `EXPO_PUBLIC_AUTH_EMAIL_CODE=true` ayarla. Varsayılan akış e-postadaki bağlantıyı kullanır.
 
 [Supabase e-posta OTP](https://supabase.com/docs/guides/auth/auth-email-passwordless) · [SMTP ayarları](https://supabase.com/docs/guides/auth/auth-smtp)
 
@@ -59,7 +59,7 @@ Web ve mobil aynı Supabase Auth ve Edge Function kurulumunu kullanır. **Authen
 
 1. Rastgele, en az 32 karakter uzunluğunda bir worker anahtarı oluştur. Supabase Edge Function sırlarına `REWARD_WORKER_SECRET` adıyla kaydet. Push teslimatı için ayrıca EAS/APNs/FCM kimlik bilgileri ve Edge Function sırlarında `EXPO_PUSH_ACCESS_TOKEN` kullanılır.
 2. Supabase Vault'a iki kayıt ekle. `library_reward_worker_url` değeri `https://cqvrxlttlyjjlibitrvh.supabase.co/functions/v1/reward-worker`, `library_reward_worker_secret` değeri bir önceki adımda oluşturduğun anahtar olmalı.
-3. SQL Editor'de [reward-cron.sql](../supabase/ops/reward-cron.sql) dosyasını çalıştır. Cron her dakika worker'ı çağırır. Worker tamamlanan periyotları sonuçlandırır, geçersiz olanları işaretler ve sıradaki push bildirimlerini gönderir. Cron çalıştırma geçmişini ve Edge Function yanıtlarını kontrol et.
+3. SQL Editor'de [reward-cron.sql](../supabase/ops/reward-cron.sql) dosyasını çalıştır. Cron her dakika worker'ı çağırır. Worker periyotları sonuçlandırır, sıradaki push bildirimlerini gönderir ve Expo'dan teslim sonucunu sorgular. Cron çalıştırma geçmişini ve Edge Function yanıtlarını kontrol et.
 
 [Supabase Cron ve Edge Functions](https://supabase.com/docs/guides/functions/schedule-functions)
 

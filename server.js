@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadEnvFile } from 'node:process';
 import { build } from 'esbuild';
+import { privacyPage } from './privacy-page.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const script = 'text/javascript; charset=utf-8';
@@ -21,9 +22,12 @@ const files = new Map([
   ['/avatar-art.js', ['public/avatar-art.js', script]],
   ['/sprites.js', ['public/sprites.js', script]],
   ['/web-social.js', ['public/web-social.js', script]],
+  ['/web-strings.js', ['public/web-strings.js', script]],
+  ['/strings.js', ['public/strings.js', script]],
   ['/room-preferences.js', ['public/room-preferences.js', script]],
   ['/library-client.js', ['public/library-client.js', script]],
   ['/focus-clock.js', ['public/focus-clock.js', script]],
+  ['/desk-status.js', ['public/desk-status.js', script]],
   ['/library.webp', ['public/library.webp', image]],
   ['/aurora.webp', ['mobile/assets/aurora.webp', image]],
   ...['rain', 'garden', 'stars'].map(theme => [`/room-themes/${theme}.webp`, [`mobile/assets/themes/${theme}.webp`, image]]),
@@ -71,7 +75,8 @@ export function getWebConfig(env = process.env) {
     || (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))) {
     return null;
   }
-  return { url: url.origin, key, google: env.EXPO_PUBLIC_AUTH_GOOGLE === 'true', apple: env.EXPO_PUBLIC_AUTH_APPLE === 'true' };
+  return { url: url.origin, key, google: env.EXPO_PUBLIC_AUTH_GOOGLE === 'true',
+    apple: env.EXPO_PUBLIC_AUTH_APPLE === 'true', emailCode: env.EXPO_PUBLIC_AUTH_EMAIL_CODE === 'true' };
 }
 
 export async function bundleSupabase() {
@@ -82,9 +87,9 @@ export async function bundleSupabase() {
   return outputFiles[0].contents;
 }
 
-export function createWebServer({ config = getWebConfig(), bundle = new Uint8Array() } = {}) {
+export function createWebServer({ config = getWebConfig(), bundle = new Uint8Array(), env = process.env } = {}) {
   return createServer(async (request, response) => {
-    const pathname = new URL(request.url, 'http://localhost').pathname;
+    const { pathname, searchParams } = new URL(request.url, 'http://localhost');
     const write = (type, content, status = 200, extraHeaders) => response.writeHead(status, {
       'Content-Type': type,
       'Cache-Control': 'no-cache',
@@ -93,6 +98,8 @@ export function createWebServer({ config = getWebConfig(), bundle = new Uint8Arr
       ...extraHeaders,
     }).end(request.method === 'HEAD' ? undefined : content);
     if (request.method === 'GET' || request.method === 'HEAD') {
+      if (pathname === '/healthz') return write('application/json; charset=utf-8', JSON.stringify({ ok: Boolean(config) }), config ? 200 : 503);
+      if (pathname === '/privacy') return write(html, privacyPage(searchParams.get('lang'), env));
       if (pathname === '/config.js') return write(script, `export const config = ${JSON.stringify(config)};`);
       if (pathname === '/supabase-web.js') return write(script, bundle);
       const file = files.get(pathname);

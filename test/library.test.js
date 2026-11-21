@@ -3,6 +3,7 @@ import { once } from 'node:events';
 import { test } from 'node:test';
 import { bundleSupabase, createWebServer, getWebConfig } from '../server.js';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../public/focus-clock.js';
+import { displayDeskStatuses, recordDeskStatus } from '../public/desk-status.js';
 import { invokeLibrary } from '../public/library-client.js';
 import { writingSize } from '../public/avatar-art.js';
 import { writingFrames } from '../public/sprites.js';
@@ -21,12 +22,36 @@ async function fixture(t, options) {
 
 test('serves the web app, public deletion route, shared client and artwork', async t => {
   const address = await fixture(t);
-  for (const path of ['/', '/account-deletion', '/library-client.js', '/focus-clock.js', '/web-social.js', '/library.webp',
+  for (const path of ['/', '/account-deletion', '/library-client.js', '/focus-clock.js', '/web-social.js', '/web-strings.js',
+    '/strings.js', '/desk-status.js', '/library.webp',
     '/room-preferences.js', '/room-preferences.css', '/room-themes/rain.webp', '/room-themes/garden.webp', '/room-themes/stars.webp']) {
     const response = await fetch(address + path);
     assert.equal(response.status, 200, path);
     assert.ok((await response.arrayBuffer()).byteLength > 0);
   }
+});
+
+test('readiness and both privacy notice languages are public routes', async t => {
+  const env = {
+    PRIVACY_CONTROLLER_NAME: 'School & Library',
+    PRIVACY_CONTACT_EMAIL: 'privacy@example.test',
+    PRIVACY_DETAILS_TR: 'Saklama süresi',
+    PRIVACY_DETAILS_EN: 'Retention < 90 days',
+  };
+  const address = await fixture(t, { config: { url: publicUrl, key: publishable }, env });
+  const ready = await fetch(address + '/healthz');
+  assert.equal(ready.status, 200);
+  assert.deepEqual(await ready.json(), { ok: true });
+  const unconfigured = await fixture(t, { config: null, env: {} });
+  assert.equal((await fetch(unconfigured + '/healthz')).status, 503);
+  assert.match(await (await fetch(unconfigured + '/privacy')).text(), /Bu taslak/u);
+  assert.match(await (await fetch(address + '/privacy')).text(), /Saklama süresi/u);
+  const en = await (await fetch(address + '/privacy?lang=en')).text();
+  assert.match(en, /<html lang="en">/);
+  assert.match(en, /School &amp; Library/);
+  assert.match(en, /Retention &lt; 90 days/);
+  assert.match(en, /href="\/account-deletion\?lang=en"/);
+  assert.doesNotMatch(en, /completes this draft/);
 });
 
 test('serves the shared ambience tracks and supports media byte ranges', async t => {
@@ -71,6 +96,11 @@ test('browser runtime refuses Supabase service keys and unsafe project origins',
   assert.equal(config(publishable, 'https://user:pass@project.supabase.co'), null);
   assert.equal(config(publishable, 'http://project.supabase.co'), null);
   assert.equal(config(token('anon')).key, token('anon'));
+  assert.equal(config(publishable).emailCode, false);
+  assert.equal(getWebConfig({
+    EXPO_PUBLIC_SUPABASE_URL: publicUrl, EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: publishable,
+    EXPO_PUBLIC_AUTH_EMAIL_CODE: 'true',
+  }).emailCode, true);
 });
 
 test('bundles the official Supabase browser client', async t => {
@@ -115,6 +145,18 @@ test('the verification modal uses the server-provided window boundaries', () => 
   assert.equal(verificationRemaining(session, 40000), 0);
   assert.equal(verificationRemaining({ ...session, state: 'invalid' }, 12000), 0);
   assert.equal(verificationRemaining({ state: 'active' }, 12000), 0);
+});
+
+test('a desk update appears immediately and a newer snapshot takes precedence', () => {
+  const own = { own: true, desk_ref: 'local', status: 'desk' };
+  const peer = { own: false, desk_ref: 'remote', status: 'desk' };
+  let updates = recordDeskStatus(new Map(), { desk: peer.desk_ref, status: 'break', at: 3000 });
+  updates = recordDeskStatus(updates, { desk: own.desk_ref, status: 'break', at: 3000 });
+  const stale = recordDeskStatus(updates, { desk: peer.desk_ref, status: 'desk', at: 2500 });
+  assert.equal(stale, updates);
+  assert.equal(recordDeskStatus(updates, { desk: peer.desk_ref, status: 'unknown', at: 4000 }), updates);
+  assert.deepEqual(displayDeskStatuses([own, peer], 1000, updates), [own, { ...peer, status: 'break' }]);
+  assert.deepEqual(displayDeskStatuses([own, peer], 4000, updates), [own, peer]);
 });
 
 test('auto themes follow the room and unlocked milestone until the user chooses a theme', () => {

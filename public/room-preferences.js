@@ -1,8 +1,10 @@
+import { webText } from './web-strings.js';
+
 const preferenceKey = 'library-room-preferences';
 
 const themes = {
-  auto: 'Odaya göre', classic: 'Klasik Kütüphane', rain: 'Yağmurlu Gece',
-  garden: 'Cam Sera', stars: 'Yıldız Gözlemevi',
+  auto: 'themeAuto', classic: 'themeClassic', rain: 'themeRain',
+  garden: 'themeGarden', stars: 'themeStars',
 };
 
 const themeImages = {
@@ -11,11 +13,10 @@ const themeImages = {
 };
 
 const tracks = {
-  rain: 'Yağmur Sesi', fire: 'Şömine Çıtırtısı', cafe: 'Kafe Uğultusu', lofi: 'Lo-Fi Beat',
-  space: 'Uzay İstasyonu', forest: 'Orman Kulübesi',
+  rain: 'rain', fire: 'fire', cafe: 'cafe', lofi: 'lofi', space: 'space', forest: 'forest',
 };
 
-const levels = ['Kapalı', 'Az', 'Orta', 'Yüksek'];
+const levels = ['audioOff', 'audioLow', 'audioMid', 'audioHigh'];
 const isLevel = level => Number.isInteger(level) && level >= 0 && level < levels.length;
 const isAvailable = (track, inventory) => !['space', 'forest'].includes(track) || inventory.some(entry => entry.item === track);
 
@@ -35,7 +36,9 @@ function readPreferences(storage) {
   }
 }
 
-export function createRoomPreferences({ storage = () => localStorage, createAudio = url => new Audio(url) } = {}) {
+export function createRoomPreferences({
+  storage = () => localStorage, createAudio = url => new Audio(url), translate = key => webText('tr', key),
+} = {}) {
   const saved = readPreferences(storage);
   let theme = Object.hasOwn(themes, saved.theme) ? saved.theme : 'auto';
   const volumes = Object.fromEntries(Object.keys(tracks).map(track => [track,
@@ -59,7 +62,7 @@ export function createRoomPreferences({ storage = () => localStorage, createAudi
   function showPlaybackStatus() {
     const notice = scope?.querySelector('[data-ambience-notice]');
     const play = scope?.querySelector('[data-play-ambience]');
-    if (notice) notice.textContent = blocked.size ? 'Ses durdu. Yeniden başlatmak için Sesleri oynat düğmesini kullan.' : '';
+    if (notice) notice.textContent = blocked.size ? translate('soundStopped') : '';
     if (play) play.hidden = blocked.size === 0;
   }
 
@@ -106,15 +109,15 @@ export function createRoomPreferences({ storage = () => localStorage, createAudi
 
   function markup(room, items) {
     const themeOptions = Object.entries(themes).map(([choice, label]) =>
-      `<button type="button" data-room-theme-choice="${choice}" aria-pressed="${theme === choice}"><img src="${themeImages[resolveRoomTheme(choice, room)]}" alt="" width="70" height="38" loading="lazy">${label}</button>`).join('');
+      `<button type="button" data-room-theme-choice="${choice}" aria-pressed="${theme === choice}"><img src="${themeImages[resolveRoomTheme(choice, room)]}" alt="" width="70" height="38" loading="lazy">${translate(label)}</button>`).join('');
     const mix = Object.entries(tracks).map(([track, label]) => isAvailable(track, items)
-      ? `<fieldset class="ambience-track"><legend>${label}</legend><div class="ambience-levels">${levels.map((name, level) =>
-        `<label><input type="radio" name="ambience-${track}" data-ambience-track="${track}" value="${level}" ${volumes[track] === level ? 'checked' : ''}><span>${name}</span></label>`).join('')}</div></fieldset>`
-      : `<p class="ambience-locked">${label} · Mağazada açılır</p>`).join('');
+      ? `<fieldset class="ambience-track"><legend>${translate(label)}</legend><div class="ambience-levels">${levels.map((name, level) =>
+        `<label><input type="radio" name="ambience-${track}" data-ambience-track="${track}" value="${level}" ${volumes[track] === level ? 'checked' : ''}><span>${translate(name)}</span></label>`).join('')}</div></fieldset>`
+      : `<p class="ambience-locked">${translate(label)} · ${translate('audioLocked')}</p>`).join('');
     return `<div class="room-preferences">
-      <details class="room-preference room-theme"><summary><span>Oda arka planı</span><span data-current-room-theme>${themes[theme]}</span></summary><div class="room-theme-options">${themeOptions}</div></details>
-      <details class="room-preference room-ambience"><summary>Ambiyans mikseri</summary><div class="room-ambience-controls">${mix}
-      <p data-ambience-notice role="status"></p><button type="button" class="secondary" data-play-ambience hidden>Sesleri oynat</button></div></details>
+      <details class="room-preference room-theme"><summary><span>${translate('themeTitle')}</span><span data-current-room-theme>${translate(themes[theme])}</span></summary><div class="room-theme-options">${themeOptions}</div></details>
+      <details class="room-preference room-ambience"><summary>${translate('ambience')}</summary><div class="room-ambience-controls">${mix}
+      <p data-ambience-notice role="status"></p><button type="button" class="secondary" data-play-ambience hidden>${translate('soundPlay')}</button></div></details>
     </div>`;
   }
 
@@ -131,7 +134,7 @@ export function createRoomPreferences({ storage = () => localStorage, createAudi
         for (const option of picker.querySelectorAll('[data-room-theme-choice]')) {
           option.setAttribute('aria-pressed', String(option === choice));
         }
-        picker.querySelector('[data-current-room-theme]').textContent = themes[theme];
+        picker.querySelector('[data-current-room-theme]').textContent = translate(themes[theme]);
         picker.open = false;
         picker.querySelector('summary').focus();
       }

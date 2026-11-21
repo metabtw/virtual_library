@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { startActivityAsync } from 'expo-intent-launcher';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { useEffect } from 'react';
@@ -11,7 +12,7 @@ const channelId = 'focus';
 const notificationId = 'focus-verification';
 const storageKey = 'registered-expo-push-token';
 let reminderWork = Promise.resolve();
-let scheduled: { due: number; localTime: number; title: string; body: string } | undefined;
+let scheduled: { due: number; localTime: number; title: string; body: string; revision: number } | undefined;
 let remoteWork = Promise.resolve();
 
 Notifications.setNotificationHandler({
@@ -27,6 +28,15 @@ export async function allowReminders() {
     });
   }
   return (await Notifications.requestPermissionsAsync()).granted;
+}
+
+export const hasExactReminderSettings = Platform.OS === 'android' && Number(Platform.Version) >= 31
+  && Boolean(Constants.expoConfig?.android?.package);
+
+export async function openExactReminderSettings() {
+  await startActivityAsync('android.settings.REQUEST_SCHEDULE_EXACT_ALARM', {
+    data: `package:${Constants.expoConfig?.android?.package}`,
+  });
 }
 
 function runRemote(operation: () => Promise<void>) {
@@ -56,13 +66,13 @@ export function removeRemoteReminders(accountDeleted = false) {
   });
 }
 
-export function useReminder(enabled: boolean, due: number | null, clock: ServerClock | undefined, t: Translation) {
+export function useReminder(enabled: boolean, due: number | null, clock: ServerClock | undefined, t: Translation, revision = 0) {
   const localTime = due === null || !clock ? null : due + clock.receiveTime - clock.serverTime;
   useEffect(() => {
     let obsolete = false;
     reminderWork = reminderWork.then(async () => {
       if (obsolete) return;
-      if (enabled && due !== null && localTime !== null && scheduled?.due === due
+      if (enabled && due !== null && localTime !== null && scheduled?.due === due && scheduled.revision === revision
         && scheduled.title === t.app && scheduled.body === t.verify
         && Math.abs(scheduled.localTime - localTime) < 1500) return;
       await Notifications.cancelScheduledNotificationAsync(notificationId);
@@ -73,10 +83,10 @@ export function useReminder(enabled: boolean, due: number | null, clock: ServerC
         content: { title: t.app, body: t.verify, sound: true },
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(localTime), channelId },
       });
-      scheduled = { due, localTime, title: t.app, body: t.verify };
+      scheduled = { due, localTime, title: t.app, body: t.verify, revision };
     }).catch(() => {});
     return () => { obsolete = true; };
-  }, [enabled, due, localTime, t.app, t.verify]);
+  }, [enabled, due, localTime, t.app, t.verify, revision]);
   useEffect(() => () => {
     reminderWork = reminderWork.then(async () => {
       await Notifications.cancelScheduledNotificationAsync(notificationId);

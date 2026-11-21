@@ -24,6 +24,7 @@ jobs:
         with:
           deno-version: v2.x
       - run: deno check --no-lock --node-modules-dir=none supabase/functions/library/index.ts supabase/functions/reward-worker/index.ts
+      - run: deno test --no-lock --node-modules-dir=none --allow-env=EXPO_PUSH_ACCESS_TOKEN supabase/functions/_shared/rewards_test.ts
 
   mobile:
     runs-on: ubuntu-latest

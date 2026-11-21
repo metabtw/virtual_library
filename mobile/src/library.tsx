@@ -4,10 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, Image, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { avatarOptions, avatarPresets, defaultAvatar, hairStyles, pickAvatarStyle } from '../../public/avatar-art';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../../public/focus-clock';
+import { displayDeskStatuses, recordDeskStatus, type DeskUpdates } from '../../public/desk-status';
 import { deleteAccount, library, supabase } from './api';
 import type { Avatar, Command, Drop, Focus, Member, Profile } from './model';
 import { RoomScene, Sprite } from './scene';
-import { allowReminders, syncRemoteReminders, removeRemoteReminders, useReminder } from './reminders';
+import { allowReminders, hasExactReminderSettings, openExactReminderSettings, syncRemoteReminders,
+  removeRemoteReminders, useReminder } from './reminders';
 import { hasAnalytics, setUsageMeasurement, trackUsage } from './telemetry';
 import { message, usePreferences, words, type Locale, type Translation } from './strings';
 import { Button, Field, Options, ui } from './ui';
@@ -18,6 +20,7 @@ import { dressedAvatar } from './cosmetics';
 import { ThemePicker } from './themes';
 import { LeaderboardModal, StudyCardModal } from './study';
 import { presetAssets } from './asset-art';
+import { PrivacyLink } from './auth';
 
 type Action = { [K in keyof Command]: { name: K; payload?: Command[K] } }[keyof Command];
 
@@ -144,14 +147,22 @@ export function Library({ id }: { id: string }) {
   const seenReactions = useRef(new Set<string>());
   const [actionError, setActionError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [reminderRevision, setReminderRevision] = useState(0);
+  const [presenceReadyRoom, setPresenceReadyRoom] = useState<string | null>(null);
+  const [deskUpdates, setDeskUpdates] = useState<DeskUpdates>(() => new Map());
   const presence = useRef<RealtimeChannel | null>(null);
   const queryClient = useQueryClient();
   const key = ['library', id] as const;
   const query = useQuery({
     queryKey: key, queryFn: () => library('state'),
-    refetchInterval: query => query.state.data?.profile?.room || query.state.data?.session?.state === 'active' ? 1000 : 5000,
+    refetchInterval: query => {
+      const room = query.state.data?.profile?.room;
+      return room && room !== presenceReadyRoom ? 1000 : 5000;
+    },
   });
   const snapshot = query.data;
+  const roomMembers = useMemo(() => displayDeskStatuses(snapshot?.members ?? [], snapshot?.now ?? 0, deskUpdates),
+    [snapshot?.members, snapshot?.now, deskUpdates]);
   const inventory = snapshot?.inventory;
   const equipped = useMemo(() => inventory?.filter(item => item.placed).map(item => item.item) ?? [], [inventory]);
   const serverSample = snapshot?.now;
@@ -165,7 +176,7 @@ export function Library({ id }: { id: string }) {
   const observed = clock ? serverTimeAt(clock, moment) : 0;
   const remainingCheck = foreground && (serverSample ?? 0) > refreshAfter ? verificationRemaining(focus, observed) : 0;
   const verify = remainingCheck > 0;
-  useReminder(alerts, focus?.next_check_at ?? null, clock, t);
+  useReminder(alerts, focus?.next_check_at ?? null, clock, t, reminderRevision);
   useEffect(() => {
     const subscription = AppState.addEventListener('change', status => {
       setForeground(status === 'active');
@@ -220,8 +231,13 @@ export function Library({ id }: { id: string }) {
         reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
       }
       if (action.name === 'rankingVisibility') void queryClient.invalidateQueries({ queryKey: ['leaderboard', id] });
-      if (['status', 'start', 'place', 'target', 'abandon', 'react'].includes(action.name)) {
-        void presence.current?.track({ changed: data.now });
+      if (['place', 'target', 'profile', 'react'].includes(action.name)) {
+        const channel = presence.current;
+        void channel?.track({ changed: data.now }).then(result => {
+          if (presence.current === channel) {
+            setPresenceReadyRoom(result === 'ok' && channel.state === 'joined' ? localRoom ?? null : null);
+          }
+        });
       }
     },
     onError: error => setActionError(message(t, error)),
@@ -235,14 +251,22 @@ export function Library({ id }: { id: string }) {
     return () => clearInterval(timer);
   }, [Boolean(focus)]);
   useEffect(() => {
+    setPresenceReadyRoom(null);
+    setDeskUpdates(new Map());
     if (!localRoom) return;
     const client = supabase!;
     const channel = client.channel(`room:${localRoom}`, { config: { private: true, presence: { key: id } } });
     presence.current = channel;
     channel.on('presence', { event: 'sync' }, () => {
       void queryClient.invalidateQueries({ queryKey: ['library', id] });
+    }).on('broadcast', { event: 'desk_status' }, ({ payload }) => {
+      if (presence.current === channel) setDeskUpdates(previous => recordDeskStatus(previous, payload));
     }).subscribe(status => {
-      if (status === 'SUBSCRIBED') void channel.track({ changed: Date.now() });
+      if (presence.current !== channel) return;
+      setPresenceReadyRoom(null);
+      if (status === 'SUBSCRIBED') void channel.track({ changed: Date.now() }).then(result => {
+        if (presence.current === channel && result === 'ok' && channel.state === 'joined') setPresenceReadyRoom(localRoom);
+      });
     });
     return () => { presence.current = null; void client.removeChannel(channel); };
   }, [id, localRoom, queryClient]);
@@ -308,7 +332,8 @@ export function Library({ id }: { id: string }) {
           {room && <View style={ui.row}>
             <Text style={ui.heading}>{label(room)}</Text><Text style={ui.small}>{room.count}/{room.capacity}</Text>
           </View>}
-          <RoomScene room={localRoom ?? null} members={snapshot.members} aurora={aurora} theme={theme} t={t} onDeskPress={running ? undefined : setPeer} />
+          <RoomScene room={localRoom ?? null} members={roomMembers}
+            aurora={aurora} theme={theme} t={t} onDeskPress={running ? undefined : setPeer} />
           {room && !running && <ThemePicker value={theme} room={room.id} aurora={aurora} onChange={setTheme} t={t} />}
           {room && <RoomGoal minutes={room.minutes ?? 0} t={t} />}
           {room && !running && <Invite room={room} t={t} />}
@@ -350,9 +375,14 @@ export function Library({ id }: { id: string }) {
             if (value) void allowReminders().then(setAlerts).catch(() => setAlerts(false));
             else { setAlerts(false); void removeRemoteReminders().catch(error => setActionError(message(t, error))); }
           }} /></View>
+        {alerts && hasExactReminderSettings && <Button muted onPress={() => void openExactReminderSettings()
+          .then(() => setReminderRevision(current => current + 1), () => setActionError(t.exactReminderError))}>
+          {t.exactReminderSettings}
+        </Button>}
         {hasAnalytics && <View style={ui.row}><Text style={ui.heading}>{t.usage}</Text><Switch accessibilityLabel={t.usage}
           value={usage} onValueChange={setUsage} /></View>}
         <Text style={ui.heading}>{t.privacy}</Text><Text style={ui.small}>{t.privacyBody}</Text>
+        <PrivacyLink locale={locale} t={t} />
         <Button muted disabled={pending} onPress={() => void signOut()}>{t.signOut}</Button>
         <Button muted disabled={pending} onPress={requestDeletion}>{t.deleteAccount}</Button>
       </View>}

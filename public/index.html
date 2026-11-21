@@ -10,26 +10,30 @@
 </head>
 <body>
   <aside class="sidebar">
-    <a class="brand" href="#room"><span>◫</span><b>Sanal<br>Kütüphane</b></a>
+    <a class="brand" href="#room"><span aria-hidden="true">◫</span><b data-text="app">Sanal Kütüphane</b></a>
     <nav aria-label="Ana menü">
-      <a href="#rooms"><i aria-hidden="true">⌂</i> Odalar</a>
-      <a href="#room"><i aria-hidden="true">▤</i> Kütüphane</a>
-      <a href="#shop"><i aria-hidden="true">♧</i> Mağaza</a>
-      <a href="#profile"><i aria-hidden="true">♙</i> Profil &amp; Envanter</a>
+      <a href="#rooms"><i aria-hidden="true">⌂</i><span data-text="rooms">Odalar</span></a>
+      <a href="#room"><i aria-hidden="true">▤</i><span data-text="library">Kütüphane</span></a>
+      <a href="#shop"><i aria-hidden="true">♧</i><span data-text="shop">Mağaza</span></a>
+      <a href="#profile"><i aria-hidden="true">♙</i><span data-text="profileNav">Profil &amp; Envanter</span></a>
     </nav>
-    <div class="sidebar-footer"><span class="dot"></span> Kütüphane açık</div>
+    <div class="sidebar-footer"><span class="dot"></span> <span data-text="libraryOpen">Kütüphane açık</span></div>
   </aside>
   <main>
-    <header><span class="breadcrumb">Sanal Kütüphane <span>›</span> <b id="location">Kütüphane</b></span><div class="wallet"><span>◉</span> <b id="balance">0</b> jeton</div></header>
+    <header><span class="breadcrumb"><strong data-text="app">Sanal Kütüphane</strong> <span>›</span> <b id="location">Kütüphane</b></span>
+      <div class="header-tools"><button class="secondary" id="language-toggle" type="button" aria-label="Switch to English" lang="en">EN</button>
+        <div class="wallet"><span aria-hidden="true">◉</span> <b id="balance">0</b> <span class="wallet-unit" data-text="coins">jeton</span></div></div></header>
     <section id="content" aria-label="Kütüphane"></section>
   </main>
   <p id="notice" role="status"></p>
-  <dialog id="verify-dialog"><h2>Hâlâ masada mısın?</h2><p>Çalışma periyodunu doğrulamak için kalan süre <b id="verify-time"></b>.</p><div class="dialog-actions"><button class="primary" data-action="verify">Buradayım</button><button class="secondary" data-action="status" data-value="break">Molaya geç</button></div></dialog>
+  <dialog id="verify-dialog" aria-labelledby="verify-title"><h2 id="verify-title" data-text="verify">Hâlâ masada mısın?</h2>
+    <p><span data-text="verifyRemaining">Çalışma periyodunu doğrulamak için kalan süre</span> <b id="verify-time"></b>.</p>
+    <div class="dialog-actions"><button class="primary" data-action="verify" data-text="here">Buradayım</button><button class="secondary" data-action="status" data-value="break" data-text="pause">Molaya geç</button></div></dialog>
   <dialog id="reaction-dialog">
     <h2>Masa tepkisi</h2>
-    <div class="dialog-actions"><button class="primary" data-action="react" data-value="coffee">☕ Kahve gönder</button>
-      <button class="secondary" data-action="react" data-value="clap">👏 Alkışla</button>
-      <form method="dialog"><button class="secondary">Kapat</button></form></div>
+    <div class="dialog-actions"><button class="primary" data-action="react" data-value="coffee" data-text="coffeeReaction">☕ Kahve gönder</button>
+      <button class="secondary" data-action="react" data-value="clap" data-text="clapReaction">👏 Alkışla</button>
+      <form method="dialog"><button class="secondary" data-text="close">Kapat</button></form></div>
   </dialog>
   <script type="module" src="/app.js"></script>
 </body>

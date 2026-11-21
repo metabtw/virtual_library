@@ -1,33 +1,15 @@
 import { portrait } from './sprites.js';
+import { webText } from './web-strings.js';
 
 export const reactionArt = { coffee: '☕', clap: '👏' };
 
-export function messageFor(code) {
-  return ({
-    missingConfig: 'Supabase bağlantısı tanımlanmalı.',
-    unauthorized: 'Oturum kapandı. Lütfen tekrar giriş yap.',
-    working: 'Bu işlem için önce mola ver.',
-    insufficientCoins: 'Yeterli jetonun yok.',
-    itemOwned: 'Eşya zaten envanterinde.',
-    itemMissing: 'Bu eşya doğrudan satın alınamıyor veya kullanılamıyor.',
-    invalidDuration: '5–180 dakika arasında tam sayı gir.',
-    verificationClosed: 'Doğrulama penceresi kapandı.',
-    invalidAvatar: 'Geçerli bir kullanıcı adı ve avatar seç.',
-    invalidTarget: 'Hedef tek satır ve en fazla 48 karakter olmalı.',
-    roomFull: 'Bu oda dolu.',
-    inviteRequired: 'Bu odaya davet koduyla katılabilirsin.',
-    invalidInvite: 'Davet kodu geçersiz.',
-    inviteLimited: 'Bir dakika sonra tekrar dene.',
-    invalidRoomName: 'Oda adı 2–32 karakter olmalı.',
-    reactionSlowDown: 'Yeni bir tepki göndermeden önce birkaç saniye bekle.',
-    reactionUnavailable: 'Bu masa şu anda ulaşılabilir değil.',
-    noChest: 'Açılacak sandık yok.',
-    collectionComplete: 'Nadir eşya koleksiyonun tamamlandı.',
-    accountDeletion: 'Hesap silinemedi. Tekrar dene.',
-  })[code] ?? 'Sunucuya bağlanılamadı. Tekrar dene.';
+export function messageFor(code, translate) {
+  const message = translate(code);
+  return message === code ? translate('server') : message;
 }
 
-export async function downloadStudyCard(summary, profile) {
+export async function downloadStudyCard(summary, profile, locale) {
+  const t = key => webText(locale, key);
   const canvas = document.createElement('canvas');
   canvas.width = 720;
   canvas.height = 1280;
@@ -53,7 +35,7 @@ export async function downloadStudyCard(summary, profile) {
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffeece';
   ctx.font = '700 34px system-ui';
-  ctx.fillText('SANAL KÜTÜPHANE', 360, 240, 500);
+  ctx.fillText(t('app').toLocaleUpperCase(locale), 360, 240, 500);
   ctx.font = '700 42px system-ui';
   ctx.fillText(profile.name, 360, 573, 500);
   ctx.font = 'bold 100px system-ui';
@@ -61,8 +43,8 @@ export async function downloadStudyCard(summary, profile) {
   ctx.fillText(String(summary.minutes), 360, 740);
   ctx.font = '32px system-ui';
   ctx.fillStyle = '#ffeece';
-  ctx.fillText('bugün odaklanılan dakika', 360, 799, 510);
-  ctx.fillText(summary.streak + ' günlük seri', 360, 968);
+  ctx.fillText(t('studyToday'), 360, 799, 510);
+  ctx.fillText(summary.streak + ' ' + t('studyStreak'), 360, 968);
   ctx.fillStyle = '#dfbca7';
   ctx.fillText(summary.date, 360, 1052);
 

@@ -59,7 +59,7 @@ Deno.serve(async (request) => {
     console.error('library_action', failure.code);
     return reply({ error: 'server' }, { status: 500 });
   }
-  if (typeof result?.awarded === 'number') {
+  if (typeof result?.awarded === 'number' && result.awarded > 0) {
     EdgeRuntime.waitUntil(deliverRewards(admin).catch(() => console.error('reward_delivery_unavailable')));
   }
   return reply(result);

@@ -32,6 +32,7 @@
     },
     "android": {
       "package": "com.metabtw.sanalkutuphane",
+      "permissions": ["android.permission.SCHEDULE_EXACT_ALARM"],
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ],

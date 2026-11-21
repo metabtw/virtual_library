@@ -31,6 +31,9 @@ try {
     create table auth.users (id uuid primary key);
     create table storage.buckets (id text primary key, name text, public boolean);
     create table realtime.messages (extension text);
+    create table realtime.desk_events (payload jsonb, event text, topic text, private boolean);
+    create function realtime.send(jsonb, text, text, boolean) returns void language sql
+      as $$ insert into realtime.desk_events values ($1, $2, $3, $4) $$;
     create function auth.uid() returns uuid language sql stable
       as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     create function realtime.topic() returns text language sql stable as $$ select 'room:night'::text $$;
@@ -104,6 +107,8 @@ try {
   await assert.rejects(action(first, 'buy', { item: 'lamp' }));
   await assert.rejects(db.query('select * from public.push_devices'));
   await assert.rejects(db.query('select * from public.claim_focus_rewards()'));
+  await assert.rejects(db.query("insert into realtime.messages values ('broadcast')"), /row-level security/);
+  await db.query("insert into realtime.messages values ('presence')");
   await assert.rejects(settle());
   await db.exec('reset role');
 
@@ -122,6 +127,12 @@ try {
   assert.equal(resume.session.paused_at, null);
   assert.equal(resume.session.end - resume.session.start, 50 * 60000);
   assert.equal(resume.session.next_check_at, resume.session.start + 20 * 60000);
+  const desk = resume.members.find(member => member.own).desk_ref;
+  const { rows: updates } = await db.query("select payload, event, topic, private from realtime.desk_events order by ctid");
+  assert.deepEqual(updates.map(({ payload: { at, ...payload }, ...event }) => {
+    assert.ok(Number.isSafeInteger(at));
+    return [payload, event];
+  }), ['break', 'desk'].map(status => [{ desk, status }, { event: 'desk_status', topic: 'room:night', private: true }]));
   await shiftSession(first, 1231000);
   assert.equal(await settle(), 1);
   assert.equal((await action(first, 'verify')).error, 'verificationClosed');
@@ -163,6 +174,18 @@ try {
   await db.exec("update public.reward_delivery set next_attempt = clock_timestamp() - interval '1 second'");
   assert.deepEqual((await db.query('select attempts from public.claim_focus_rewards()')).rows,
     [{ attempts: 2 }, { attempts: 2 }]);
+  await db.exec(`update public.reward_delivery set expo_ticket_id = 'ticket-fixture',
+    next_attempt = clock_timestamp() - interval '1 second' where token = 'ExpoPushToken[example_first]'`);
+  await db.exec('set role authenticated');
+  await assert.rejects(db.query('select * from public.claim_focus_receipts()'), /permission denied/);
+  await db.exec('set role service_role');
+  assert.equal((await db.query('select * from public.claim_focus_rewards()')).rows.length, 0);
+  const receipts = await db.query('select token, expo_ticket_id, attempts, receipt_attempts from public.claim_focus_receipts()');
+  assert.deepEqual(receipts.rows, [{
+    token: 'ExpoPushToken[example_first]', expo_ticket_id: 'ticket-fixture', attempts: 2, receipt_attempts: 1,
+  }]);
+  assert.equal((await db.query('select * from public.claim_focus_receipts()')).rows.length, 0);
+  await db.exec('reset role');
   await db.query('delete from auth.users where id = $1', [second]);
   assert.equal((await db.query('select 1 from public.coin_ledger where user_id = $1', [second])).rows.length, 0);
   assert.equal((await db.query('select 1 from public.reward_delivery')).rows.length, 1);
@@ -354,8 +377,10 @@ try {
   await db.query('delete from auth.users where id = $1', [first]);
   assert.equal((await action(third, 'state')).rooms.some(entry => entry.private), false);
   assert.equal((await action(third, 'join', { room: privateRoom.id })).error, 'inviteRequired');
+  const closedRoom = (await db.query('select owner_id, name, name_en from public.rooms where id = $1', [privateRoom.id])).rows[0];
+  assert.deepEqual(closedRoom, { owner_id: null, name: 'Kapalı özel oda', name_en: 'Closed private room' });
 
-  console.log('Postgres: migration, RLS, capacity, commerce, pause, verification, reward settlement, retry lease, private rooms, collections, group milestones, pets, wardrobe, chests, server timer, reactions, ranking, streak and account deletion passed.');
+  console.log('Postgres: migration, RLS, capacity, commerce, pause, verification, reward settlement, push leases, private rooms, collections, group milestones, pets, wardrobe, chests, server timer, reactions, ranking, streak and account deletion passed.');
 } finally {
   await db.close();
 }
