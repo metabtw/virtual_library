@@ -6,6 +6,7 @@ export type PropName =
   | 'teaSet' | 'hourglass' | 'miniGlobe' | 'crystalTerrarium';
 
 export const avatarSize: { width: number; height: number };
+export const writingSize: { width: number; height: number; frames: number };
 export const hairStyles: Record<Gender, { tr: string[]; en: string[] }>;
 type BaseAvatar = { gender?: Gender; hair: number; outfit: number; color: string };
 export function dressedAvatar<T extends BaseAvatar>(avatar: T, equipped: readonly string[]): T & {
@@ -13,6 +14,10 @@ export function dressedAvatar<T extends BaseAvatar>(avatar: T, equipped: readonl
 };
 export function drawAvatar(
   avatar: BaseAvatar & { hairSkin?: HairSkin; outfitSkin?: OutfitSkin },
+  paint: (color: string, blocks: [number, number, number, number][]) => void,
+): void;
+export function drawWritingHands(
+  frame: number,
   paint: (color: string, blocks: [number, number, number, number][]) => void,
 ): void;
 export function drawProp(

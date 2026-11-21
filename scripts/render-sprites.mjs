@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { crc32, deflateSync } from 'node:zlib';
-import { avatarSize, drawAvatar, drawProp, dressedAvatar } from '../public/avatar-art.js';
+import { avatarSize, drawAvatar, drawProp, drawWritingHands, dressedAvatar, writingSize } from '../public/avatar-art.js';
 
 const base = { gender: 'unspecified', hair: 0, outfit: 1, color: '#83778f' };
 const root = new URL('../mobile/assets/', import.meta.url);
@@ -63,7 +63,7 @@ function prop(file, ...parts) {
   });
 }
 
-for (const dir of ['avatars/', 'items/']) mkdirSync(new URL(dir, root), { recursive: true });
+for (const dir of ['avatars/', 'items/', 'animations/']) mkdirSync(new URL(dir, root), { recursive: true });
 avatar('avatars/reader.png', base);
 avatar('avatars/long-waves.png', { ...base, gender: 'female', color: '#bd7050' });
 avatar('avatars/side-part.png', { ...base, gender: 'male', color: '#789078' });
@@ -91,3 +91,9 @@ render('items/forest.png', 16, 16, 10, rect => {
   rect('#f9c77a', 8, 9, 3, 3);
   rect('#477264', 2, 13, 12, 2);
 });
+
+for (const part of ['cat', 'catUpset', 'leaves', 'pot']) prop('animations/' + part + '.png', part);
+for (let frame = 0; frame < writingSize.frames; frame++) {
+  render('animations/writing-' + frame + '.png', writingSize.width, writingSize.height, 4, rect =>
+    drawWritingHands(frame, (color, blocks) => { for (const block of blocks) rect(color, ...block); }));
+}

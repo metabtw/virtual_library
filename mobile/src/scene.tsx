@@ -1,7 +1,7 @@
 import { Canvas, ImageFormat, Rect, Skia } from '@shopify/react-native-skia';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, ImageBackground, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { avatarSize, drawAvatar, drawProp, type PropName } from '../../public/avatar-art';
+import { memo, useEffect, useMemo, useState } from 'react';
+import { AccessibilityInfo, Animated, AppState, Easing, Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { avatarSize, drawAvatar, writingSize } from '../../public/avatar-art';
 import type { Member, Pet, ThemeChoice } from './model';
 import { dressedAvatar, type AvatarLook } from './cosmetics';
 import { resolveTheme, roomThemes } from './themes';
@@ -42,107 +42,218 @@ export function avatarPng(avatar: AvatarLook) {
   return 'data:image/png;base64,' + surface.makeImageSnapshot().encodeToBase64(ImageFormat.PNG);
 }
 
-const propNames: PropName[] = [
-  'cat', 'lamp', 'leaves', 'pot', 'catSleep', 'catUpset', 'neon', 'goldKeys', 'dragon',
-  'teaSet', 'hourglass', 'miniGlobe', 'crystalTerrarium',
+const writingFrames = [
+  require('../assets/animations/writing-0.png'),
+  require('../assets/animations/writing-1.png'),
+  require('../assets/animations/writing-2.png'),
+  require('../assets/animations/writing-3.png'),
 ];
-const propShapes = new Map(propNames.map(name => {
-  const pixels: { color: string; x: number; y: number }[] = [];
-  drawProp(name, (color, x, y) => pixels.push({ color, x, y }));
-  return [name, pixels];
-}));
+const propSources = {
+  cat: require('../assets/animations/cat.png'),
+  catSleep: require('../assets/items/cat.png'),
+  catUpset: require('../assets/animations/catUpset.png'),
+  lamp: require('../assets/items/lamp.png'),
+  neon: require('../assets/items/neon.png'),
+  pot: require('../assets/animations/pot.png'),
+  leaves: require('../assets/animations/leaves.png'),
+  goldKeys: require('../assets/items/goldKeys.png'),
+  dragon: require('../assets/items/dragon.png'),
+  teaSet: require('../assets/items/teaSet.png'),
+  hourglass: require('../assets/items/hourglass.png'),
+  miniGlobe: require('../assets/items/miniGlobe.png'),
+  crystalTerrarium: require('../assets/items/crystalTerrarium.png'),
+};
 
-export function PropArt({ name, size }: { name: PropName; size: number }) {
-  const ratio = size / 16;
-  return <Canvas style={{ width: size, height: size }} accessible={false}>
-    {propShapes.get(name)?.map(({ color, x, y }) => <Rect key={y * 16 + x}
-      color={color} x={x * ratio} y={y * ratio} width={ratio} height={ratio} />)}
-  </Canvas>;
-}
+type PropName = keyof typeof propSources;
+type DeskItem = Exclude<PropName, 'catSleep' | 'catUpset' | 'pot' | 'leaves'> | 'plant';
 
-function DeskProp({ item, size, distance, animate, pet }: {
-  item: 'cat' | 'lamp' | 'neon' | 'plant'; size: number; distance: number; animate: boolean; pet?: Pet | null;
-}) {
-  const atRest = item === 'cat' && (pet?.upset || (pet?.xp ?? 0) > 0);
-  const moving = animate && !atRest;
-  const motion = useRef(new Animated.Value(0)).current;
+const deskItems: DeskItem[] = [
+  'lamp', 'neon', 'plant', 'goldKeys', 'dragon', 'teaSet', 'hourglass',
+  'miniGlobe', 'crystalTerrarium', 'cat',
+];
+
+function useAnimationClock(enabled: boolean, duration: number) {
+  const [progress] = useState(() => new Animated.Value(0));
   useEffect(() => {
-    motion.setValue(0);
-    if (!moving) return;
-    const duration = item === 'cat' ? 3200 : 1700;
-    const cycle = Animated.loop(Animated.sequence([
-      Animated.timing(motion, { toValue: 1, duration, useNativeDriver: true, isInteraction: false }),
-      Animated.timing(motion, { toValue: 0, duration, useNativeDriver: true, isInteraction: false }),
-    ]));
-    cycle.start();
-    return () => cycle.stop();
-  }, [moving, item, motion]);
+    if (!enabled) return;
+    progress.setValue(0);
+    const loop = Animated.loop(Animated.timing(progress, {
+      toValue: 1, duration, easing: Easing.linear, useNativeDriver: Platform.OS !== 'web', isInteraction: false,
+    }));
+    loop.start();
+    return () => loop.stop();
+  }, [duration, enabled, progress]);
+  return enabled ? progress : undefined;
+}
 
-  if (item === 'cat' && atRest) return <View style={{ position: 'absolute', left: pet?.xp && pet.xp % 2 === 0 ? '46%' : '12%', bottom: -size * .25 }}>
-    <PropArt name={pet?.upset ? 'catUpset' : 'catSleep'} size={size} />
-  </View>;
-  if (item === 'cat') return <Animated.View style={{ position: 'absolute', left: 2, bottom: -size * .25,
-    transform: [{ translateX: motion.interpolate({ inputRange: [0, 1], outputRange: [0, distance] }) }] }}>
-    <PropArt name="cat" size={size} />
-  </Animated.View>;
-  if (item === 'lamp' || item === 'neon') return <View style={styles.lamp}>
-    <Animated.View style={[styles.glow, { width: size + 14, height: size + 14, borderRadius: size,
-      backgroundColor: item === 'neon' ? '#5ddffd' : '#ffb84d',
-      opacity: motion.interpolate({ inputRange: [0, 1], outputRange: [.16, .5] }) }]} />
-    <PropArt name={item} size={size} />
-  </View>;
-  return <View style={styles.plant}>
-    <Animated.View style={{ transform: [{ rotate: motion.interpolate({ inputRange: [0, 1], outputRange: ['-7deg', '7deg'] }) }] }}>
-      <PropArt name="leaves" size={size} />
-    </Animated.View>
-    <View style={StyleSheet.absoluteFill}><PropArt name="pot" size={size} /></View>
+function pulse(clock: Animated.Value | undefined, low: number, high: number) {
+  return clock?.interpolate({ inputRange: [0, .5, 1], outputRange: [low, high, low] }) ?? low;
+}
+
+function sway(clock: Animated.Value | undefined, degrees: number) {
+  return clock?.interpolate({
+    inputRange: [0, .25, .75, 1],
+    outputRange: ['0deg', `${degrees}deg`, `-${degrees}deg`, '0deg'],
+  }) ?? '0deg';
+}
+
+function WritingHands({ width, clock, phase }: { width: number; clock?: Animated.Value; phase: number }) {
+  const height = width * writingSize.height / writingSize.width;
+  const step = 1 / writingSize.frames;
+  return <View pointerEvents="none" testID="desk-writing" style={[
+    styles.writing, { width, height, top: -height * .29, marginLeft: -width / 2 },
+  ]}>
+    {clock ? writingFrames.map((source, frame) => {
+      const start = ((frame + phase) % writingSize.frames) * step;
+      const end = start + step;
+      const fade = .02;
+      const opacity = clock.interpolate({
+        inputRange: start === 0 ? [0, end - fade, end, 1 - fade, 1] : [start - fade, start, end - fade, end],
+        outputRange: start === 0 ? [1, 1, 0, 0, 1] : [0, 1, 1, 0],
+        extrapolate: 'clamp',
+      });
+      return <Animated.Image key={frame} source={source} resizeMode="contain" fadeDuration={0}
+        style={[styles.frame, { opacity }]} />;
+    }) : <Image source={writingFrames[0]} resizeMode="contain" fadeDuration={0} style={styles.frame} />}
   </View>;
 }
 
-const decorations = [
-  { item: 'goldKeys', left: '35%', depth: .37, scale: 1 },
-  { item: 'dragon', left: '58%', depth: .2, scale: .85 },
-  { item: 'teaSet', left: '12%', depth: .21, scale: .88 },
-  { item: 'hourglass', left: '12%', depth: .22, scale: .86 },
-  { item: 'miniGlobe', left: '59%', depth: .1, scale: .97 },
-  { item: 'crystalTerrarium', left: '59%', depth: .16, scale: .97 },
-] as const;
+function PropArt({ name, size }: { name: PropName; size: number }) {
+  return <Image source={propSources[name]} resizeMode="contain" fadeDuration={0} accessible={false}
+    style={{ width: size, height: size }} />;
+}
+
+function DeskProp({ item, size, width, clock, pet }: {
+  item: DeskItem; size: number; width: number; clock?: Animated.Value; pet?: Pet | null;
+}) {
+  const light = pulse(clock, .23, .88);
+  const sparkle = pulse(clock, .16, 1);
+  const specs = { width: size, height: size };
+  const art = (name: PropName) => <PropArt name={name} size={size} />;
+  switch (item) {
+    case 'lamp':
+    case 'neon':
+      return <View style={specs}>
+        <Animated.View style={[styles.glow, {
+          backgroundColor: item === 'neon' ? '#5de5ff' : '#ffb84d', opacity: light,
+        }]} />
+        {art(item)}
+      </View>;
+    case 'plant':
+      return <View style={specs}>
+        <Animated.View style={{ transform: [{ rotate: sway(clock, 14) }] }}>{art('leaves')}</Animated.View>
+        <View style={StyleSheet.absoluteFill}>{art('pot')}</View>
+      </View>;
+    case 'cat': {
+      const rest = pet?.upset || (pet?.xp ?? 0) > 0;
+      const travel = Math.max(2, (width - size) / 2);
+      const direction = clock?.interpolate({ inputRange: [0, .48, .52, .98, 1], outputRange: [1, 1, -1, -1, 1] }) ?? 1;
+      return <Animated.View style={{ transform: rest
+        ? [{ translateY: pulse(clock, 0, -2) }, { scale: 1 + Math.min(pet?.xp ?? 0, 5) * .023 }]
+        : [{ translateX: pulse(clock, -travel, travel) }, { scaleX: direction }] }}>
+        {art(rest ? pet?.upset ? 'catUpset' : 'catSleep' : 'cat')}
+      </Animated.View>;
+    }
+    case 'goldKeys':
+      return <View style={specs}>
+        {art(item)}
+        <Animated.View style={[styles.shine, {
+          top: '48%', left: '16%', width: '56%', backgroundColor: '#fff0b5', opacity: sparkle,
+          transform: [{ translateX: pulse(clock, 0, size * .13) }],
+        }]} />
+      </View>;
+    case 'dragon':
+      return <View style={specs}>
+        <Animated.View style={{ transform: [{ translateY: pulse(clock, 0, -3) }] }}>{art(item)}</Animated.View>
+        <Animated.View style={[styles.spark, { backgroundColor: '#eab9f6', opacity: sparkle }]} />
+      </View>;
+    case 'teaSet':
+      return <View style={specs}>
+        {art(item)}
+        <Animated.View style={[styles.steam, {
+          height: size * .16, opacity: sparkle, transform: [{ translateY: pulse(clock, 1, -4) }],
+        }]} />
+      </View>;
+    case 'hourglass':
+      return <View style={specs}>
+        {art(item)}
+        <Animated.View style={[styles.shine, {
+          top: '28%', left: '45%', width: 3, height: 3, backgroundColor: '#fff3b8', opacity: sparkle,
+          transform: [{ translateY: pulse(clock, 0, size * .23) }],
+        }]} />
+      </View>;
+    case 'miniGlobe':
+      return <Animated.View style={{ transform: [{ rotate: sway(clock, 12) }] }}>{art(item)}</Animated.View>;
+    case 'crystalTerrarium':
+      return <View style={specs}>
+        <Animated.View style={[styles.glow, { backgroundColor: '#da75e4', opacity: light }]} />
+        {art(item)}
+        <Animated.View style={[styles.spark, { backgroundColor: '#fff0ff', opacity: sparkle }]} />
+      </View>;
+  }
+}
 
 type ThemePalette = (typeof roomThemes)[keyof typeof roomThemes]['palette'];
 
-function Desk({ member, width, motion, palette, t, onDeskPress }: {
-  member?: Member; width: number; motion: boolean; palette: ThemePalette; t: Translation;
+function DeskAccessories({ member, width, own, clock, palette }: {
+  member: Member; width: number; own: boolean; clock?: Animated.Value; palette: ThemePalette;
+}) {
+  const equipped = deskItems.filter(item => member.placed.includes(item)
+    && (item !== 'lamp' || !member.placed.includes('neon')));
+  if (equipped.length === 0) return null;
+  const propsWidth = width - 4;
+  const staticCount = equipped.length - Number(equipped.includes('cat'));
+  const columns = Math.max(1, Math.min(staticCount, width < (own ? 144 : 106) ? 2 : 3));
+  return <View pointerEvents="none" style={[styles.accessories, {
+    width, borderColor: palette.border, backgroundColor: palette.shadow,
+  }]}>
+    {equipped.map(item => {
+      const cellWidth = item === 'cat' ? propsWidth : propsWidth / columns;
+      const size = Math.min(own ? 58 : 44, cellWidth * .94);
+      return <View key={item} testID={`desk-item-${item}`} style={[
+        styles.propCell, { width: cellWidth, height: Math.ceil(size) + 4 },
+      ]}>
+        <DeskProp item={item} size={size} width={cellWidth} clock={clock} pet={member.pet} />
+      </View>;
+    })}
+  </View>;
+}
+
+function deskDimensions(width: number, own: boolean) {
+  const surface = Math.max(1, width - (own ? 4 : 6));
+  const writing = Math.min(own ? 112 : 70, surface * .85);
+  const avatar = Math.min(own ? 108 : 55, surface * (own ? .78 : .72));
+  const tabletop = Math.max(16, writing * .32);
+  return { surface, writing, avatar, tabletop };
+}
+
+function Desk({ member, width, peerWidth, artHeight, writingClock, itemClock, index, palette, t, onDeskPress }: {
+  member?: Member; width: number; peerWidth: number; artHeight: number; writingClock?: Animated.Value; itemClock?: Animated.Value;
+  index: number; palette: ThemePalette; t: Translation;
   onDeskPress?: (member: Member) => void;
 }) {
   const own = member?.own === true;
-  const size = Math.min(own ? 58 : 37, width * (own ? .42 : .49));
-  const surfaceWidth = width * (own ? .97 : .79);
+  const dimensions = deskDimensions(own ? width : peerWidth, own);
   const avatar = member && dressedAvatar(member.avatar, member.placed);
   const description = member && [member.name, member.target, t[member.status]].filter(Boolean).join(', ');
   const interactive = member?.desk_ref && !member.own && Boolean(onDeskPress);
   const Seat = interactive ? Pressable : View;
-  return <Seat style={[styles.seat, { width }]} accessible accessibilityLabel={description || t.empty}
+  return <Seat style={[styles.seat, { width }]} testID={own ? 'own-desk' : 'room-desk'} accessible accessibilityLabel={description || t.empty}
     accessibilityRole={interactive ? 'button' : undefined}
     onPress={interactive ? () => onDeskPress?.(member) : undefined}>
-    <View style={[styles.seatArt, own && styles.ownArt]}>
-      {member && <Text style={[styles.status, member.status === 'break' && styles.break]}>{t[member.status]}</Text>}
-      {avatar && member?.status === 'desk' && <Sprite avatar={avatar} width={Math.min(own ? 99 : 51, width * (own ? .73 : .65))} />}
-      <View style={[styles.desk, {
-        width: surfaceWidth, backgroundColor: palette.desk, borderBottomColor: palette.shadow,
+    <View style={[styles.seatArt, { minHeight: artHeight }]}>
+      {member && <Text numberOfLines={1} style={[styles.status, member.status === 'break' && styles.break]}>{t[member.status]}</Text>}
+      {avatar && member?.status === 'desk' && <Sprite avatar={avatar} width={dimensions.avatar} />}
+      <View testID="desk-surface" style={[styles.desk, {
+        width: dimensions.surface, height: dimensions.tabletop,
+        marginTop: member?.status === 'desk' ? -3 : 0,
+        backgroundColor: palette.desk, borderBottomColor: palette.shadow,
         borderTopColor: own ? palette.accent : palette.border,
       }, own && styles.ownDesk]}>
-        {member?.placed.includes('neon') ? <DeskProp item="neon" size={size} distance={0} animate={motion} />
-          : member?.placed.includes('lamp') && <DeskProp item="lamp" size={size} distance={0} animate={motion} />}
-        {decorations.filter(({ item }) => member?.placed.includes(item)).map(({ item, left, depth, scale }) =>
-          <View key={item} style={{ position: 'absolute', left, bottom: -size * depth }}>
-            <PropArt name={item} size={size * scale} />
-          </View>)}
-        {member?.placed.includes('plant') && <DeskProp item="plant" size={size} distance={0} animate={motion} />}
-        {member?.placed.includes('cat') && <DeskProp item="cat" pet={member.pet}
-          size={size * (1 + Math.min(member.pet?.xp ?? 0, 5) * .035)}
-          distance={surfaceWidth - size - 5} animate={motion} />}
+        {member?.status === 'desk' && <WritingHands width={dimensions.writing} clock={writingClock} phase={index % writingFrames.length} />}
       </View>
     </View>
+    {member && <DeskAccessories member={member} width={dimensions.surface} own={own} clock={itemClock} palette={palette} />}
     <Text numberOfLines={1} style={[styles.seatName, own && styles.ownName]}>
       {member ? own ? `${t.you} · ${member.name}` : member.name : t.empty}
     </Text>
@@ -155,51 +266,76 @@ export const RoomScene = memo(function RoomScene({ room, members, aurora, theme,
   onDeskPress?: (member: Member) => void;
 }) {
   const { width } = useWindowDimensions();
-  const board = Math.min(width - 48, 580);
+  const [sceneWidth, setSceneWidth] = useState(0);
+  const board = Math.max(1, Math.min((sceneWidth || width - 32) - 12, 580));
   const columnWidth = [board * .27, board * .46, board * .27];
   const [motion, setMotion] = useState(false);
+  const [foreground, setForeground] = useState(!AppState.currentState || AppState.currentState === 'active');
+  const writingClock = useAnimationClock(motion && foreground && members.some(member => member.status === 'desk'), 1040);
+  const itemClock = useAnimationClock(motion && foreground && members.some(member =>
+    deskItems.some(item => member.placed.includes(item))), 3300);
   const [unavailable, setUnavailable] = useState<string | null>(null);
   const selected = roomThemes[resolveTheme(theme, room, aurora)];
   const remote = theme === 'auto' && !aurora && process.env.EXPO_PUBLIC_ROOM_ART_FROM_STORAGE === 'true' && room
     ? supabase?.storage.from('room-art').getPublicUrl(`${room}.webp`).data.publicUrl
     : undefined;
   useEffect(() => {
-    let mounted = true;
+    let awaitingMotion = true;
     void AccessibilityInfo.isReduceMotionEnabled().then(reduced => {
-      if (mounted) setMotion(!reduced);
+      if (awaitingMotion) setMotion(!reduced);
+    }).catch(() => {});
+    const motionListener = AccessibilityInfo.addEventListener('reduceMotionChanged', reduced => {
+      awaitingMotion = false;
+      setMotion(!reduced);
     });
-    const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', reduced => setMotion(!reduced));
-    return () => { mounted = false; listener.remove(); };
+    const appListener = AppState.addEventListener('change', state => setForeground(state === 'active'));
+    return () => {
+      awaitingMotion = false;
+      motionListener.remove();
+      appListener.remove();
+    };
   }, []);
   const seats = Array<Member | undefined>(9).fill(undefined);
   seats[4] = members.find(member => member.own);
   members.filter(member => !member.own).slice(0, 8).forEach((member, i) => { seats[ring[i]] = member; });
-  return <ImageBackground source={remote && remote !== unavailable ? { uri: remote } : selected.image}
-    onError={() => remote && setUnavailable(remote)}
-    style={[styles.scene, { borderColor: selected.palette.border }]} imageStyle={styles.image}>
+  const ownDimensions = deskDimensions(columnWidth[1], true);
+  const middleHeight = seats[4] ? ownDimensions.avatar * avatarSize.height / avatarSize.width + ownDimensions.tabletop + 17 : 62;
+  return <View testID="room-scene" onLayout={event => setSceneWidth(event.nativeEvent.layout.width)}
+    style={[styles.scene, { borderColor: selected.palette.border }]}>
+    <Image source={remote && remote !== unavailable ? { uri: remote } : selected.image} resizeMode="cover"
+      onError={() => remote && setUnavailable(remote)} accessible={false} style={[styles.frame, styles.image]} />
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.scrim]} />
     {[0, 1, 2].map(row => <View key={row} style={styles.row}>
-      {columnWidth.map((size, column) => <Desk key={column} member={seats[row * 3 + column]} width={size} motion={motion} palette={selected.palette} t={t} onDeskPress={onDeskPress} />)}
+      {columnWidth.map((size, column) => {
+        const index = row * 3 + column;
+        return <Desk key={column} member={seats[index]} width={size} peerWidth={columnWidth[0]} index={index}
+          artHeight={row === 1 ? middleHeight : 62} writingClock={writingClock} itemClock={itemClock} palette={selected.palette} t={t} onDeskPress={onDeskPress} />;
+      })}
     </View>)}
-  </ImageBackground>;
+  </View>;
 });
 
 const styles = StyleSheet.create({
   scene: { borderRadius: 20, paddingVertical: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#a96d58' },
   image: { opacity: .9, backgroundColor: '#211925' },
   scrim: { backgroundColor: '#120f1e4a' },
-  row: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end' },
+  row: { flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start' },
   seat: { alignItems: 'center', paddingHorizontal: 2, paddingVertical: 4 },
-  seatArt: { minHeight: 62, justifyContent: 'flex-end', alignItems: 'center' },
-  ownArt: { minHeight: 104 },
-  desk: { height: 17, backgroundColor: '#a66a4a', borderTopColor: '#e9b98a', borderBottomColor: '#603837', borderTopWidth: 3, borderBottomWidth: 4, borderRadius: 3 },
-  ownDesk: { height: 31, borderTopWidth: 4, borderBottomWidth: 7 },
+  seatArt: { maxWidth: '100%', justifyContent: 'flex-end', alignItems: 'center' },
+  desk: { borderTopWidth: 2, borderBottomWidth: 4, borderRadius: 3 },
+  ownDesk: { borderTopWidth: 3, borderBottomWidth: 5 },
+  writing: { position: 'absolute', left: '50%' },
+  frame: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
+  accessories: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderTopWidth: 0, borderBottomLeftRadius: 5, borderBottomRightRadius: 5 },
+  propCell: { justifyContent: 'center', alignItems: 'center' },
   seatName: { color: '#ffe6d0', backgroundColor: '#251b27', fontSize: 10, paddingHorizontal: 5, paddingVertical: 3, borderRadius: 8, maxWidth: '100%', marginTop: 2 },
   target: { color: '#e5d2af', backgroundColor: '#251b27', fontSize: 9, paddingHorizontal: 4, maxWidth: '100%', borderRadius: 5 },
   ownName: { color: '#ffd095', borderWidth: 1, borderColor: '#ffb362' },
-  status: { color: '#d6f8ac', fontSize: 9, fontWeight: '700', backgroundColor: '#25252df3', borderRadius: 6, paddingHorizontal: 4, paddingVertical: 2 },
+  status: { color: '#d6f8ac', fontSize: 9, fontWeight: '700', backgroundColor: '#25252df3', borderRadius: 6, paddingHorizontal: 4, paddingVertical: 2, maxWidth: '100%' },
   break: { color: '#ffbe7e' },
-  lamp: { position: 'absolute', left: 2, bottom: -1 },
-  glow: { position: 'absolute', top: -8, left: -7, backgroundColor: '#ffb84d' },
-  plant: { position: 'absolute', right: 2, bottom: -1 },
+  glow: { position: 'absolute', top: '4%', left: '6%', width: '80%', height: '78%', borderRadius: 999 },
+  shine: { position: 'absolute', height: 2, borderRadius: 2 },
+  spark: { position: 'absolute', left: '66%', top: '24%', width: 4, height: 4, transform: [{ rotate: '45deg' }] },
+  steam: { position: 'absolute', left: '35%', top: '9%', width: 3, borderRadius: 2, backgroundColor: '#fff5d9' },
 });

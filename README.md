@@ -1,80 +1,120 @@
 # Sanal Kütüphane
 
-Avatarlı ortak çalışma odaları, web ve Expo mobil istemcileri. İki istemci aynı Supabase Auth hesabını ve `library` Edge Function'ını kullanır.
+Sanal Kütüphane, avatarla katılınan ortak odalarda odaklanmak için bir web ve Expo mobil uygulamasıdır. İki istemci aynı Supabase hesabını, odaları, envanteri ve jeton bakiyesini paylaşır.
 
-## Web
+## Önkoşullar ve Supabase
 
-Node.js 24 veya üzeri gerekir. `.env.example` dosyasından `.env.local` oluşturup Supabase URL'sini ve publishable key'i gir. Mevcut bir `mobile/.env.local` dosyası da aynı değişkenler için kullanılabilir.
+- Node.js 24 veya üzeri, npm ve çalışır durumda bir Supabase projesi gerekir.
+- Depoyu ilk kez indiriyorsan `git clone --branch sanal-kutuphane-mvp https://github.com/metabtw/virtual_library.git` komutunu kullan. Depo zaten bilgisayarındaysa `git fetch origin`, `git switch sanal-kutuphane-mvp` ve `git pull --ff-only` komutları güncel sürümü getirir.
+- Depodaki migration'lar, `library` ve `reward-worker` Edge Function'ları ile ödül zamanlayıcısı test projesinde kurulmuş olmalı. E-posta bağlantısı, yönlendirme adresleri, isteğe bağlı Google ve Apple girişi ve zamanlayıcı ayarları için kurulum rehberini kullan. [Supabase kurulum rehberi](docs/supabase-kurulum.md)
+- Web için kökteki `.env.example`, mobil için `mobile/.env.example` dosyasını kendi klasöründe `.env.local` olarak kopyala. Windows PowerShell’de `Copy-Item .env.example .env.local` kullanabilirsin. İki dosyada da aynı projenin `EXPO_PUBLIC_SUPABASE_URL` ve `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` değerlerini kullan. Bu dosyalara yalnızca istemciye açık değerler girilir.
+- E-posta bağlantısını giriş isteğini başlattığın tarayıcı profilinde veya mobil cihazda aç. Genel kullanıcılara e-posta göndermek için Supabase'de özel SMTP yapılandır. Kodla giriş, e-posta şablonunda kod etkin olduğunda kullanılabilir.
+
+Tarayıcı ve Expo istemcisi `library` Edge Function'ına bağlanır. Sayaç kuralları, jetonlar, XP, oda kapasitesi ve sandık ödülleri Supabase tarafında yürütülür. Eski SQLite prototip profilleri yerel dosyada kalır.
+
+## Web'i çalıştır ve test et
+
+Depo kökünde çalıştır.
 
 ```sh
 npm ci
 npm start
 ```
 
-Tarayıcıda `http://localhost:3000/` adresinden giriş yap. `PORT` ile sunucu portu değiştirilebilir. Supabase Auth yönlendirme listesine kullanılan web adresinin eklenmesi gerekir. Hesap silme ekranı `/account-deletion` adresindedir ve silinecek hesabın oturumuyla doğrulanır.
+1. `http://localhost:3000/` adresini aç ve Supabase hesabınla giriş yap. Kök dizinde yapılandırma yoksa web sunucusu `mobile/.env.local` dosyasını da okuyabilir.
+2. İki kullanıcıyı bağımsız görmek için normal pencere ve gizli pencere ya da farklı tarayıcı profilleri kullan. Web ve mobil eşitlemesini kontrol etmek için önce aynı hesapla, oda etkileşimlerini kontrol etmek için iki ayrı hesapla giriş yap.
+3. Tarayıcının cihaz araç çubuğunda **320, 390, 768 ve 1440 piksel** genişliklerde oda listesini, dolu odayı, mağazayı, profili ve doğrulama penceresini kontrol et. Uzun ad ve hedef metni, dokuz masa, kuşanılmış eşyalar ve açılır seçimler ekranda sığmalı.
+4. İşletim sisteminde ya da tarayıcının geliştirici araçlarında `prefers-reduced-motion: reduce` aç. Oda sahnesinde açık defter ve eller tek pozda görünmeli. Eşyalar okunabilir boyutlarını korumalı.
+5. Odaya katıl ve **Oda arka planı** bölümünde tema seç. Sayfayı yenilediğinde seçimin korunmalı. **Ambiyans mikseri** bölümünde iki sesi ayrı seviyelerde aç. Tarayıcı otomatik oynatmayı engellerse **Sesleri oynat** düğmesini kullan. Oda ekranından çıktığında sesler durmalı. Satın alınan ses paketleri mikserde seçilebilir olmalı.
 
-Web sunucusu yalnızca arayüzü ve Supabase bağlantısının istemciye açık ayarlarını sunar. Eski SQLite prototip profilleri, yeni Supabase hesaplarına otomatik olarak taşınmaz.
+`PORT` ile web portu değiştirilebilir. Varsayılan dışındaki port veya alan adı için gerçek giriş adresini ve `/account-deletion` yolunu Supabase Auth yönlendirme listesine ekle.
 
-## Odak kuralları
+## Expo mobil uygulamasını çalıştır ve test et
 
-- Odalar 9 kişiyle sınırlıdır. 25, 50 ve 90 dakikalık seçenekler ile 5–180 dakika arasında özel süre bulunur.
-- Sayaç, sunucunun bitiş zamanına göre gösterilir. Molada kalan süre sabitlenir. İstemciler doğrulama açılışını `next_check_at`, kapanışını `check_until` alanından okur. Mobil istemci ön plana dönünce durumu yeniler.
-- Yeni hesap bir defa 30 jeton alır. Geçerli her beş çalışma dakikası için bir jeton yazılır. Kaçırılan doğrulama periyodu geçersiz kılar. Bakiye, XP ve doğrulama yazımları sunucu işlemlerinde gerçekleşir.
-
-## Expo mobil uygulama
-
-`mobile/` iOS ve Android istemcisidir. Expo Router, React Native, TypeScript ve Skia kullanır. Sunucu verileri TanStack Query, görünüm tercihleri Zustand ile yönetilir.
-
-### Supabase
-
-[Adım adım Supabase, e-posta, Google ve Apple giriş rehberi](docs/supabase-kurulum.md) proje bağlantısını, migration'ları, Edge Function dağıtımını ve zamanlanmış ödül işini kapsar. E-postayla gelen bağlantı temel giriş yoludur. Kod şablonu yapılandırıldığında doğrulama kodu da kullanılabilir. Sosyal giriş düğmeleri sağlayıcılar hazır olduğunda ortam değişkenleriyle açılır. Mobilde misafir girişi kapalıdır.
-
-Odaya özel görsel kullanmak için herkese açık `room-art` Storage alanına `night.webp`, `garden.webp` veya `archive.webp` yükleyip `EXPO_PUBLIC_ROOM_ART_FROM_STORAGE=true` ayarla. Uygulamada paketli bir varsayılan sahne bulunur.
-
-### Yerel geliştirme
+Mobil istemci Expo Router, React Native, TypeScript ve Skia kullanır. Sunucu verileri TanStack Query, görünüm tercihleri Zustand ile yönetilir. Expo geliştirme derlemesi, Skia, ses, bildirim ve paylaşım modüllerini içerir. Android için Android Studio ve çalışan bir emülatör veya bağlı cihaz, iOS için macOS ve Xcode gerekir.
 
 ```sh
 cd mobile
 npm ci
 npm run typecheck
-npm start
 ```
 
-Android ve iOS development build oluşturmak için Expo'nun `npx expo run:android` veya `npx expo run:ios` komutunu kullan. iOS derlemesi macOS ve Xcode gerektirir. Yerel doğrulama hatırlatmaları kullanıcı bildirim iznini açtığında çalışır. Uygulama kapalıyken periyodu sonuçlandırmak için [zamanlanmış ödül işini](docs/supabase-kurulum.md#ödül-işini-zamanla) etkinleştir. Ödül bildirimi göndermek için gerçek cihazda EAS development build, EAS proje kimliği, APNs/FCM kimlik bilgileri ve Supabase Edge Function ortamında `EXPO_PUSH_ACCESS_TOKEN` gerekir.
+İlk kurulumda veya yerel bir modül değiştiğinde hedef platform için geliştirme derlemesini oluştur.
 
-İsteğe bağlı gözlemleme için örnek ortam dosyasında Sentry DSN ve PostHog alanları var. PostHog, kullanıcı ölçümü açtığında sınırlı sayıda akış olayı toplar. TR/EN aydınlatma metni uygulamada bulunur. Yayın öncesinde metni [yayın bilgileriyle](docs/kvkk-yayin-notlari.md) tamamla. Hesap silme işlemi Supabase Auth hesabını ve uygulama kayıtlarını kaldırır.
+```sh
+npx expo run:android
+# macOS üzerinde iOS için
+npx expo run:ios
+```
 
+Derleme kurulduktan sonra JavaScript ve görsel değişikliklerini Metro ile çalıştır.
 
-## CI ve veritabanı kontrolü
+```sh
+npm start -- --dev-client
+```
 
-`npm ci && npm run test:postgres` migration'ları yerel Postgres üzerinde doğrular. GitHub Actions ayrıca web testlerini, mobil TypeScript kontrolünü, iOS/Android paket üretimini ve Edge Function tip kontrolünü çalıştırır.
+1. Geliştirme derlemesini aç, Metro'ya bağlan ve web ile aynı Supabase projesinde oturum aç.
+2. Dar bir telefon profili ve sistemde büyütülmüş yazıyla oda, mağaza, hedef alanı, hesaba giriş ve açılır pencereleri gez. Masadaki yazı hareketini kendi avatarında ve çevredeki katılımcılarda kontrol et. Android veya iOS'ta hareketi azaltma seçeneğini açıp durgun pozu da kontrol et.
+3. Oda ekranında **Oda arka planı** seçimini değiştir, uygulamayı kapatıp tekrar aç. Seçilen manzara cihazda korunmalı. Ambiyans mikserinde iki sesi ayrı seviyelerde çal ve odadan çıkınca seslerin durduğunu dinle.
+4. Profilde hatırlatmaları aç ve çalışan bir periyotta cihazı kilitle. Doğrulama zamanı geldiğinde yerel bildirimi ve uygulamaya dönüşte sunucu saatinin yenilenmesini gerçek cihazda kontrol et. Sistem izinleri ve güç tasarrufu bildirim teslimini etkileyebilir.
+5. Günlük çalışma kartını aç ve **Kartı paylaş** ile yerel paylaşım menüsünde PNG göründüğünü doğrula. EAS veya yerel geliştirme derlemesini gerçek cihazda kullan.
 
-## Çalışma kulüpleri
+Ödül push bildirimleri için ayrıca EAS proje kimliği, APNs/FCM kimlik bilgileri ve Edge Function ortamında `EXPO_PUSH_ACCESS_TOKEN` gerekir. Yerel doğrulama bildirimi uygulamanın cihazda planladığı bir hatırlatmadır. [Bildirim ve ödül kurulumu](docs/supabase-kurulum.md#ödül-işini-zamanla)
 
-- **Ne çalışıyorsun?** Profilde isteğe bağlı tek satırlık hedef seçilir. Oda görünümünde adının altında gösterilir ve oda listesinden hedef metniyle arama yapılabilir.
-- **Özel odalar** 10 jetona açılır ve en fazla 9 kişi alır. İlk katılım için altı rakamlı davet kodu gerekir. Davet kodu oda sahibinin ekranında gösterilir. Özel odalar yalnızca davetle daha önce erişim almış hesapların listesinde görünür.
-- **Kütüphane Ağacı** yalnızca başarıyla tamamlanan periyotların dakikasını, periyodun başladığı odaya ekler. Her 500 dakikada o sırada odada bulunan üyelere bir sandık verilir. İlk eşiğin ardından kuzey ışıklı arka plan açılır.
-- **Gizem Kutusu** 50 jetona koleksiyonda eksik olan bir nadir eşya verir. Oda sandıkları ücretsizdir. Nadir koleksiyon tamamlandığında ücretsiz sandık 10 jeton verir. Ücretli kutu koleksiyon tamamlandığında açılamaz.
-- **Ambiyans** yağmur, şömine, kafe ve lo-fi döngülerini ayrı ayrı karıştırır. Uzay İstasyonu ve Orman Kulübesi paketleri 30'ar jetondur. Oda ekranı kapanınca ses durur. Döngüler özgün sentezdir ve `python scripts/make-ambience.py` ile yeniden üretilebilir.
-- **Kedi** her 50 doğrulanmış dakika için bir seviye ilerler. Yarım bırakılan veya doğrulaması kaçırılan periyotta küser. Sonraki en az 50 dakikalık başarılı periyotta geliştirilen uyku görünümüne döner.
+## İki istemciyle kabul testi
 
-Ambiyans için `expo-audio` yerel modülü kullanılır. Daha eski bir development build kullanıyorsan uygulamayı tekrar derle.
+Bu işlemleri deneme hesaplarıyla yap. Bir hesabın silinmesini içeren adım için ayrılmış bir test hesabı kullan.
 
-### Mağaza ve oda görünümü
+| Akış | Beklenen sonuç |
+| --- | --- |
+| Yeni hesapla giriş yap ve ilk avatarı kaydet | İlk profil oluşturulduğunda 30 jeton bir kez verilir. |
+| Aynı Supabase hesabını web ve mobilde aç | Ad, avatar, jeton ve envanter eşleşir. Bir istemcide yapılan satın alma diğerinde görünür. |
+| İki hesapla aynı odaya katıl | Oda sayısı, hedef etiketi ve Masada/Molada durumu güncellenir. Kendi masan ortadadır. Durum değişiminin diğer ekrana yansıması için hedef 2 saniyedir. Diğer hesaptan kahve veya alkış gönderince tepki alıcıya görünür. |
+| Masada ve molada sahneyi kontrol et | Masada avatarın elleri açık defterde kalemle hareket eder. Kedi masada yürür, bitkinin yaprakları salınır ve lambanın parlaklığı değişir. Molada avatar ve yazı animasyonu kaybolur, kuşanılan masa eşyaları görünmeye devam eder. |
+| Özel süreyi beş dakika seç ve periyodu tamamla | Özel süre 5–180 dakika aralığını kabul eder. Beş dakika doğrulama gerektirmez ve tamamlanınca bir jeton verir. |
+| 50 dakikalık periyodu başlat, mola ver ve geri dön | Mola sırasında kalan süre sabit kalır. Doğrulamayı 20. ve 40. odak dakikalarında açılan 30 saniyelik pencerede yap. Başarıyla tamamlandığında 10 jeton bir kez yazılır. |
+| Doğrulama penceresini kaçır | Periyot geçersiz olur ve jeton artmaz. Kedi envanterdeyse küskün duruma geçer. |
+| Mağazadan eşya al ve envanterden kuşan | Tutar bir kez düşer. Yetersiz bakiye ve doğrudan sandık ödülü satın alma reddedilir. Bir yuvaya ikinci eşya kuşanınca ilki envanterde kalır. |
+| 10 jetona özel oda aç ve davet kodunu kullan | Oda davetsiz hesaba görünmez. Altı haneli kodla katılım çalışır. Oda kapasitesi dokuz kişidir. |
+| Sıralamaya katıl ve çalışma kartını aç | Yalnızca doğrulanmış süre hesaba katılır. Sıralama isteğe bağlıdır. Günlük kartta avatar, dakika ve seri görünür. |
+| Deneme hesabını sil | Mobilde **Hesabımı ve Verilerimi Sil** veya webde `/account-deletion` üzerinden hesabı doğrula. Silinen hesaba bağlı profil, envanter ve çalışma kayıtları kaldırılır. |
 
-Mağazada kıyafet, saç, masa süsü ve ses paketi filtreleri bulunur. **Sandık ödülleri** bölümündeki eşyalar mağazadan tek tek satın alınamaz. Kazanılan ödüller envanterde kullanılır. Bir kıyafet, saç veya masa yuvasına yeni eşya kuşanıldığında önceki eşya envanterde kalır.
+Kütüphane Ağacı her 500 doğrulanmış dakikada odada bulunan üyelere ücretsiz sandık verir. İlk eşikte **Odaya göre** arka planı kuzey ışıklarına dönüşür. 50 jetonluk Gizem Kutusu koleksiyonda bulunmayan bir nadir eşya verir. Koleksiyon tamamlandığında ücretsiz sandık 10 jeton verir ve ücretli kutu kapalıdır. Bu uzun senaryoların süreleri yerel veritabanı testinde ilerletilir.
 
-Oda ekranındaki **Oda arka planı** menüsünden Klasik Kütüphane, Yağmurlu Gece, Cam Sera ve Yıldız Gözlemevi seçilebilir. Seçim cihazda saklanır. **Odaya göre** görünüm odanın varsayılan manzarasını ve 500 dakika eşiğindeki kuzey ışıklarını gösterir.
+Yağmur, şömine, kafe ve lo-fi döngüleri herkese açıktır. Uzay İstasyonu ve Orman Kulübesi paketleri mağazada 30'ar jetondur. Kedi her 50 doğrulanmış dakikada bir seviye ilerler. Günlük çalışma kartı ve haftalık sıralama gün ve hafta sınırlarında İstanbul saatini kullanır.
 
+## Otomatik kontroller
 
-### Masa tepkileri, çalışma kartı ve sıralama
+Depo kökünde.
 
-Aynı odadaki bir masaya dokunarak kahve veya alkış gönderilebilir. Tepki yalnızca alıcıya görünür. Haftalık sıralamaya katılım isteğe bağlıdır. Hafta ve gün sınırları İstanbul saatine göre hesaplanır ve yalnızca doğrulanmış periyotlar sayılır.
+```sh
+npm ci
+npm test
+npm run test:postgres
+deno check --no-lock --node-modules-dir=none supabase/functions/library/index.ts supabase/functions/reward-worker/index.ts
+```
 
-Tamamlanan periyot sonrası veya profilden günlük çalışma kartı açılabilir. Kartta kullanıcının avatarı, günün doğrulanmış dakikası ve çalışma serisi yer alır. Mobilde PNG paylaşım menüsü, webde PNG indirme kullanılabilir.
+- `npm test`, web sunucusunu, Supabase istemci sözleşmesini, sayaç sınırlarını ve ortak piksel animasyonunu kontrol eder.
+- `npm run test:postgres`, migration'ları geçici bir Postgres veritabanına uygular. RLS ve istemci yetkilerini, oda kapasitesini, doğrulamayı, jeton ve sandık işlemlerini, kuşanmayı, tepkileri, sıralamayı ve hesap silmeyi sınar. Çalışırken canlı Supabase'e bağlanmaz.
+- Deno komutu Edge Function'ların tip kontrolüdür. Deno kurulu olmalı.
 
-### Mağaza derlemeleri
+Mobil paket kontrolü.
 
-`mobile/eas.json` geliştirme, önizleme ve mağaza derleme profillerini içerir. EAS projesi bağlandıktan sonra `npx eas-cli build --profile production --platform all` ile mağaza paketleri oluşturulabilir. Google Play ve App Store gönderimleri mağaza hesabı ve imzalama bilgileri gerektirir. Google Play hesap silme bağlantısı için web uygulamasının yayımlandığı alan adındaki `/account-deletion` adresini kullan.
+```sh
+cd mobile
+npm ci
+npm run typecheck
+npx expo export --platform all --output-dir dist --max-workers 2
+```
 
-Mağaza ve karakter PNG'leri `node scripts/render-sprites.mjs` ile aynı piksel çizimlerinden yeniden üretilir. Kişiselleştirilebilir canlı avatarlar Skia ile katmanlı olarak çizilir.
+`expo export`, iOS ve Android için JavaScript paketlerini ve kaynaklarını doğrular. Yerel izinler, kilit ekranı bildirimleri ve paylaşım menüsü için geliştirme derlemesini cihazda açarak mobille ilgili kabul adımlarını uygula. GitHub Actions web, Postgres, Edge Function ve Expo paket kontrollerini çalıştırır.
+
+## Görseller ve dağıtım
+
+Avatarın yazı hareketi ve eşya çizimleri ortak piksel çiziminden üretilir. Mobil mağaza ve animasyon PNG'lerini depo kökünde `node scripts/render-sprites.mjs` ile yenile. Ambiyans döngülerini `python scripts/make-ambience.py` ile yeniden üretebilirsin.
+
+Oda arka planlarında Klasik Kütüphane, Yağmurlu Gece, Cam Sera ve Yıldız Gözlemevi bulunur. Odaya özel görseller için Supabase Storage'daki `room-art` alanına `night.webp`, `garden.webp` veya `archive.webp` ekleyip mobilde `EXPO_PUBLIC_ROOM_ART_FROM_STORAGE=true` ayarlanabilir.
+
+`mobile/eas.json` geliştirme, önizleme ve mağaza profillerini içerir. EAS projesi ve imzalama bilgileri tanımlandığında `mobile/` klasöründen `npx eas-cli build --profile production --platform all` ile mağaza paketleri oluşturulabilir. Google Play hesap silme bağlantısı için yayımlanan web uygulamasının HTTPS adresindeki `/account-deletion` yolunu kullan.
+
+Sentry ve PostHog isteğe bağlı çevre değişkenleriyle etkinleşir. Yayımlamadan önce TR ve EN aydınlatma metnini kendi veri sorumlusu ve saklama bilgilerinle tamamla. [KVKK yayın notları](docs/kvkk-yayin-notlari.md)

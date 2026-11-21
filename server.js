@@ -9,19 +9,43 @@ import { build } from 'esbuild';
 const root = dirname(fileURLToPath(import.meta.url));
 const script = 'text/javascript; charset=utf-8';
 const html = 'text/html; charset=utf-8';
+const css = 'text/css; charset=utf-8';
+const image = 'image/webp';
+const audio = 'audio/mp4';
 const files = new Map([
   ['/', ['public/index.html', html]],
   ['/account-deletion', ['public/index.html', html]],
-  ['/styles.css', ['public/styles.css', 'text/css; charset=utf-8']],
+  ['/styles.css', ['public/styles.css', css]],
+  ['/room-preferences.css', ['public/room-preferences.css', css]],
   ['/app.js', ['public/app.js', script]],
   ['/avatar-art.js', ['public/avatar-art.js', script]],
   ['/sprites.js', ['public/sprites.js', script]],
   ['/web-social.js', ['public/web-social.js', script]],
+  ['/room-preferences.js', ['public/room-preferences.js', script]],
   ['/library-client.js', ['public/library-client.js', script]],
   ['/focus-clock.js', ['public/focus-clock.js', script]],
-  ['/library.webp', ['public/library.webp', 'image/webp']],
-  ['/aurora.webp', ['mobile/assets/aurora.webp', 'image/webp']],
+  ['/library.webp', ['public/library.webp', image]],
+  ['/aurora.webp', ['mobile/assets/aurora.webp', image]],
+  ...['rain', 'garden', 'stars'].map(theme => [`/room-themes/${theme}.webp`, [`mobile/assets/themes/${theme}.webp`, image]]),
+  ...['rain', 'fire', 'cafe', 'lofi', 'space', 'forest'].map(track =>
+    [`/room-ambience/${track}.m4a`, [`mobile/assets/ambience/${track}.m4a`, audio]]),
 ]);
+
+function audioResponse(content, range) {
+  const headers = { 'Accept-Ranges': 'bytes', 'Content-Length': content.length };
+  const match = /^bytes=(\d*)-(\d*)$/.exec(range ?? '');
+  if (!match || (!match[1] && !match[2])) return { content, headers };
+
+  const size = content.length;
+  const start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
+  const end = match[1] && match[2] ? Math.min(size - 1, Number(match[2])) : size - 1;
+  if (start >= size || end < start) {
+    return { status: 416, headers: { ...headers, 'Content-Range': `bytes */${size}`, 'Content-Length': 0 } };
+  }
+  return { status: 206, content: content.subarray(start, end + 1), headers: {
+    ...headers, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1,
+  } };
+}
 
 function publishable(key) {
   if (typeof key !== 'string') return false;
@@ -61,11 +85,12 @@ export async function bundleSupabase() {
 export function createWebServer({ config = getWebConfig(), bundle = new Uint8Array() } = {}) {
   return createServer(async (request, response) => {
     const pathname = new URL(request.url, 'http://localhost').pathname;
-    const write = (type, content) => response.writeHead(200, {
+    const write = (type, content, status = 200, extraHeaders) => response.writeHead(status, {
       'Content-Type': type,
       'Cache-Control': 'no-cache',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'no-referrer',
+      ...extraHeaders,
     }).end(request.method === 'HEAD' ? undefined : content);
     if (request.method === 'GET' || request.method === 'HEAD') {
       if (pathname === '/config.js') return write(script, `export const config = ${JSON.stringify(config)};`);
@@ -73,7 +98,13 @@ export function createWebServer({ config = getWebConfig(), bundle = new Uint8Arr
       const file = files.get(pathname);
       if (file) {
         try {
-          return write(file[1], await readFile(resolve(root, file[0])));
+          const [path, type] = file;
+          const content = await readFile(resolve(root, path));
+          if (type === audio) {
+            const media = audioResponse(content, request.method === 'GET' ? request.headers.range : undefined);
+            return write(type, media.content, media.status, media.headers);
+          }
+          return write(type, content);
         } catch {
           response.writeHead(500).end();
           return;

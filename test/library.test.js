@@ -4,6 +4,9 @@ import { test } from 'node:test';
 import { bundleSupabase, createWebServer, getWebConfig } from '../server.js';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../public/focus-clock.js';
 import { invokeLibrary } from '../public/library-client.js';
+import { writingSize } from '../public/avatar-art.js';
+import { writingFrames } from '../public/sprites.js';
+import { createRoomPreferences, resolveRoomTheme } from '../public/room-preferences.js';
 
 const publicUrl = 'https://project.supabase.co';
 const publishable = 'sb_publishable_unit_test';
@@ -18,11 +21,31 @@ async function fixture(t, options) {
 
 test('serves the web app, public deletion route, shared client and artwork', async t => {
   const address = await fixture(t);
-  for (const path of ['/', '/account-deletion', '/library-client.js', '/focus-clock.js', '/web-social.js', '/library.webp']) {
+  for (const path of ['/', '/account-deletion', '/library-client.js', '/focus-clock.js', '/web-social.js', '/library.webp',
+    '/room-preferences.js', '/room-preferences.css', '/room-themes/rain.webp', '/room-themes/garden.webp', '/room-themes/stars.webp']) {
     const response = await fetch(address + path);
     assert.equal(response.status, 200, path);
     assert.ok((await response.arrayBuffer()).byteLength > 0);
   }
+});
+
+test('serves the shared ambience tracks and supports media byte ranges', async t => {
+  const address = await fixture(t);
+  for (const track of ['rain', 'fire', 'cafe', 'lofi', 'space', 'forest']) {
+    const response = await fetch(`${address}/room-ambience/${track}.m4a`, { method: 'HEAD' });
+    assert.equal(response.status, 200, track);
+    assert.equal(response.headers.get('Content-Type'), 'audio/mp4');
+    assert.equal(response.headers.get('Accept-Ranges'), 'bytes');
+    assert.ok(Number(response.headers.get('Content-Length')) > 1000);
+  }
+  const source = address + '/room-ambience/rain.m4a';
+  const ranged = await fetch(source, { headers: { Range: 'bytes=0-1' } });
+  assert.equal(ranged.status, 206);
+  assert.match(ranged.headers.get('Content-Range'), /^bytes 0-1\/\d+$/);
+  assert.equal((await ranged.arrayBuffer()).byteLength, 2);
+  const unavailable = await fetch(source, { headers: { Range: 'bytes=9999999999-' } });
+  assert.equal(unavailable.status, 416);
+  assert.match(unavailable.headers.get('Content-Range'), /^bytes \*\/\d+$/);
 });
 
 test('web server exposes only the public config and does not own game mutations', async t => {
@@ -92,4 +115,97 @@ test('the verification modal uses the server-provided window boundaries', () => 
   assert.equal(verificationRemaining(session, 40000), 0);
   assert.equal(verificationRemaining({ ...session, state: 'invalid' }, 12000), 0);
   assert.equal(verificationRemaining({ state: 'active' }, 12000), 0);
+});
+
+test('auto themes follow the room and unlocked milestone until the user chooses a theme', () => {
+  assert.equal(resolveRoomTheme('auto', { id: 'night' }), 'classic');
+  assert.equal(resolveRoomTheme('auto', { id: 'garden' }), 'garden');
+  assert.equal(resolveRoomTheme('auto', { id: 'archive' }), 'stars');
+  assert.equal(resolveRoomTheme('auto', { id: 'night', minutes: 500 }), 'aurora');
+  assert.equal(resolveRoomTheme('rain', { id: 'night', minutes: 500 }), 'rain');
+  const preferences = createRoomPreferences({ storage: () => ({ getItem: () => '{"theme":"garden"}' }) });
+  assert.equal(preferences.themeFor({ id: 'night' }), 'garden');
+});
+
+test('ambience mixes saved levels, enables only owned packs, and stops when leaving', t => {
+  const players = new Map();
+  const storage = () => ({ getItem: () => '{"volumes":{"rain":1,"lofi":3,"space":2,"forest":2}}' });
+  const createAudio = t.mock.fn(source => {
+    const player = {
+      paused: true,
+      play() { this.paused = false; return Promise.resolve(); },
+      pause() { this.paused = true; },
+    };
+    players.set(source, player);
+    return player;
+  });
+  const preferences = createRoomPreferences({ storage, createAudio });
+  const room = { id: 'night' };
+  assert.match(preferences.markup(room, []), /Uzay İstasyonu · Mağazada açılır/);
+  preferences.sync(room, []);
+  assert.deepEqual([...players.keys()], ['/room-ambience/rain.m4a', '/room-ambience/lofi.m4a']);
+  assert.equal(players.get('/room-ambience/rain.m4a').volume, 0.16);
+  assert.equal(players.get('/room-ambience/lofi.m4a').volume, 0.48);
+  assert.ok([...players.values()].every(player => player.loop && !player.paused));
+  preferences.sync(room, [{ item: 'space', placed: false }]);
+  assert.equal(createAudio.mock.callCount(), 3);
+  assert.equal(players.get('/room-ambience/space.m4a').volume, 0.32);
+  preferences.sync(null);
+  assert.ok([...players.values()].every(player => player.paused));
+});
+
+test('ambience shows a play button after an autoplay rejection and retries on click', async () => {
+  let attempts = 0;
+  const player = {
+    paused: true,
+    play() {
+      attempts++;
+      if (attempts === 1) return Promise.reject(new Error('playback blocked'));
+      this.paused = false;
+      return Promise.resolve();
+    },
+  };
+  const preferences = createRoomPreferences({
+    storage: () => ({ getItem: () => '{"volumes":{"rain":1}}' }), createAudio: () => player,
+  });
+  const handlers = new Map();
+  const notice = {};
+  const play = {};
+  preferences.attach({
+    addEventListener: (type, handler) => handlers.set(type, handler),
+    querySelector: selector => selector === '[data-ambience-notice]' ? notice : play,
+  }, () => false);
+  preferences.sync({ id: 'night' });
+  await Promise.resolve();
+  assert.equal(play.hidden, false);
+  assert.match(notice.textContent, /yeniden başlatmak/i);
+  handlers.get('click')({ target: { closest: selector => selector === '[data-play-ambience]' ? play : null } });
+  assert.equal(attempts, 2);
+  assert.equal(player.paused, false);
+  assert.equal(play.hidden, true);
+});
+
+test('web writing uses a cached pixel strip with distinct frames', t => {
+  const frames = Array.from({ length: writingSize.frames }, () => []);
+  const brush = {
+    fillStyle: '',
+    fillRect(x, y, width, height) {
+      const frame = Math.floor(x / writingSize.width);
+      frames[frame].push([this.fillStyle, x % writingSize.width, y, width, height]);
+    },
+  };
+  const canvas = {
+    getContext: () => brush,
+    toDataURL: t.mock.fn(() => 'data:image/png;base64,stub'),
+  };
+  const createElement = t.mock.fn(() => canvas);
+  globalThis.document = { createElement };
+  t.after(() => { delete globalThis.document; });
+  assert.equal(writingFrames(), canvas.toDataURL.mock.calls[0].result);
+  assert.equal(writingFrames(), canvas.toDataURL.mock.calls[0].result);
+  assert.equal(createElement.mock.callCount(), 1);
+  assert.equal(canvas.toDataURL.mock.callCount(), 1);
+  assert.equal(canvas.width, writingSize.width * writingSize.frames);
+  assert.equal(canvas.height, writingSize.height);
+  assert.equal(new Set(frames.map(frame => JSON.stringify(frame))).size, writingSize.frames);
 });

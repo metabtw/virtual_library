@@ -5,6 +5,7 @@ export const hairStyles = {
 };
 
 export const avatarSize = { width: 40, height: 52 };
+export const writingSize = { width: 32, height: 16, frames: 4 };
 const ink = '#221626';
 const hairBase = '#623645';
 const hairLight = '#a56255';
@@ -129,6 +130,30 @@ export function drawAvatar({ gender = 'unspecified', hair, outfit, color, hairSk
     paint('#eed2af', [[19, 35, 2, 12], [12, 42, 4, 3], [24, 42, 4, 3]]);
     paint(ink, [[19, 38, 1, 1], [19, 41, 1, 1], [19, 44, 1, 1]]);
   }
+}
+
+const pencilPoses = [[0, 0], [2, 1], [4, 0], [2, -1]];
+
+export function drawWritingHands(frame, paint) {
+  const [dx, dy] = pencilPoses[frame] ?? pencilPoses[0];
+  const x = 21 + dx;
+  const y = 5 + dy;
+
+  // Open notebook, page folds and the lines already on the paper.
+  paint('#3d2834', [[7, 3, 19, 2], [6, 5, 22, 8], [8, 13, 19, 2]]);
+  paint('#c58a67', [[7, 5, 20, 8], [9, 13, 17, 1]]);
+  paint('#fff0c4', [[8, 4, 9, 8], [18, 4, 8, 8], [10, 12, 15, 1]]);
+  paint('#d39d74', [[17, 5, 1, 7], [9, 12, 7, 1], [19, 12, 6, 1]]);
+  paint('#b08b88', [[10, 6, 5, 1], [11, 8, 4, 1], [20, 6, 4, 1], [19, 10, 2 + dx, 1]]);
+
+  // The left hand holds the page. The right hand and pencil share the same pose.
+  paint('#302332', [[0, 0, 6, 3], [3, 2, 6, 5], [6, 5, 6, 5], [x - 1, y + 1, 7, 5]]);
+  paint('#876d91', [[0, 1, 5, 2], [3, 3, 4, 3], [x + 4, y + 1, 6 - dx, 3]]);
+  paint('#c87d61', [[6, 6, 5, 3], [x, y + 2, 5, 3]]);
+  paint('#f4bf91', [[6, 6, 4, 2], [8, 8, 3, 1], [x, y + 2, 4, 2]]);
+  paint('#604252', [[x - 5, y + 5, 2, 1], [x - 4, y + 4, 2, 1], [x - 3, y + 3, 2, 1]]);
+  paint('#ffca74', [[x - 3, y + 3, 2, 1], [x - 2, y + 2, 2, 1], [x - 1, y + 1, 2, 1], [x, y, 2, 1]]);
+  paint('#ffebaa', [[x + 1, y - 1, 1, 1]]);
 }
 
 const propPalette = {

@@ -1,4 +1,4 @@
-import { avatarSize, drawAvatar, drawProp } from './avatar-art.js';
+import { avatarSize, drawAvatar, drawProp, drawWritingHands, writingSize } from './avatar-art.js';
 
 const portraits = new Map();
 
@@ -34,4 +34,24 @@ export function propImage(name) {
   const image = canvas.toDataURL();
   props.set(name, image);
   return image;
+}
+
+let writingStrip;
+
+export function writingFrames() {
+  if (writingStrip) return writingStrip;
+  const canvas = document.createElement('canvas');
+  canvas.width = writingSize.width * writingSize.frames;
+  canvas.height = writingSize.height;
+  const context = canvas.getContext('2d');
+  for (let frame = 0; frame < writingSize.frames; frame++) {
+    drawWritingHands(frame, (shade, blocks) => {
+      context.fillStyle = shade;
+      for (const [x, y, width, height] of blocks) {
+        context.fillRect(frame * writingSize.width + x, y, width, height);
+      }
+    });
+  }
+  writingStrip = canvas.toDataURL();
+  return writingStrip;
 }

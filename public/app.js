@@ -2,8 +2,9 @@ import { createClient } from './supabase-web.js';
 import { config } from './config.js';
 import { invokeLibrary } from './library-client.js';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from './focus-clock.js';
-import { portrait, propImage } from './sprites.js';
-import { dressedAvatar, hairStyles } from './avatar-art.js';
+import { portrait, propImage, writingFrames } from './sprites.js';
+import { dressedAvatar, hairStyles, writingSize } from './avatar-art.js';
+import { createRoomPreferences } from './room-preferences.js';
 import { downloadStudyCard, messageFor, reactionArt } from './web-social.js';
 
 const client = config && createClient(config.url, config.key, {
@@ -27,6 +28,7 @@ const genders = [['unspecified', 'Belirtmek istemiyorum'], ['female', 'Kadın'],
 const durationOptions = [['25', '25 dakika'], ['50', '50 dakika'], ['90', '90 dakika'], ['custom', 'Özel süre']];
 const draft = { email: '', code: '', target: null, roomName: '', invite: '' };
 const seenReactions = new Set();
+const roomPreferences = createRoomPreferences();
 
 let userId;
 let data;
@@ -181,13 +183,12 @@ function sprite(part, small = false) {
 
 function deskItems(equipped, pet) {
   const light = equipped.includes('neon') ? 'neon' : equipped.includes('lamp') ? 'lamp' : null;
-  const compact = [['goldKeys', 'keyboard'], ['dragon', 'dragon'], ['teaSet', 'accent'], ['hourglass', 'accent'],
-    ['miniGlobe', 'display'], ['crystalTerrarium', 'display']];
+  const compact = ['goldKeys', 'dragon', 'teaSet', 'hourglass', 'miniGlobe', 'crystalTerrarium'];
   return [
-    light && `<span class="desk-prop desk-lamp"><img src="${propImage(light)}" alt=""></span>`,
+    light && `<span class="desk-prop desk-lamp${light === 'neon' ? ' desk-neon' : ''}"><img src="${propImage(light)}" alt=""></span>`,
     equipped.includes('plant') && `<span class="desk-prop desk-plant"><img src="${propImage('leaves')}" class="plant-leaves" alt=""><img src="${propImage('pot')}" alt=""></span>`,
-    ...compact.filter(([item]) => equipped.includes(item)).map(([item, slot]) =>
-      `<span class="desk-prop desk-${slot}"><img src="${propImage(item)}" alt=""></span>`),
+    ...compact.filter(item => equipped.includes(item)).map(item =>
+      `<span class="desk-prop desk-${item}"><img src="${propImage(item)}" alt=""></span>`),
     equipped.includes('cat') && `<span class="desk-prop desk-cat ${pet?.upset || pet?.xp > 0 ? 'pet-rest' : ''}">
       <img src="${propImage(pet?.upset ? 'catUpset' : pet?.xp > 0 ? 'catSleep' : 'cat')}" alt=""></span>`,
   ].filter(Boolean).join('');
@@ -201,7 +202,10 @@ function seat(member, index, [column, row]) {
     ${member ? `<span class="seat-status ${atDesk ? '' : 'break'}"><span class="dot"></span> ${atDesk ? 'Masada' : 'Molada'}</span>` : ''}
     <div class="chair"></div>
     ${member && atDesk ? sprite(dressedAvatar(member.avatar, member.placed), true) : ''}
-    <div class="desktop"><span class="${atDesk ? 'laptop' : 'book'}" aria-hidden="true"></span>${member ? deskItems(member.placed, member.pet) : ''}</div>
+    <div class="desktop" aria-hidden="true">
+      ${atDesk ? `<span class="desk-writing" style="--writing-frames:${writingSize.frames}"><img src="${writingFrames()}" alt=""></span>` : '<span class="book"></span>'}
+      ${member ? deskItems(member.placed, member.pet) : ''}
+    </div>
     ${canReact ? `<button class="seat-name" data-action="select-desk" data-value="${escape(member.desk_ref)}" aria-label="${name} · Masa tepkisi">${name}</button>` : `<div class="seat-name">${name}</div>`}
     ${member?.target ? `<span class="seat-target">${escape(member.target)}</span>` : ''}
   </div>`;
@@ -228,13 +232,14 @@ function roomView(room) {
         <button class="primary" data-action="start" ${validDuration() ? '' : 'disabled'}>▶ &nbsp; Çalışmaya başla</button>`
         : '<a class="primary" href="#rooms">Bir odaya katıl</a>';
   return `<div class="heading"><h1>${name}</h1>${running() ? '' : '<a class="secondary" href="#rooms">Tüm odalar</a>'}</div>
-  <section class="scene ${(room?.minutes ?? 0) >= 500 ? 'scene-aurora' : ''}" aria-label="${name}">
+  <section class="scene" data-room-theme="${roomPreferences.themeFor(room)}" aria-label="${name}">
   <div class="scene-top"><span><span class="dot"></span> <span id="room-count">${room?.count ?? 0}</span> / ${room?.capacity ?? 9} kişi</span><span>☾ &nbsp; Sessiz oda</span></div>
   <div id="room-seats">${roomSeats()}</div></section>
   <section class="controls"><div class="timer"><div class="timer-ring" id="timer-ring"><b id="timer">50:00</b></div><div>
   <h2>Odak periyodu</h2><p>${running() ? 'Çalışma sürüyor' : paused ? 'Molada · Sayaç duraklatıldı' : 'Her 20 dakikada bir doğrulama'}</p></div></div>
   <div class="control-actions">${controls}</div></section>
-  ${room ? `<p class="room-meta">🌳 Kütüphane Ağacı · ${room.minutes ?? 0} dk${room.invite && !running() ? ` · Davet kodu <b>${escape(room.invite)}</b>` : ''}</p>` : ''}`;
+  ${room ? `<p class="room-meta">🌳 Kütüphane Ağacı · ${room.minutes ?? 0} dk${room.invite && !running() ? ` · Davet kodu <b>${escape(room.invite)}</b>` : ''}</p>` : ''}
+  ${room && !running() ? roomPreferences.markup(room, data.inventory) : ''}`;
 }
 
 function roomsView() {
@@ -346,6 +351,7 @@ function render() {
   document.body.classList.toggle('focusing', lock);
   document.querySelector('#balance').textContent = data?.profile?.coins ?? 0;
   if (!userId || deletionPage || !data) {
+    roomPreferences.sync(null);
     if (verification.open) verification.close();
     const signIn = !userId;
     document.querySelector('#location').textContent = signIn ? 'Giriş' : deletionPage ? 'Hesap silme' : 'Kütüphane';
@@ -363,11 +369,12 @@ function render() {
   if ((view !== 'room' || lock) && reactionDialog.open) reactionDialog.close();
   const room = data.rooms.find(item => item.id === data.profile?.room);
   const signature = JSON.stringify([view, view === 'room'
-    ? [room?.id, room?.minutes, room?.invite, data.profile?.status, data.session, durationChoice]
+    ? [room?.id, room?.minutes, room?.invite, data.profile?.status, data.session, durationChoice, data.inventory]
     : view === 'rooms' ? data.rooms : view === 'ranking' ? ranking
       : [data.profile, data.inventory, data.items, view === 'shop' && data.chests], editing]);
   paint(view, signature, () => view === 'room' ? roomView(room) : view === 'rooms' ? roomsView()
     : view === 'profile' ? profileView() : view === 'ranking' ? rankingView() : shopView());
+  roomPreferences.sync(view === 'room' ? room : null, data.inventory);
   if (view === 'ranking' && !ranking) void loadRanking();
   if (view === 'room') {
     const count = room?.count ?? 0;
@@ -558,6 +565,7 @@ document.addEventListener('click', async event => {
   }
 });
 
+roomPreferences.attach(document, () => busy || running());
 window.addEventListener('hashchange', render);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && userId) { refreshing = true; updateClock(); void request('state'); }

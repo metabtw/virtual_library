@@ -135,6 +135,7 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 .seat {
   min-width: 0;
   min-height: clamp(88px,12vw,132px);
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(35px,auto) auto minmax(23px,auto);
 }
 .seat.own::before {
@@ -154,7 +155,7 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
   border: 3px solid #855a59;
 }
 .desktop {
-  --prop-size: clamp(24px, 4vw, 42px);
+  --prop-size: clamp(28px, 4.7vw, 46px);
   position: relative;
   grid-row: 2;
   width: min(82%,108px);
@@ -169,10 +170,33 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
   box-shadow: 0 5px #331e2a,0 9px 12px #170d16ac;
 }
 .own .desktop {
-  --prop-size: clamp(35px, 5.8vw, 63px);
+  --prop-size: clamp(38px, 6vw, 66px);
   width: min(100%,220px);
   height: clamp(34px,5.5vw,52px);
   border-top-color: #ffc088;
+}
+.desk-writing {
+  position: absolute;
+  bottom: calc(100% - 11px);
+  left: 50%;
+  width: min(82%, 66px);
+  aspect-ratio: 2;
+  overflow: hidden;
+  translate: -50% 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.own .desk-writing {bottom: calc(100% - 16px);width: min(78%, 106px)}
+.desk-writing img {
+  display: block;
+  width: calc(100% * var(--writing-frames));
+  height: 100%;
+  max-width: none;
+  image-rendering: pixelated;
+  animation: write-frames 1s steps(var(--writing-frames), end) infinite;
+}
+@keyframes write-frames {
+  to {transform: translateX(-100%)}
 }
 .desk-prop {
   position: absolute;
@@ -187,23 +211,24 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
   width: 100%;
   image-rendering: pixelated;
 }
-.desk-lamp {left: 9%}
+.desk-lamp {left: 1%;--lamp-color:#ffc468b8}
+.desk-lamp.desk-neon {--lamp-color:#a999ffcc}
 .desk-lamp::before {
   content: '';
   position: absolute;
   inset: -48% -55% -20%;
-  background: radial-gradient(ellipse, #ffc468a8, #ffcb7a00 69%);
+  background: radial-gradient(ellipse, var(--lamp-color), transparent 68%);
   animation: lamp-glow 3.8s ease-in-out infinite alternate;
 }
-.desk-plant {right: 7%}
+.desk-plant {right: 1%}
 .plant-leaves {
   transform-origin: 47% 73%;
   animation: plant-sway 2.8s ease-in-out infinite alternate;
 }
 .desk-cat {
   left: 2%;
-  bottom: calc(100% - var(--prop-size) * .37);
-  z-index: 1;
+  bottom: calc(100% - var(--prop-size) * .82);
+  z-index: 4;
   animation: cat-stroll 7s steps(20,end) infinite;
 }
 .desk-cat img {animation: cat-step .25s steps(2,end) infinite alternate}
@@ -212,8 +237,8 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
   to {opacity: .95; transform: scale(1.13)}
 }
 @keyframes plant-sway {
-  from {transform: rotate(-8deg)}
-  to {transform: rotate(8deg)}
+  from {transform: rotate(-12deg)}
+  to {transform: rotate(12deg)}
 }
 @keyframes cat-stroll {
   0% {left: 2%; transform: scaleX(1)}
@@ -226,19 +251,16 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
   from {translate: 0 0}
   to {translate: 0 -2px}
 }
-@media (prefers-reduced-motion: reduce) {
-  .desk-prop,.desk-prop img,.desk-lamp::before {animation: none}
-  .desk-cat {left: calc(50% - var(--prop-size) / 2)}
-}
-.laptop,.book {display:block;flex:none;height: 8px;background:#514357;border:1px solid #d2a89c;width:12px}
-.laptop {border-bottom:2px solid #201426}
-.book {height:5px;background:#b08860}
+.book {display:block;flex:none;height:5px;background:#b08860;border:1px solid #d2a89c;width:12px}
 .seat-name {
   grid-row: 3;
   align-self: start;
   width: max-content;
   max-width: 100%;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   border-radius: 12px;
   background: #201723ef;
   padding-inline: 5px;
@@ -345,6 +367,8 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 .picker-options {
   position: absolute;
   inset: calc(100% + 5px) 0 auto;
+  max-height: min(260px, 55dvh);
+  overflow-y: auto;
   padding: 4px;
   border: 1px solid #ffbc7959;
   border-radius: 12px;
@@ -424,15 +448,80 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 .stacked label { display: grid; gap: 4px; }
 .toolbar, .dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .private-actions { margin-top: 16px; }
-.scene.scene-aurora { background-image: linear-gradient(#12101b22, #14121b90), url('/aurora.webp'); }
 .seat-target { color: #e5c9ad; background: #241a2ae0; font-size: 10px; padding: 2px 4px; border-radius: 5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.seat-name { cursor: pointer; color: inherit; }
 button.seat-name:hover { outline: 1px solid #ffb469; }
-.desktop .desk-keyboard, .desktop .desk-dragon, .desktop .desk-accent, .desktop .desk-display { position: absolute; bottom: -.2rem; }
-.desktop .desk-keyboard { left: 30%; }
-.desktop .desk-dragon, .desktop .desk-display { right: 10%; }
-.desktop .desk-accent { left: 20%; }
-.desk-cat.pet-rest, .desk-cat.pet-rest img { animation: none; left: 45%; }
+.desk-goldKeys {
+  width: calc(var(--prop-size) * .85);
+  bottom: calc(100% - var(--prop-size) * .7);
+  left: 2%;
+  z-index: 3;
+}
+.desk-goldKeys img {animation: keyboard-glow 1.9s ease-in-out infinite alternate}
+.desk-dragon {
+  right: 2%;
+  bottom: calc(100% - var(--prop-size) * .65);
+  z-index: 3;
+}
+.desk-dragon img, .desk-cat.pet-rest img {
+  transform-origin: 50% 74%;
+  animation: pet-breathe 1.9s ease-in-out infinite alternate;
+}
+.desk-cat.pet-rest {animation: none;left: max(2%, calc(50% - var(--prop-size) / 2))}
+.desk-teaSet, .desk-hourglass {left: 2%;bottom: calc(100% - var(--prop-size) * .27)}
+.desk-lamp ~ :is(.desk-teaSet, .desk-hourglass) {bottom: calc(100% - var(--prop-size) * .55)}
+.desk-teaSet::after {
+  content: '';
+  position: absolute;
+  left: 31%;
+  bottom: 70%;
+  width: 17%;
+  height: 24%;
+  border-left: 2px solid #f9ece9dc;
+  border-radius: 50%;
+  animation: tea-steam 1.7s ease-out infinite;
+}
+.desk-hourglass img {
+  transform-origin: 50% 39%;
+  animation: hourglass-flip 5s ease-in-out infinite;
+}
+.desk-miniGlobe, .desk-crystalTerrarium {right: 2%;bottom: calc(100% - var(--prop-size) * .25)}
+.desk-plant ~ :is(.desk-miniGlobe, .desk-crystalTerrarium) {bottom: calc(100% - var(--prop-size) * .59)}
+.desk-miniGlobe img {
+  transform-origin: 46% 70%;
+  animation: globe-rock 2.8s ease-in-out infinite alternate;
+}
+.desk-crystalTerrarium img {animation: crystal-glow 2.1s ease-in-out infinite alternate}
+@keyframes keyboard-glow {
+  from {filter: brightness(.96)}
+  to {filter: brightness(1.5) drop-shadow(0 0 4px #ffce70)}
+}
+@keyframes pet-breathe {
+  from {transform: scaleY(.94)}
+  to {transform: scaleY(1.12) translateY(-1px)}
+}
+@keyframes tea-steam {
+  from {opacity: .78;transform: translate(0, 3px) scale(.66)}
+  to {opacity: 0;transform: translate(5px, -12px) scale(1.6)}
+}
+@keyframes hourglass-flip {
+  0%, 44% {transform: rotate(0deg)}
+  56%, 91% {transform: rotate(180deg)}
+  100% {transform: rotate(360deg)}
+}
+@keyframes globe-rock {
+  from {transform: rotate(-11deg)}
+  to {transform: rotate(11deg)}
+}
+@keyframes crystal-glow {
+  from {filter: brightness(.96) drop-shadow(0 0 1px #b67cff38)}
+  to {filter: brightness(1.36) drop-shadow(0 0 6px #c398ffc4)}
+}
+@media (prefers-reduced-motion: reduce) {
+  .desk-writing img,.desk-prop,.desk-prop img,.desk-lamp::before,.desk-teaSet::after {animation: none}
+  .desk-cat {left: calc(50% - var(--prop-size) / 2)}
+  .desk-teaSet::after {display: none}
+}
 .item-preview { min-height: 96px; display: grid; place-items: center; }
 .item-preview img, .catalog-plant { width: 72px; height: 72px; object-fit: contain; image-rendering: pixelated; }
 .catalog-plant { position: relative; }
@@ -441,3 +530,8 @@ button.seat-name:hover { outline: 1px solid #ffb469; }
 .room-meta { color: #deb991; }
 .ranking-list { padding: 0; margin: 0; list-style: none; width: 100%; }
 .ranking-list li { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid #80605b55; }
+.ranking-list li span {min-width:0;overflow-wrap:anywhere}
+.ranking-list li b {flex:none;white-space:nowrap}
+.toolbar > :is(button,a),.control-actions button {min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.room-meta,.card h2,.card p {overflow-wrap:anywhere}
+dialog {max-height:calc(100dvh - 24px);overflow:auto}
