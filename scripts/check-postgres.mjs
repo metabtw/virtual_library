@@ -38,9 +38,50 @@ try {
     grant usage on schema auth, realtime to authenticated;
     grant select, insert on realtime.messages to authenticated;
   `);
+  const legacy = '00000000-0000-4000-a000-000000000099';
   for (const file of (await readdir(directory)).filter(file => file.endsWith('.sql')).sort()) {
+    if (file === '202611210008_avatars_and_pets.sql') {
+      await db.query('insert into auth.users values ($1)', [legacy]);
+      await action(legacy, 'profile', { name: 'Eski okur', gender: 'female', hair: 2, outfit: 1, color: '#789078' });
+      await db.query(`insert into public.user_items (user_id, item, placed)
+        select $1, id, true from public.items where id in ('cat','dragon','goldKeys','teaSet','plant','lamp')`, [legacy]);
+    }
     await db.exec(await readFile(new URL(file, directory), 'utf8'));
   }
+
+  const migrated = await action(legacy, 'state');
+  assert.equal(migrated.profile.avatar.hair, 2);
+  assert.equal(migrated.profile.avatar.hair_style, null);
+  assert.equal(migrated.profile.avatar.skin_tone, 0);
+  assert.equal(migrated.inventory.length, 6);
+  assert.deepEqual(migrated.inventory.filter(entry => entry.placed).map(entry => entry.item).sort(), ['cat', 'lamp', 'plant', 'teaSet']);
+
+  const basic = { name: 'Yeni stil', gender: 'female', hair: 2, outfit: 1, color: '#789078' };
+  const custom = { ...basic, hair_style: 6, outfit_style: 5, skin_tone: 4, hair_color: 2, beard: 1 };
+  const styled = await action(legacy, 'profile', custom);
+  assert.deepEqual(styled.profile.avatar, Object.fromEntries(Object.entries(custom).filter(([key]) => key !== 'name')));
+  assert.equal(styled.profile.coins, 30);
+  const legacyWrite = await action(legacy, 'profile', basic);
+  assert.equal(legacyWrite.profile.avatar.hair_style, 6);
+  assert.equal(legacyWrite.profile.avatar.skin_tone, 4);
+  assert.equal((await action(legacy, 'profile', { ...custom, hair_style: 8 })).error, 'invalidAvatar');
+  const reset = await action(legacy, 'profile', { ...basic, hair_style: null, outfit_style: null });
+  assert.equal(reset.profile.avatar.hair_style, null);
+  assert.equal(reset.profile.avatar.outfit_style, null);
+
+  await action(legacy, 'join', { room: 'garden' });
+  assert.equal((await action(legacy, 'buy', { item: 'pinkRabbit' })).profile.coins, 6);
+  assert.equal((await action(legacy, 'buy', { item: 'yellowChick' })).error, 'insufficientCoins');
+  await db.query('update public.profiles set coins = 40 where id = $1', [legacy]);
+  assert.equal((await action(legacy, 'buy', { item: 'pugPup' })).profile.coins, 12);
+  assert.equal((await action(legacy, 'buy', { item: 'yellowChick' })).profile.coins, 0);
+  for (const animal of ['pinkRabbit', 'pugPup', 'yellowChick', 'dragon']) {
+    const placed = await action(legacy, 'place', { item: animal });
+    assert.deepEqual(placed.members.find(member => member.own).placed.sort(), [animal, 'lamp', 'plant', 'teaSet'].sort());
+  }
+  const capped = await action(legacy, 'place', { item: 'goldKeys' });
+  assert.deepEqual(capped.members.find(member => member.own).placed, ['dragon', 'goldKeys', 'lamp', 'plant']);
+  assert.equal(capped.inventory.length, 9);
 
   const users = Array.from({ length: 10 }, (_, i) => '00000000-0000-4000-a000-' + String(i + 1).padStart(12, '0'));
   for (const [index, user] of users.entries()) {

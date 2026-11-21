@@ -18,10 +18,10 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
 }
 
 export function Options<T extends string | number>({ label, values, value, onChange }: {
-  label: string; values: readonly (readonly [T, string])[]; value: T; onChange: (value: T) => void;
+  label?: string; values: readonly (readonly [T, string])[]; value: T; onChange: (value: T) => void;
 }) {
   return <View style={ui.field}>
-    <Text style={ui.small}>{label}</Text>
+    {!!label && <Text style={ui.small}>{label}</Text>}
     <View style={ui.options}>
       {values.map(([id, name]) => <Pressable key={id} accessibilityRole="radio"
         accessibilityState={{ checked: id === value }} onPress={() => onChange(id)}

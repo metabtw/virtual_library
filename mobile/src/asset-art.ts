@@ -6,6 +6,15 @@ export const avatarAssets: Record<Gender, number> = {
   male: require('../assets/avatars/side-part.png'),
 };
 
+export const presetAssets: Record<string, number> = {
+  archivist: require('../assets/avatars/archivist.png'),
+  copper: require('../assets/avatars/copper.png'),
+  golden: require('../assets/avatars/golden.png'),
+  tie: require('../assets/avatars/tie.png'),
+  curls: require('../assets/avatars/curls.png'),
+  silver: require('../assets/avatars/silver.png'),
+};
+
 export const itemAssets: Record<ItemId, number> = {
   lamp: require('../assets/items/lamp.png'),
   plant: require('../assets/items/plant.png'),
@@ -36,4 +45,7 @@ export const itemAssets: Record<ItemId, number> = {
   retroRadio: require('../assets/items/retroRadio.png'),
   jellyTank: require('../assets/items/jellyTank.png'),
   origamiCrane: require('../assets/items/origamiCrane.png'),
+  pinkRabbit: require('../assets/items/pinkRabbit.png'),
+  pugPup: require('../assets/items/pugPup.png'),
+  yellowChick: require('../assets/items/yellowChick.png'),
 };

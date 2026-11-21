@@ -3,7 +3,8 @@ import { config } from './config.js';
 import { invokeLibrary } from './library-client.js';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from './focus-clock.js';
 import { portrait, propImage, writingFrames } from './sprites.js';
-import { dressedAvatar, hairStyles, hasPropArt, writingSize } from './avatar-art.js';
+import { avatarOptions, avatarPresets, defaultAvatar, deskEquipment, dressedAvatar, hairStyles,
+  hasPropArt, petAppearance, pickAvatarStyle, writingSize } from './avatar-art.js';
 import { createRoomPreferences } from './room-preferences.js';
 import { downloadStudyCard, messageFor, reactionArt } from './web-social.js';
 
@@ -17,14 +18,8 @@ const verification = document.querySelector('#verify-dialog');
 const reactionDialog = document.querySelector('#reaction-dialog');
 const labels = { room: 'Kütüphane', rooms: 'Odalar', shop: 'Mağaza', profile: 'Profil & Envanter', ranking: 'Haftalık sıralama' };
 const palette = ['#bd7050', '#789078', '#7988ab', '#ad7963'];
-const baseAvatar = { gender: 'unspecified', hair: 0, outfit: 0, color: palette[0] };
 const roomIcons = { night: '☾', garden: '❧', archive: '✦' };
 const itemIcons = { space: '🪐', forest: '🌲' };
-const deskLights = ['neon', 'mushroomLamp', 'lamp'];
-const deskDecorations = [
-  'goldKeys', 'dragon', 'teaSet', 'hourglass', 'foxMug', 'retroRadio',
-  'miniGlobe', 'crystalTerrarium', 'jellyTank', 'origamiCrane',
-];
 const genders = [['unspecified', 'Belirtmek istemiyorum'], ['female', 'Kadın'], ['male', 'Erkek']];
 const durationOptions = [['25', '25 dakika'], ['50', '50 dakika'], ['90', '90 dakika'], ['custom', 'Özel süre']];
 const draft = { email: '', code: '', target: null, roomName: '', invite: '' };
@@ -45,7 +40,7 @@ let stateRequest;
 let lastRead = 0;
 let lastView;
 let lastScene;
-let avatar = { ...baseAvatar };
+let avatar = { ...defaultAvatar };
 let editing = false;
 let durationChoice = '50';
 let customDuration = '35';
@@ -130,7 +125,7 @@ function reflectSession(next) {
   userId = id;
   data = clock = ranking = rankingRequest = undefined;
   busy = refreshing = editing = false;
-  avatar = { ...baseAvatar };
+  avatar = { ...defaultAvatar };
   draft.target = null;
   draft.roomName = draft.invite = '';
   stateRequest = undefined;
@@ -175,37 +170,54 @@ function picker(name, label, value, choices) {
 }
 
 function pickerForHair() {
-  return picker('hair', 'Saç', avatar.hair, hairStyles[avatar.gender].tr.map((label, index) => [index, label]));
+  return picker('hair', 'Saç modeli', avatar.hair_style ?? avatar.hair,
+    hairStyles[avatar.gender].tr.map((label, index) => [index, label]));
+}
+
+function avatarFields() {
+  return `${picker('gender', 'Cinsiyet', avatar.gender, genders)}${pickerForHair()}
+    ${[['hair_color', 'Saç rengi'], ['skin_tone', 'Ten tonu'], ['beard', 'Sakal'], ['outfit', 'Kıyafet']]
+      .map(([key, label]) => picker(key, label, (key === 'outfit' ? avatar.outfit_style : undefined) ?? avatar[key],
+        avatarOptions[key].tr.map((name, index) => [index, name]))).join('')}
+    ${picker('color', 'Kıyafet rengi', avatar.color, ['Tarçın', 'Adaçayı', 'Gece mavisi', 'Kahve'].map((text, index) => [palette[index], text]))}`;
+}
+
+function avatarPresetPicker() {
+  return `<fieldset class="avatar-presets"><legend>Hazır karakterler</legend><div>${avatarPresets.map(({ id, tr, look }) =>
+    `<button type="button" data-avatar-preset="${id}">${sprite(look)}<span>${tr}</span></button>`).join('')}</div></fieldset>`;
 }
 
 function sprite(part, small = false) {
-  return `<img alt="" class="sprite ${small ? 'small' : ''}" src="${portrait(part)}">`;
+  return `<img alt="" class="sprite ${small ? 'small' : ''}" src="${portrait(part, small ? 'seated' : 'standing')}">`;
 }
 
 function deskItems(equipped, pet) {
-  const light = deskLights.find(item => equipped.includes(item));
-  return [
-    light && `<span class="desk-prop desk-light desk-${light}"><img src="${propImage(light)}" alt=""></span>`,
-    equipped.includes('plant') && `<span class="desk-prop desk-plant"><img src="${propImage('leaves')}" class="plant-leaves" alt=""><img src="${propImage('pot')}" alt=""></span>`,
-    ...deskDecorations.filter(item => equipped.includes(item)).map(item =>
-      `<span class="desk-prop desk-${item}"><img src="${propImage(item)}" alt=""></span>`),
-    equipped.includes('cat') && `<span class="desk-prop desk-cat ${pet?.upset || pet?.xp > 0 ? 'pet-rest' : ''}">
-      <img src="${propImage(pet?.upset ? 'catUpset' : pet?.xp > 0 ? 'catSleep' : 'cat')}" alt=""></span>`,
-  ].filter(Boolean).join('');
+  const equipment = deskEquipment(equipped);
+  const animal = equipment.pet && petAppearance(equipment.pet, pet);
+  const hasProps = equipment.props.some(Boolean);
+  if (!animal && !hasProps) return '';
+  return `<div class="desk-equipment" aria-hidden="true">
+    ${hasProps ? `<div class="desk-tray">${equipment.props.map((item, slot) => `<div class="desk-cell">${item ?
+      `<span class="desk-prop desk-${item}${slot === 0 ? ' desk-light' : ''}">${item === 'plant'
+        ? `<img src="${propImage('leaves')}" class="plant-leaves" alt=""><img src="${propImage('pot')}" alt="">`
+        : `<img src="${propImage(item)}" alt="">`}</span>` : ''}</div>`).join('')}</div>` : ''}
+    ${animal ? `<div class="pet-path"><span class="desk-pet pet-${equipment.pet}${animal.rests ? ' pet-rest' : ''}">
+      <img src="${propImage(animal.art)}" alt=""></span></div>` : ''}
+  </div>`;
 }
 
 function seat(member, index, [column, row]) {
   const atDesk = member?.status === 'desk';
   const name = member ? escape(member.name) + (member.own ? ' · Sen' : '') : 'Boş masa ' + (index + 1);
   const canReact = member?.desk_ref && !member.own && !running();
-  return `<div class="seat ${member?.own ? 'own' : member ? '' : 'empty'}" style="grid-column:${column};grid-row:${row}">
+  return `<div class="seat ${member?.own ? 'own' : member ? '' : 'empty'}${column === 2 ? ' center-column' : ''}" style="grid-column:${column};grid-row:${row}">
     ${member ? `<span class="seat-status ${atDesk ? '' : 'break'}"><span class="dot"></span> ${atDesk ? 'Masada' : 'Molada'}</span>` : ''}
     <div class="chair"></div>
     ${member && atDesk ? sprite(dressedAvatar(member.avatar, member.placed), true) : ''}
     <div class="desktop" aria-hidden="true">
-      ${atDesk ? `<span class="desk-writing" style="--writing-frames:${writingSize.frames}"><img src="${writingFrames()}" alt=""></span>` : '<span class="book"></span>'}
-      ${member ? deskItems(member.placed, member.pet) : ''}
+      ${atDesk ? `<span class="desk-writing" style="--writing-frames:${writingSize.frames}"><img src="${writingFrames(member.avatar.skin_tone)}" alt=""></span>` : '<span class="book"></span>'}
     </div>
+    ${member ? deskItems(member.placed, member.pet) : ''}
     ${canReact ? `<button class="seat-name" data-action="select-desk" data-value="${escape(member.desk_ref)}" aria-label="${name} · Masa tepkisi">${name}</button>` : `<div class="seat-name">${name}</div>`}
     ${member?.target ? `<span class="seat-target">${escape(member.target)}</span>` : ''}
   </div>`;
@@ -263,10 +275,8 @@ function itemImage(item) {
   return hasPropArt(prop) ? `<img src="${propImage(prop)}" alt="">` : itemIcons[item.id] ?? '✦';
 }
 
-function catalog(inventoryOnly) {
-  const visible = inventoryOnly ? data.items.filter(item => data.inventory.some(owned => owned.item === item.id)) : data.items;
-  if (!visible.length) return '<p class="empty-message">Envanterin boş.</p>';
-  return `<div class="cards">${visible.map(item => {
+function itemCards(items, inventoryOnly) {
+  return `<div class="cards">${items.map(item => {
     const owned = data.inventory.find(entry => entry.item === item.id);
     const rare = item.kind === 'rare';
     const label = item.kind === 'hair' || item.kind === 'wearable' ? 'Kuşan' : 'Kullan';
@@ -280,16 +290,23 @@ function catalog(inventoryOnly) {
   }).join('')}</div>`;
 }
 
+function catalog(inventoryOnly) {
+  if (inventoryOnly) {
+    const owned = data.items.filter(item => data.inventory.some(entry => entry.item === item.id));
+    return owned.length ? itemCards(owned, true) : '<p class="empty-message">Envanterin boş.</p>';
+  }
+  const pets = data.items.filter(item => item.kind === 'pet');
+  return `${pets.length ? `<h2 class="section-title">Evcil Hayvanlar</h2>${itemCards(pets, false)}
+    <h2 class="section-title">Eşyalar</h2>` : ''}${itemCards(data.items.filter(item => item.kind !== 'pet'), false)}`;
+}
+
 function profileView() {
   const profile = data.profile;
   const name = escape(profile?.name);
   return `<div class="heading"><h1>${profile ? 'Profil ve Envanter' : 'Avatarını oluştur'}</h1></div>
   <section class="profile-card">${sprite(editing || !profile ? avatar : dressedAvatar(profile.avatar, placed()))}
   ${editing || !profile ? `<form id="avatar-form"><label>Kullanıcı adı<input name="name" value="${name}" minlength="2" maxlength="24" required></label>
-  <div class="form-options">${picker('gender', 'Cinsiyet', avatar.gender, genders)}${pickerForHair()}
-    ${picker('outfit', 'Kıyafet', avatar.outfit, ['Kazak', 'Tişört', 'Hırka'].map((text, index) => [index, text]))}
-    ${picker('color', 'Renk', avatar.color, ['Tarçın', 'Adaçayı', 'Gece mavisi', 'Kahve'].map((text, index) => [palette[index], text]))}
-  </div><button class="primary">Avatarı kaydet</button></form>` : `<div><h2>${name}</h2>
+  ${avatarPresetPicker()}<div class="form-options">${avatarFields()}</div><button class="primary">Avatarı kaydet</button></form>` : `<div><h2>${name}</h2>
     ${profile.target ? `<p>${escape(profile.target)}</p>` : ''}
     <button class="secondary" data-action="edit">Avatarı düzenle</button>
     ${profile.room ? '<button class="secondary" data-action="leave">Odadan ayrıl</button>' : ''}</div>`}</section>
@@ -297,7 +314,7 @@ function profileView() {
     <input name="target" maxlength="48" value="${escape(draft.target ?? profile.target)}"></label><button class="secondary">Hedefi kaydet</button></form>
     <div class="toolbar"><button class="secondary" data-action="study-card">Çalışma kartını indir</button>
     <a class="secondary" href="#ranking">Haftalık sıralama</a></div>
-    <h2 class="section-title">Envanter</h2>${catalog(true)}` : ''}
+    <h2 class="section-title">Envanter</h2><p class="equipment-note">Masaya bir ışık, bir aksesuar ve bir dekor yerleştirebilirsin. Bir evcil hayvan masanın yanında durur. Aynı yuvayı kullanan önceki eşya envanterde kalır.</p>${catalog(true)}` : ''}
   <div class="toolbar"><button class="secondary" data-action="sign-out">Çıkış yap</button>
   <a class="secondary" href="/account-deletion">Hesabımı ve Verilerimi Sil</a></div>`;
 }
@@ -426,6 +443,15 @@ document.addEventListener('click', event => {
   const option = event.target.closest('[data-choice]');
   const picker = event.target.closest('.picker');
   document.querySelectorAll('.picker[open]').forEach(open => { if (open !== picker) open.open = false; });
+  const presetButton = event.target.closest('[data-avatar-preset]');
+  if (presetButton && !busy) {
+    const preset = avatarPresets.find(entry => entry.id === presetButton.dataset.avatarPreset);
+    if (!preset) return;
+    avatar = { ...defaultAvatar, ...preset.look };
+    document.querySelector('#avatar-form .form-options').innerHTML = avatarFields();
+    document.querySelector('.profile-card > .sprite').outerHTML = sprite(avatar);
+    return;
+  }
   if (!option || !picker) return;
   const name = picker.dataset.picker;
   const value = option.dataset.choice;
@@ -436,12 +462,13 @@ document.addEventListener('click', event => {
     document.querySelector(value === 'custom' ? '#custom-duration' : '[data-picker="duration"] summary')?.focus();
     return;
   }
-  avatar[name] = name === 'hair' || name === 'outfit' ? Number(value) : value;
+  if (name === 'hair' || name === 'outfit') avatar = pickAvatarStyle(avatar, name, Number(value));
+  else avatar[name] = Object.hasOwn(avatarOptions, name) ? Number(value) : value;
   if (name === 'gender') document.querySelector('[data-picker="hair"]').closest('.field').outerHTML = pickerForHair();
   picker.querySelector('summary span').textContent = option.textContent;
   picker.querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button === option)));
   picker.querySelector('summary').focus();
-  document.querySelector('.profile-card .sprite').outerHTML = sprite(avatar);
+  document.querySelector('.profile-card > .sprite').outerHTML = sprite(avatar);
 });
 
 document.addEventListener('keydown', event => {
@@ -521,7 +548,7 @@ document.addEventListener('click', async event => {
   }
   if (!data?.profile || (running() && action !== 'verify' && !(action === 'status' && value === 'break'))) return;
   if (action === 'edit') {
-    avatar = { ...data.profile.avatar };
+    avatar = { ...defaultAvatar, ...data.profile.avatar };
     editing = true;
     render();
     return;

@@ -1,8 +1,9 @@
 import { Canvas, ImageFormat, Rect, Skia } from '@shopify/react-native-skia';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, Animated, AppState, Easing, Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { avatarSize, drawAvatar, writingSize } from '../../public/avatar-art';
-import type { ItemId, Member, Pet, ThemeChoice } from './model';
+import { avatarSize, deskEquipment, drawAvatar, petAppearance, standingAvatarSize, writingSize,
+  type AvatarPose, type DeskPropName, type PetItem } from '../../public/avatar-art';
+import type { Member, Pet, ThemeChoice } from './model';
 import { itemAssets } from './asset-art';
 import { dressedAvatar, type AvatarLook } from './cosmetics';
 import { resolveTheme, roomThemes } from './themes';
@@ -11,16 +12,16 @@ import type { Translation } from './strings';
 
 const ring = [3, 5, 1, 7, 0, 2, 6, 8];
 
-export function Sprite({ avatar, width }: { avatar: AvatarLook; width: number }) {
-  const { width: sourceWidth, height: sourceHeight } = avatarSize;
+export function Sprite({ avatar, width, pose = 'standing' }: { avatar: AvatarLook; width: number; pose?: AvatarPose }) {
+  const { width: sourceWidth, height: sourceHeight } = pose === 'standing' ? standingAvatarSize : avatarSize;
   const ratio = width / sourceWidth;
   const shapes = useMemo(() => {
     const blocks: { color: string; x: number; y: number; width: number; height: number }[] = [];
     drawAvatar(avatar, (color, rectangles) => {
       rectangles.forEach(([x, y, width, height]) => blocks.push({ color, x, y, width, height }));
-    });
+    }, pose);
     return blocks;
-  }, [avatar]);
+  }, [avatar, pose]);
   return <Canvas style={{ width, height: sourceHeight * ratio }} accessible={false}>
     {shapes.map(({ color, x, y, width, height }, index) => <Rect key={index} color={color}
       x={x * ratio} y={y * ratio} width={width * ratio} height={height * ratio} />)}
@@ -29,7 +30,7 @@ export function Sprite({ avatar, width }: { avatar: AvatarLook; width: number })
 
 export function avatarPng(avatar: AvatarLook) {
   const scale = 5;
-  const surface = Skia.Surface.MakeOffscreen(avatarSize.width * scale, avatarSize.height * scale);
+  const surface = Skia.Surface.MakeOffscreen(standingAvatarSize.width * scale, standingAvatarSize.height * scale);
   if (!surface) return null;
   const canvas = surface.getCanvas();
   const ink = Skia.Paint();
@@ -38,16 +39,22 @@ export function avatarPng(avatar: AvatarLook) {
     for (const [x, y, width, height] of blocks) {
       canvas.drawRect(Skia.XYWHRect(x * scale, y * scale, width * scale, height * scale), ink);
     }
-  });
+  }, 'standing');
   surface.flush();
   return 'data:image/png;base64,' + surface.makeImageSnapshot().encodeToBase64(ImageFormat.PNG);
 }
 
-const writingFrames = [
-  require('../assets/animations/writing-0.png'),
-  require('../assets/animations/writing-1.png'),
-  require('../assets/animations/writing-2.png'),
-  require('../assets/animations/writing-3.png'),
+const writingFramesByTone = [
+  [require('../assets/animations/writing-0.png'), require('../assets/animations/writing-1.png'),
+    require('../assets/animations/writing-2.png'), require('../assets/animations/writing-3.png')],
+  [require('../assets/animations/writing-1-0.png'), require('../assets/animations/writing-1-1.png'),
+    require('../assets/animations/writing-1-2.png'), require('../assets/animations/writing-1-3.png')],
+  [require('../assets/animations/writing-2-0.png'), require('../assets/animations/writing-2-1.png'),
+    require('../assets/animations/writing-2-2.png'), require('../assets/animations/writing-2-3.png')],
+  [require('../assets/animations/writing-3-0.png'), require('../assets/animations/writing-3-1.png'),
+    require('../assets/animations/writing-3-2.png'), require('../assets/animations/writing-3-3.png')],
+  [require('../assets/animations/writing-4-0.png'), require('../assets/animations/writing-4-1.png'),
+    require('../assets/animations/writing-4-2.png'), require('../assets/animations/writing-4-3.png')],
 ];
 const propSources = {
   ...itemAssets,
@@ -59,12 +66,6 @@ const propSources = {
 };
 
 type PropName = keyof typeof propSources;
-
-const deskItems = [
-  'lamp', 'neon', 'mushroomLamp', 'plant', 'goldKeys', 'dragon', 'teaSet', 'hourglass',
-  'foxMug', 'retroRadio', 'miniGlobe', 'crystalTerrarium', 'jellyTank', 'origamiCrane', 'cat',
-] as const satisfies readonly ItemId[];
-type DeskItem = typeof deskItems[number];
 
 const lightColors = { lamp: '#ffb84d', neon: '#5de5ff', mushroomLamp: '#ff856b' };
 
@@ -93,7 +94,8 @@ function sway(clock: Animated.Value | undefined, degrees: number) {
   }) ?? '0deg';
 }
 
-function WritingHands({ width, clock, phase }: { width: number; clock?: Animated.Value; phase: number }) {
+function WritingHands({ width, clock, phase, tone }: { width: number; clock?: Animated.Value; phase: number; tone: number }) {
+  const writingFrames = writingFramesByTone[tone] ?? writingFramesByTone[0];
   const height = width * writingSize.height / writingSize.width;
   const step = 1 / writingSize.frames;
   return <View pointerEvents="none" testID="desk-writing" style={[
@@ -119,9 +121,7 @@ function PropArt({ name, size }: { name: PropName; size: number }) {
     style={{ width: size, height: size }} />;
 }
 
-function DeskProp({ item, size, width, clock, pet }: {
-  item: DeskItem; size: number; width: number; clock?: Animated.Value; pet?: Pet | null;
-}) {
+function DeskProp({ item, size, clock }: { item: DeskPropName; size: number; clock?: Animated.Value }) {
   const light = pulse(clock, .23, .88);
   const sparkle = pulse(clock, .16, 1);
   const specs = { width: size, height: size };
@@ -139,16 +139,6 @@ function DeskProp({ item, size, width, clock, pet }: {
         <Animated.View style={{ transform: [{ rotate: sway(clock, 14) }] }}>{art('leaves')}</Animated.View>
         <View style={StyleSheet.absoluteFill}>{art('pot')}</View>
       </View>;
-    case 'cat': {
-      const rest = pet?.upset || (pet?.xp ?? 0) > 0;
-      const travel = Math.max(2, (width - size) / 2);
-      const direction = clock?.interpolate({ inputRange: [0, .48, .52, .98, 1], outputRange: [1, 1, -1, -1, 1] }) ?? 1;
-      return <Animated.View style={{ transform: rest
-        ? [{ translateY: pulse(clock, 0, -2) }, { scale: 1 + Math.min(pet?.xp ?? 0, 5) * .023 }]
-        : [{ translateX: pulse(clock, -travel, travel) }, { scaleX: direction }] }}>
-        {art(rest ? pet?.upset ? 'catUpset' : 'catSleep' : 'cat')}
-      </Animated.View>;
-    }
     case 'goldKeys':
       return <View style={specs}>
         {art(item)}
@@ -156,11 +146,6 @@ function DeskProp({ item, size, width, clock, pet }: {
           top: '48%', left: '16%', width: '56%', backgroundColor: '#fff0b5', opacity: sparkle,
           transform: [{ translateX: pulse(clock, 0, size * .13) }],
         }]} />
-      </View>;
-    case 'dragon':
-      return <View style={specs}>
-        <Animated.View style={{ transform: [{ translateY: pulse(clock, 0, -3) }] }}>{art(item)}</Animated.View>
-        <Animated.View style={[styles.spark, { backgroundColor: '#eab9f6', opacity: sparkle }]} />
       </View>;
     case 'teaSet':
     case 'foxMug':
@@ -204,40 +189,59 @@ function DeskProp({ item, size, width, clock, pet }: {
 
 type ThemePalette = (typeof roomThemes)[keyof typeof roomThemes]['palette'];
 
-function DeskAccessories({ member, width, own, clock, palette }: {
-  member: Member; width: number; own: boolean; clock?: Animated.Value; palette: ThemePalette;
+function PetPath({ item, progress, width, own, clock }: {
+  item: PetItem; progress?: Pet | null; width: number; own: boolean; clock?: Animated.Value;
 }) {
-  const equipped = deskItems.filter(item => member.placed.includes(item)
-    && (item !== 'lamp' || !member.placed.includes('neon')));
-  if (equipped.length === 0) return null;
-  const propsWidth = width - 4;
-  const staticCount = equipped.length - Number(equipped.includes('cat'));
-  const columns = Math.max(1, Math.min(staticCount, width < (own ? 144 : 106) ? 2 : 3));
-  return <View pointerEvents="none" style={[styles.accessories, {
-    width, borderColor: palette.border, backgroundColor: palette.shadow,
-  }]}>
-    {equipped.map(item => {
-      const cellWidth = item === 'cat' ? propsWidth : propsWidth / columns;
-      const size = Math.min(own ? 58 : 44, cellWidth * .94);
-      return <View key={item} testID={`desk-item-${item}`} style={[
-        styles.propCell, { width: cellWidth, height: Math.ceil(size) + 4 },
-      ]}>
-        <DeskProp item={item} size={size} width={cellWidth} clock={clock} pet={member.pet} />
-      </View>;
-    })}
+  const { art, rests } = petAppearance(item, progress);
+  const size = Math.min(own ? 48 : 30, width * .8);
+  const edge = Math.max(0, width - size - 6);
+  const travel = clock?.interpolate({
+    inputRange: [0, .44, .5, .94, 1], outputRange: [0, edge, edge, 0, 0],
+  }) ?? edge;
+  const direction = clock?.interpolate({ inputRange: [0, .49, .51, .99, 1], outputRange: [1, 1, -1, -1, 1] }) ?? 1;
+  const hop = item === 'pinkRabbit' || item === 'yellowChick' ? -4 : -2;
+  const step = clock?.interpolate({
+    inputRange: [0, .125, .25, .375, .5, .625, .75, .875, 1],
+    outputRange: [0, hop, 0, hop, 0, hop, 0, hop, 0],
+  }) ?? 0;
+  return <View pointerEvents="none" testID="pet-path" style={[styles.petPath, { width, height: size + 6 }]}>
+    <Animated.View testID={`desk-pet-${item}`} style={[styles.pet, { transform: [
+      { translateX: rests ? edge : travel }, { translateY: rests ? pulse(clock, 0, -2) : step },
+      { scaleX: rests ? 1 : direction }, { scale: item === 'cat' ? 1 + Math.min(progress?.xp ?? 0, 5) * .023 : 1 },
+    ] }]}>
+      <PropArt name={art} size={size} />
+    </Animated.View>
   </View>;
 }
 
+function DeskAccessories({ member, width, own, clock, petClock, palette }: {
+  member: Member; width: number; own: boolean; clock?: Animated.Value; petClock?: Animated.Value; palette: ThemePalette;
+}) {
+  const { props, pet } = deskEquipment(member.placed);
+  const size = Math.max(1, Math.min(own ? 52 : 31, (width - 2) * .88 / props.length));
+  return <>
+    {props.some(Boolean) && <View pointerEvents="none" testID="desk-tray" style={[styles.accessories, {
+      width, borderColor: palette.border, backgroundColor: palette.shadow,
+    }]}>
+      {props.map((item, index) => <View key={index} testID={item && `desk-item-${item}`} style={[styles.propCell, {
+        height: Math.ceil(size) + 4, borderLeftWidth: index === 0 ? 0 : 1, borderColor: palette.border,
+      }]}>{item && <DeskProp item={item} size={size} clock={clock} />}</View>)}
+    </View>}
+    {pet && <PetPath item={pet} progress={member.pet} width={width} own={own} clock={petClock} />}
+  </>;
+}
+
 function deskDimensions(width: number, own: boolean) {
-  const surface = Math.max(1, width - (own ? 4 : 6));
+  const surface = Math.max(1, width - (own ? 4 : 10));
   const writing = Math.min(own ? 112 : 70, surface * .85);
-  const avatar = Math.min(own ? 108 : 55, surface * (own ? .78 : .72));
+  const avatar = Math.min(own ? 108 : 48, surface * (own ? .78 : .72));
   const tabletop = Math.max(16, writing * .32);
   return { surface, writing, avatar, tabletop };
 }
 
-function Desk({ member, width, peerWidth, artHeight, writingClock, itemClock, index, palette, t, onDeskPress }: {
-  member?: Member; width: number; peerWidth: number; artHeight: number; writingClock?: Animated.Value; itemClock?: Animated.Value;
+function Desk({ member, width, peerWidth, artHeight, writingClock, itemClock, petClock, index, palette, t, onDeskPress }: {
+  member?: Member; width: number; peerWidth: number; artHeight: number; writingClock?: Animated.Value;
+  itemClock?: Animated.Value; petClock?: Animated.Value;
   index: number; palette: ThemePalette; t: Translation;
   onDeskPress?: (member: Member) => void;
 }) {
@@ -252,17 +256,18 @@ function Desk({ member, width, peerWidth, artHeight, writingClock, itemClock, in
     onPress={interactive ? () => onDeskPress?.(member) : undefined}>
     <View style={[styles.seatArt, { minHeight: artHeight }]}>
       {member && <Text numberOfLines={1} style={[styles.status, member.status === 'break' && styles.break]}>{t[member.status]}</Text>}
-      {avatar && member?.status === 'desk' && <Sprite avatar={avatar} width={dimensions.avatar} />}
+      {avatar && member?.status === 'desk' && <Sprite avatar={avatar} width={dimensions.avatar} pose="seated" />}
       <View testID="desk-surface" style={[styles.desk, {
         width: dimensions.surface, height: dimensions.tabletop,
         marginTop: member?.status === 'desk' ? -3 : 0,
         backgroundColor: palette.desk, borderBottomColor: palette.shadow,
         borderTopColor: own ? palette.accent : palette.border,
       }, own && styles.ownDesk]}>
-        {member?.status === 'desk' && <WritingHands width={dimensions.writing} clock={writingClock} phase={index % writingFrames.length} />}
+        {member?.status === 'desk' && <WritingHands width={dimensions.writing} clock={writingClock}
+          phase={index % writingSize.frames} tone={member.avatar.skin_tone ?? 0} />}
       </View>
     </View>
-    {member && <DeskAccessories member={member} width={dimensions.surface} own={own} clock={itemClock} palette={palette} />}
+    {member && <DeskAccessories member={member} width={dimensions.surface} own={own} clock={itemClock} petClock={petClock} palette={palette} />}
     <Text numberOfLines={1} style={[styles.seatName, own && styles.ownName]}>
       {member ? own ? `${t.you} · ${member.name}` : member.name : t.empty}
     </Text>
@@ -277,12 +282,12 @@ export const RoomScene = memo(function RoomScene({ room, members, aurora, theme,
   const { width } = useWindowDimensions();
   const [sceneWidth, setSceneWidth] = useState(0);
   const board = Math.max(1, Math.min((sceneWidth || width - 32) - 12, 580));
-  const columnWidth = [board * .27, board * .46, board * .27];
+  const columnWidth = [board * .25, board * .50, board * .25];
   const [motion, setMotion] = useState(false);
   const [foreground, setForeground] = useState(!AppState.currentState || AppState.currentState === 'active');
   const writingClock = useAnimationClock(motion && foreground && members.some(member => member.status === 'desk'), 1040);
-  const itemClock = useAnimationClock(motion && foreground && members.some(member =>
-    deskItems.some(item => member.placed.includes(item))), 3300);
+  const itemClock = useAnimationClock(motion && foreground && members.some(member => deskEquipment(member.placed).props.some(Boolean)), 3300);
+  const petClock = useAnimationClock(motion && foreground && members.some(member => Boolean(deskEquipment(member.placed).pet)), 6000);
   const [unavailable, setUnavailable] = useState<string | null>(null);
   const selected = roomThemes[resolveTheme(theme, room, aurora)];
   const remote = theme === 'auto' && !aurora && process.env.EXPO_PUBLIC_ROOM_ART_FROM_STORAGE === 'true' && room
@@ -318,7 +323,8 @@ export const RoomScene = memo(function RoomScene({ room, members, aurora, theme,
       {columnWidth.map((size, column) => {
         const index = row * 3 + column;
         return <Desk key={column} member={seats[index]} width={size} peerWidth={columnWidth[0]} index={index}
-          artHeight={row === 1 ? middleHeight : 62} writingClock={writingClock} itemClock={itemClock} palette={selected.palette} t={t} onDeskPress={onDeskPress} />;
+          artHeight={row === 1 ? middleHeight : 62} writingClock={writingClock} itemClock={itemClock}
+          petClock={petClock} palette={selected.palette} t={t} onDeskPress={onDeskPress} />;
       })}
     </View>)}
   </View>;
@@ -335,9 +341,11 @@ const styles = StyleSheet.create({
   ownDesk: { borderTopWidth: 3, borderBottomWidth: 5 },
   writing: { position: 'absolute', left: '50%' },
   frame: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
-  accessories: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center',
+  accessories: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderTopWidth: 0, borderBottomLeftRadius: 5, borderBottomRightRadius: 5 },
-  propCell: { justifyContent: 'center', alignItems: 'center' },
+  propCell: { flex: 1, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  petPath: { overflow: 'hidden', backgroundColor: '#251b2750', borderRadius: 7 },
+  pet: { position: 'absolute', top: 4, left: 3 },
   seatName: { color: '#ffe6d0', backgroundColor: '#251b27', fontSize: 10, paddingHorizontal: 5, paddingVertical: 3, borderRadius: 8, maxWidth: '100%', marginTop: 2 },
   target: { color: '#e5d2af', backgroundColor: '#251b27', fontSize: 9, paddingHorizontal: 4, maxWidth: '100%', borderRadius: 5 },
   ownName: { color: '#ffd095', borderWidth: 1, borderColor: '#ffb362' },

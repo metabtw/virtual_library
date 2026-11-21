@@ -1,8 +1,8 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, AppState, Modal, Pressable, ScrollView, Switch, Text, View } from 'react-native';
-import { hairStyles } from '../../public/avatar-art';
+import { Alert, AppState, Image, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { avatarOptions, avatarPresets, defaultAvatar, hairStyles, pickAvatarStyle } from '../../public/avatar-art';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../../public/focus-clock';
 import { deleteAccount, library, supabase } from './api';
 import type { Avatar, Command, Drop, Focus, Member, Profile } from './model';
@@ -17,10 +17,11 @@ import { Catalog, ItemIllustration } from './catalog';
 import { dressedAvatar } from './cosmetics';
 import { ThemePicker } from './themes';
 import { LeaderboardModal, StudyCardModal } from './study';
+import { presetAssets } from './asset-art';
 
 type Action = { [K in keyof Command]: { name: K; payload?: Command[K] } }[keyof Command];
 
-const baseAvatar: Avatar = { gender: 'unspecified', hair: 0, outfit: 0, color: '#bd7050' };
+const styleFields = ['hair', 'hair_color', 'skin_tone', 'beard', 'outfit'] as const;
 const minute = 60000;
 
 function AvatarEditor({ profile, onSave, pending, t, locale }: {
@@ -28,24 +29,64 @@ function AvatarEditor({ profile, onSave, pending, t, locale }: {
   pending: boolean; t: Translation; locale: Locale;
 }) {
   const [name, setName] = useState(profile?.name ?? '');
-  const [avatar, setAvatar] = useState(profile?.avatar ?? baseAvatar);
+  const [avatar, setAvatar] = useState<Avatar>(() => ({ ...defaultAvatar, ...profile?.avatar }));
+  const [openStyle, setOpenStyle] = useState<typeof styleFields[number]>();
+  const options = { hair: hairStyles[avatar.gender], ...avatarOptions };
+  const labels = { hair: t.hair, hair_color: t.hairColor, skin_tone: t.skinTone, beard: t.beard, outfit: t.outfit };
+  const values = { hair: avatar.hair_style ?? avatar.hair, hair_color: avatar.hair_color ?? 0,
+    skin_tone: avatar.skin_tone ?? 0, beard: avatar.beard ?? 0, outfit: avatar.outfit_style ?? avatar.outfit };
   return <View style={ui.card}>
     <Text style={ui.heading}>{profile ? t.editAvatar : t.newAvatar}</Text>
     <View style={{ alignSelf: 'center' }}><Sprite avatar={avatar} width={90} /></View>
     <Field label={t.name} value={name} onChangeText={setName} maxLength={24} />
+    <View style={ui.field}>
+      <Text style={ui.small}>{t.characterPresets}</Text>
+      <View style={ui.options}>
+        {avatarPresets.map(preset => <Pressable key={preset.id} accessibilityRole="button" accessibilityLabel={preset[locale]}
+          style={[ui.chip, avatarEditorStyles.preset]} onPress={() => {
+            setAvatar({ ...defaultAvatar, ...preset.look });
+            setOpenStyle(undefined);
+          }}>
+          <Image source={presetAssets[preset.id]} resizeMode="contain" accessible={false} style={avatarEditorStyles.preview} />
+          <Text style={[ui.ink, avatarEditorStyles.name]}>{preset[locale]}</Text>
+        </Pressable>)}
+      </View>
+    </View>
     <Options label={t.gender} value={avatar.gender}
       values={(['unspecified', 'female', 'male'] as const).map(value => [value, t[value]])}
       onChange={gender => setAvatar({ ...avatar, gender })} />
-    <Options label={t.hair} value={avatar.hair} values={hairStyles[avatar.gender][locale].map((name, i) => [i, name])}
-      onChange={hair => setAvatar({ ...avatar, hair })} />
-    <Options label={t.outfit} value={avatar.outfit} values={[t.sweater, t.shirt, t.cardigan].map((name, i) => [i, name])}
-      onChange={outfit => setAvatar({ ...avatar, outfit })} />
+    {styleFields.map(field => {
+      const expanded = openStyle === field;
+      const label = labels[field];
+      const choices = options[field][locale];
+      const selected = values[field];
+      return <View key={field} style={ui.field}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${label} · ${choices[selected]}`} accessibilityState={{ expanded }}
+          onPress={() => setOpenStyle(expanded ? undefined : field)} style={[ui.chip, ui.row, expanded && ui.selected]}>
+          <Text style={[ui.small, avatarEditorStyles.option]}>{label}</Text>
+          <Text style={[ui.ink, avatarEditorStyles.option]}>{choices[selected]} {expanded ? '⌃' : '⌄'}</Text>
+        </Pressable>
+        {expanded && <Options value={selected} values={choices.map((text, index) => [index, text])}
+          onChange={value => {
+            setAvatar(current => field === 'hair' || field === 'outfit'
+              ? pickAvatarStyle(current, field, value) : { ...current, [field]: value });
+            setOpenStyle(undefined);
+          }} />}
+      </View>;
+    })}
     <Options label={t.color} value={avatar.color}
       values={[['#bd7050', t.cinnamon], ['#789078', t.sage], ['#7988ab', t.midnight], ['#ad7963', t.coffee]]}
       onChange={color => setAvatar({ ...avatar, color })} />
     <Button disabled={pending || name.trim().length < 2} onPress={() => onSave({ ...avatar, name })}>{t.save}</Button>
   </View>;
 }
+
+const avatarEditorStyles = StyleSheet.create({
+  preset: { minWidth: 72, flexBasis: '29%', flexGrow: 1, alignItems: 'center', justifyContent: 'flex-start', gap: 4 },
+  preview: { width: 35, height: 68 },
+  name: { textAlign: 'center', fontSize: 12 },
+  option: { flexShrink: 1 },
+});
 
 function Period({ focus, remaining, pending, onAction, t, canStart }: {
   focus: Focus | null; remaining: number; pending: boolean; onAction: (action: Action) => void;

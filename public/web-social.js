@@ -49,7 +49,7 @@ export async function downloadStudyCard(summary, profile) {
   ctx.lineWidth = 2;
   ctx.strokeRect(68, 166, 584, 948);
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(avatar, 280, 292, 160, 208);
+  ctx.drawImage(avatar, 296, 282, 128, 128 * avatar.naturalHeight / avatar.naturalWidth);
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffeece';
   ctx.font = '700 34px system-ui';

@@ -1,15 +1,17 @@
+import type { AvatarFeatures, PetItem } from '../../public/avatar-art';
+
 export type Gender = 'unspecified' | 'female' | 'male';
-export type Avatar = { gender: Gender; hair: number; outfit: number; color: string };
+export type Avatar = AvatarFeatures & { gender: Gender; hair: number; outfit: number; color: string };
 export type DeskStatus = 'desk' | 'break';
 export type AmbienceTrack = 'rain' | 'fire' | 'cafe' | 'lofi' | 'space' | 'forest';
 export type Volume = 0 | 1 | 2 | 3;
 export type ItemId =
-  | 'lamp' | 'plant' | 'cat' | 'sweater' | 'goldKeys' | 'dragon' | 'neon' | 'space' | 'forest'
+  | 'lamp' | 'plant' | PetItem | 'sweater' | 'goldKeys' | 'neon' | 'space' | 'forest'
   | 'auroraHood' | 'archiveVest' | 'moonCoat' | 'copperCurls' | 'silverBraid' | 'midnightFade'
   | 'teaSet' | 'hourglass' | 'miniGlobe' | 'crystalTerrarium'
   | 'autumnPoncho' | 'starlightJacket' | 'mossOveralls' | 'lavenderBuns' | 'mintBob'
   | 'mushroomLamp' | 'foxMug' | 'retroRadio' | 'jellyTank' | 'origamiCrane';
-export type ItemKind = 'desk' | 'wearable' | 'hair' | 'rare' | 'ambience';
+export type ItemKind = 'desk' | 'wearable' | 'hair' | 'rare' | 'ambience' | 'pet';
 export type Item = { id: ItemId; name: string; name_en: string; price: number; kind: ItemKind };
 export type ThemeChoice = 'auto' | 'classic' | 'rain' | 'garden' | 'stars';
 export type Pet = { xp: number; upset: boolean };

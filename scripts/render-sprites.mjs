@@ -1,7 +1,8 @@
 import { Buffer } from 'node:buffer';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { crc32, deflateSync } from 'node:zlib';
-import { avatarSize, drawAvatar, drawProp, drawWritingHands, dressedAvatar, writingSize } from '../public/avatar-art.js';
+import { avatarOptions, avatarPresets, drawAvatar, drawProp, drawWritingHands, dressedAvatar,
+  standingAvatarSize, writingSize } from '../public/avatar-art.js';
 
 const base = { gender: 'unspecified', hair: 0, outfit: 1, color: '#83778f' };
 const root = new URL('../mobile/assets/', import.meta.url);
@@ -53,8 +54,8 @@ function render(file, width, height, scale, paint) {
 }
 
 function avatar(file, look) {
-  render(file, avatarSize.width, avatarSize.height, 5, rect =>
-    drawAvatar(look, (color, blocks) => { for (const block of blocks) rect(color, ...block); }));
+  render(file, standingAvatarSize.width, standingAvatarSize.height, 5, rect =>
+    drawAvatar(look, (color, blocks) => { for (const block of blocks) rect(color, ...block); }, 'standing'));
 }
 
 function prop(file, ...parts) {
@@ -67,6 +68,7 @@ for (const dir of ['avatars/', 'items/', 'animations/']) mkdirSync(new URL(dir, 
 avatar('avatars/reader.png', base);
 avatar('avatars/long-waves.png', { ...base, gender: 'female', color: '#bd7050' });
 avatar('avatars/side-part.png', { ...base, gender: 'male', color: '#789078' });
+for (const preset of avatarPresets) avatar('avatars/' + preset.id + '.png', preset.look);
 
 for (const item of [
   'sweater', 'auroraHood', 'archiveVest', 'moonCoat', 'autumnPoncho', 'starlightJacket', 'mossOveralls',
@@ -76,7 +78,7 @@ for (const item of [
 }
 for (const item of [
   'lamp', 'goldKeys', 'dragon', 'neon', 'teaSet', 'hourglass', 'miniGlobe', 'crystalTerrarium',
-  'mushroomLamp', 'foxMug', 'retroRadio', 'jellyTank', 'origamiCrane',
+  'mushroomLamp', 'foxMug', 'retroRadio', 'jellyTank', 'origamiCrane', 'pinkRabbit', 'pugPup', 'yellowChick',
 ]) {
   prop('items/' + item + '.png', item);
 }
@@ -99,7 +101,10 @@ render('items/forest.png', 16, 16, 10, rect => {
 });
 
 for (const part of ['cat', 'catUpset', 'leaves', 'pot']) prop('animations/' + part + '.png', part);
-for (let frame = 0; frame < writingSize.frames; frame++) {
-  render('animations/writing-' + frame + '.png', writingSize.width, writingSize.height, 4, rect =>
-    drawWritingHands(frame, (color, blocks) => { for (const block of blocks) rect(color, ...block); }));
+for (let tone = 0; tone < avatarOptions.skin_tone.tr.length; tone++) {
+  for (let frame = 0; frame < writingSize.frames; frame++) {
+    const file = tone === 0 ? 'writing-' + frame : 'writing-' + tone + '-' + frame;
+    render('animations/' + file + '.png', writingSize.width, writingSize.height, 4, rect =>
+      drawWritingHands(frame, (color, blocks) => { for (const block of blocks) rect(color, ...block); }, tone));
+  }
 }

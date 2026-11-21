@@ -9,13 +9,14 @@ type Category = 'all' | ItemKind;
 
 const categoryLabels = {
   all: 'catalogAll', wearable: 'catalogClothes', hair: 'catalogHair',
-  desk: 'catalogDesk', ambience: 'catalogSound', rare: 'catalogChests',
+  desk: 'catalogDesk', pet: 'catalogPets', ambience: 'catalogSound', rare: 'catalogChests',
 } as const satisfies Record<Category, keyof Translation>;
 
 const swatches: Record<ItemKind, { surface: string; trim: string }> = {
   desk: { surface: '#312b36', trim: '#b88770' },
   wearable: { surface: '#3b2937', trim: '#e3a695' },
   hair: { surface: '#302e49', trim: '#a9afe6' },
+  pet: { surface: '#432d3b', trim: '#e1a7bd' },
   ambience: { surface: '#21383a', trim: '#9fd5ba' },
   rare: { surface: '#392d4e', trim: '#dfb9f8' },
 };
@@ -100,6 +101,7 @@ export function Catalog({ snapshot, inventory, locale, t, pending, action, boxes
 
   return <>
     <Text style={ui.heading}>{inventory ? t.inventory : t.shop}</Text>
+    {inventory && <Text style={ui.small}>{t.equipmentLimit}</Text>}
     <Options<Category> label={t.catalogFilter} value={category}
       values={(Object.keys(categoryLabels) as Category[]).map(value => [value, t[categoryLabels[value]]])}
       onChange={setCategory} />
@@ -125,7 +127,7 @@ const styles = StyleSheet.create({
   equipped: { borderColor: '#88b693' },
   art: { minHeight: 94, borderRadius: 11, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   prop: { width: 70, height: 70 },
-  skin: { width: 62, height: 80 },
+  skin: { width: 62, height: 96 },
   details: { flexGrow: 1, gap: 4, paddingHorizontal: 2 },
   name: { color: '#fff0dc', fontSize: 14, fontWeight: '700' },
   soundIcon: { fontSize: 34, color: '#e7d9b1' },

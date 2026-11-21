@@ -1,19 +1,21 @@
-import { avatarSize, drawAvatar, drawProp, drawWritingHands, writingSize } from './avatar-art.js';
+import { avatarSize, drawAvatar, drawProp, drawWritingHands, standingAvatarSize, writingSize } from './avatar-art.js';
 
 const portraits = new Map();
 
-export function portrait({ gender = 'unspecified', hair, outfit, color, hairSkin, outfitSkin }) {
-  const key = [gender, hair, outfit, color, hairSkin, outfitSkin].join('/');
+export function portrait(avatar, pose = 'standing') {
+  const { gender, hair, outfit, color, hairSkin, outfitSkin, hair_style, outfit_style, skin_tone, hair_color, beard } = avatar;
+  const key = [pose, gender, hair, outfit, color, hairSkin, outfitSkin, hair_style, outfit_style, skin_tone, hair_color, beard].join('/');
   if (portraits.has(key)) return portraits.get(key);
 
   const canvas = document.createElement('canvas');
-  canvas.width = avatarSize.width;
-  canvas.height = avatarSize.height;
+  const size = pose === 'standing' ? standingAvatarSize : avatarSize;
+  canvas.width = size.width;
+  canvas.height = size.height;
   const context = canvas.getContext('2d');
-  drawAvatar({ gender, hair, outfit, color, hairSkin, outfitSkin }, (shade, blocks) => {
+  drawAvatar(avatar, (shade, blocks) => {
     context.fillStyle = shade;
     for (const block of blocks) context.fillRect(...block);
-  });
+  }, pose);
 
   const image = canvas.toDataURL();
   portraits.set(key, image);
@@ -36,10 +38,10 @@ export function propImage(name) {
   return image;
 }
 
-let writingStrip;
+const writingStrips = new Map();
 
-export function writingFrames() {
-  if (writingStrip) return writingStrip;
+export function writingFrames(skinTone = 0) {
+  if (writingStrips.has(skinTone)) return writingStrips.get(skinTone);
   const canvas = document.createElement('canvas');
   canvas.width = writingSize.width * writingSize.frames;
   canvas.height = writingSize.height;
@@ -50,8 +52,9 @@ export function writingFrames() {
       for (const [x, y, width, height] of blocks) {
         context.fillRect(frame * writingSize.width + x, y, width, height);
       }
-    });
+    }, skinTone);
   }
-  writingStrip = canvas.toDataURL();
+  const writingStrip = canvas.toDataURL();
+  writingStrips.set(skinTone, writingStrip);
   return writingStrip;
 }
