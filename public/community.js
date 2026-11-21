@@ -37,7 +37,7 @@ export function friendsPanel(snapshot, friendCode, t, escape) {
     </form>
     ${friends.length ? friends.map(friend => {
       const id = escape(friend.id);
-      return `<div class="community-row"><div><strong>${escape(friend.name)}</strong><p>${escape(friend.code)}
+      return `<div class="community-row"><div><strong>${escape(friend.name)}</strong><p>${escape(friend.shortCode || friend.code)}
         ${friend.status === 'sent' ? ' · ' + t('friendSent') : friend.status === 'incoming' ? ' · ' + t('friendIncoming') : ''}</p></div>
         <div class="community-actions">${friend.status === 'incoming'
           ? `<button class="primary" data-action="answerFriend" data-value="${id}" data-answer="accept">${t('friendAccept')}</button>

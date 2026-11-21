@@ -48,6 +48,16 @@
     </ul>
     <form method="dialog"><button class="secondary" data-text="close">Kapat</button></form>
   </dialog>
+  <dialog id="share-code-dialog" aria-labelledby="share-code-title">
+    <h2 id="share-code-title" data-text="shareCodeTitle">Kodu paylaş</h2>
+    <label class="field"><span data-text="shareCodeText">Paylaşım metni</span><textarea id="share-code-text" rows="2" readonly></textarea></label>
+    <div class="dialog-actions">
+      <button class="primary" data-action="copy-share-text" data-text="copyCode">Kopyala</button>
+      <a class="secondary" data-text="shareCodeEmail">E-postayla paylaş</a>
+      <form method="dialog"><button class="secondary" data-text="close">Kapat</button></form>
+    </div>
+    <small role="status" id="share-code-status"></small>
+  </dialog>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

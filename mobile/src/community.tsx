@@ -1,8 +1,46 @@
+import { setStringAsync } from 'expo-clipboard';
 import { useState } from 'react';
 import { Share, StyleSheet, Text, View } from 'react-native';
 import type { Answer, DailyQuests as Quests, Friend, Profile, StudyInvite } from './model';
 import type { Locale, Translation } from './strings';
 import { Button, Field, ui } from './ui';
+
+function ProfileCode({ label, code, t, shareable = true }: {
+  label: string; code: string; t: Translation; shareable?: boolean;
+}) {
+  const [feedback, setFeedback] = useState<'codeCopied' | 'codeCopyError' | 'codeShareError'>();
+
+  async function copy() {
+    const copied = await setStringAsync(code).catch(() => false);
+    setFeedback(copied ? 'codeCopied' : 'codeCopyError');
+  }
+
+  async function share() {
+    setFeedback(undefined);
+    try {
+      await Share.share({ title: t.app, message: `${t.app} · ${label} ${code}` });
+    } catch { setFeedback('codeShareError'); }
+  }
+
+  return <View style={styles.code}>
+    <Text style={ui.small}>{label}</Text>
+    <Text selectable style={ui.accent}>{code}</Text>
+    <View style={styles.actions}>
+      <Button muted accessibilityLabel={`${t.copyCode} · ${label}`} onPress={() => void copy()}>{t.copyCode}</Button>
+      {shareable && <Button muted accessibilityLabel={`${t.shareCode} · ${label}`} onPress={() => void share()}>{t.shareCode}</Button>}
+    </View>
+    {feedback && <Text accessibilityLiveRegion="polite" style={ui.small}>{t[feedback]}</Text>}
+  </View>;
+}
+
+export function ProfileCodes({ profile, accountId, t }: { profile: Profile; accountId: string; t: Translation }) {
+  const reader = profile.shortReaderCode || profile.readerCode;
+  const referral = profile.shortReferralCode || profile.referralCode;
+  return <View style={styles.codes}>
+    <ProfileCode key={reader || accountId} label={reader ? t.readerCode : t.accountId} code={reader || accountId} shareable={!!reader} t={t} />
+    {referral && <ProfileCode key={referral} label={t.referralCode} code={referral} t={t} />}
+  </View>;
+}
 
 export function DailyQuests({ quests, t }: { quests?: Quests; t: Translation }) {
   if (!quests) return null;
@@ -47,21 +85,15 @@ export function FriendsPanel({ profile, friends = [], pending, t, add, answer, r
 }) {
   const [code, setCode] = useState('');
   if (!profile.readerCode) return null;
-  const registrationCode = profile.referralCode;
   return <View style={ui.card}>
     <Text style={ui.heading}>{t.friends}</Text>
-    {registrationCode && <>
-      <Text style={ui.small}>{t.referralInfo}</Text>
-      <Button muted onPress={() => void Share.share({ message: `${t.app} · ${t.referralCode} ${registrationCode}` }).catch(() => {})}>
-        {t.shareRegistration}
-      </Button>
-    </>}
+    {!!profile.referralCode && <Text style={ui.small}>{t.referralInfo}</Text>}
     <Field label={t.friendId} value={code} onChangeText={setCode} maxLength={15} autoCapitalize="characters" autoCorrect={false} />
-    <Button disabled={pending || code.trim().length !== 15} onPress={() => add(code.trim())}>{t.addFriend}</Button>
+    <Button disabled={pending || code.trim().length < 8} onPress={() => add(code.trim())}>{t.addFriend}</Button>
     {!friends.length && <Text style={ui.small}>{t.noFriends}</Text>}
     {friends.map(friend => <View style={styles.entry} key={friend.id}>
       <Text style={ui.heading}>{friend.name}</Text>
-      <Text style={ui.small}>{friend.code}{friend.status === 'sent' ? ' · ' + t.friendSent
+      <Text style={ui.small}>{friend.shortCode || friend.code}{friend.status === 'sent' ? ' · ' + t.friendSent
         : friend.status === 'incoming' ? ' · ' + t.friendIncoming : ''}</Text>
       <View style={styles.actions}>
         {friend.status === 'incoming' ? <>
@@ -84,5 +116,7 @@ const styles = StyleSheet.create({
   progress: { height: 6, backgroundColor: '#523744', overflow: 'hidden', borderRadius: 6 },
   fill: { height: '100%', backgroundColor: '#c69a6b' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+  codes: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 8 },
+  code: { maxWidth: '100%', padding: 8, gap: 5, backgroundColor: '#251d2a', borderRadius: 9, borderColor: '#76545b', borderWidth: 1 },
   entry: { borderTopWidth: 1, borderTopColor: '#76545b', paddingTop: 9, gap: 5 },
 });

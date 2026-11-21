@@ -22,6 +22,9 @@ const verification = document.querySelector('#verify-dialog');
 const reactionDialog = document.querySelector('#reaction-dialog');
 const inviteDialog = document.querySelector('#study-invite-dialog');
 const coinHelp = document.querySelector('#coin-help-dialog');
+const shareCodeDialog = document.querySelector('#share-code-dialog');
+const shareCodeText = document.querySelector('#share-code-text');
+const shareCodeStatus = document.querySelector('#share-code-status');
 const languageToggle = document.querySelector('#language-toggle');
 const labels = { room: 'library', rooms: 'rooms', shop: 'shop', profile: 'profileInventory', ranking: 'leaderboard' };
 const palette = ['#bd7050', '#789078', '#7988ab', '#ad7963'];
@@ -108,6 +111,39 @@ function toast(message) {
   notice.textContent = message;
   clearTimeout(noticeTimeout);
   noticeTimeout = setTimeout(() => { notice.textContent = ''; }, 4500);
+}
+
+async function copyText(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch { /* The browser may restrict clipboard access to trusted origins. */ }
+  const field = document.createElement('textarea');
+  field.value = text;
+  field.readOnly = true;
+  field.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+  const active = document.activeElement;
+  (shareCodeDialog.open ? shareCodeDialog : document.body).append(field);
+  field.select();
+  try { return document.execCommand('copy'); }
+  catch { return false; }
+  finally { field.remove(); active?.focus({ preventScroll: true }); }
+}
+
+async function shareProfileCode(code, label) {
+  const title = t('app');
+  const text = `${title} · ${label} ${code}`;
+  if (navigator.share) {
+    try { await navigator.share({ title, text }); return; }
+    catch (error) { if (error?.name === 'AbortError') return; }
+  }
+  if (!data?.profile || running()) return;
+  shareCodeText.value = text;
+  shareCodeStatus.textContent = '';
+  shareCodeDialog.querySelector('a').href = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(text)}`;
+  shareCodeDialog.showModal();
 }
 
 function refreshState() {
@@ -433,9 +469,22 @@ function catalog(inventoryOnly) {
     ${prizes.length ? `<h2 class="section-title">${t('catalogChests')}</h2><p>${t('chestCollectionInfo')}</p>${itemCards(prizes, false)}` : ''}`;
 }
 
+function profileCode(label, code, shareable = true) {
+  const title = t(label);
+  return `<div><dt>${title}</dt><dd><code>${escape(code)}</code>
+    <div class="profile-code-actions">
+      <button class="secondary" data-action="copy-profile-code" data-value="${escape(code)}" aria-label="${t('copyCode')} · ${title}">${t('copyCode')}</button>
+      ${shareable ? `<button class="secondary" data-action="share-profile-code" data-value="${escape(code)}"
+        data-label="${title}" aria-label="${t('shareCode')} · ${title}">${t('shareCode')}</button>` : ''}
+    </div>
+  </dd></div>`;
+}
+
 function profileView() {
   const profile = data.profile;
   const name = escape(profile?.name);
+  const readerCode = profile?.shortReaderCode || profile?.readerCode;
+  const referralCode = profile?.shortReferralCode || profile?.referralCode;
   return `<div class="heading"><h1>${t(profile ? 'profileInventory' : 'newAvatar')}</h1></div>
   <section class="profile-card">${sprite(editing || !profile ? avatar : dressedAvatar(profile.avatar, placed()))}
   ${editing || !profile ? `<form id="avatar-form"><label>${t('name')}<input name="name" value="${escape(draft.avatarName ?? profile?.name)}" minlength="2" maxlength="24" required></label>
@@ -443,8 +492,8 @@ function profileView() {
   ${avatarPresetPicker()}<div class="form-options">${avatarFields()}</div><button class="primary">${t('saveAvatar')}</button></form>` : `<div><h2>${name}</h2>
     ${profile.target ? `<p>${escape(profile.target)}</p>` : ''}
     <dl class="profile-codes">
-      <div><dt>${t(profile.readerCode ? 'readerCode' : 'accountId')}</dt><dd><code>${escape(profile.readerCode || userId)}</code></dd></div>
-      ${profile.referralCode ? `<div><dt>${t('referralCode')}</dt><dd><code>${escape(profile.referralCode)}</code></dd></div>` : ''}
+      ${readerCode ? profileCode('readerCode', readerCode) : profileCode('accountId', userId, false)}
+      ${referralCode ? profileCode('referralCode', referralCode) : ''}
     </dl>
     <button class="secondary" data-action="edit">${t('editAvatar')}</button>
     ${profile.room ? `<button class="secondary" data-action="leave">${t('leave')}</button>` : ''}</div>`}</section>
@@ -535,6 +584,7 @@ function render() {
   if (lock || !userId) {
     if (inviteDialog.open) inviteDialog.close();
     if (coinHelp.open) coinHelp.close();
+    if (shareCodeDialog.open) shareCodeDialog.close();
   }
   if (!userId || deletionPage || !data) {
     roomPreferences.sync(null);
@@ -787,6 +837,12 @@ document.addEventListener('click', async event => {
     return;
   }
   if (!data?.profile || (running() && action !== 'verify' && !(action === 'status' && value === 'break'))) return;
+  if (action === 'copy-profile-code') { toast(t(await copyText(value) ? 'codeCopied' : 'codeCopyError')); return; }
+  if (action === 'share-profile-code') { await shareProfileCode(value, button.dataset.label); return; }
+  if (action === 'copy-share-text') {
+    shareCodeStatus.textContent = t(await copyText(shareCodeText.value) ? 'codeCopied' : 'codeCopyError');
+    return;
+  }
   if (action === 'coin-help') { coinHelp.showModal(); return; }
   if (action === 'reward-ad') { await watchRewardAd(); return; }
   if (action === 'invite-dialog') {

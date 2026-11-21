@@ -42,6 +42,7 @@ try {
     grant select, insert on realtime.messages to authenticated;
   `);
   const legacy = '00000000-0000-4000-a000-000000000099';
+  let legacyProfile;
   for (const file of (await readdir(directory)).filter(file => file.endsWith('.sql')).sort()) {
     if (file === '202611210008_avatars_and_pets.sql') {
       await db.query('insert into auth.users values ($1)', [legacy]);
@@ -49,6 +50,7 @@ try {
       await db.query(`insert into public.user_items (user_id, item, placed)
         select $1, id, true from public.items where id in ('cat','dragon','goldKeys','teaSet','plant','lamp')`, [legacy]);
     }
+    if (file === '202611210014_profile_share_codes.sql') legacyProfile = (await action(legacy, 'state')).profile;
     await db.exec(await readFile(new URL(file, directory), 'utf8'));
   }
 
@@ -56,6 +58,10 @@ try {
   assert.equal(migrated.profile.avatar.hair, 2);
   assert.equal(migrated.profile.avatar.hair_style, null);
   assert.equal(migrated.profile.avatar.skin_tone, 0);
+  assert.equal(migrated.profile.readerCode, legacyProfile.readerCode);
+  assert.equal(migrated.profile.referralCode, legacyProfile.referralCode);
+  assert.match(migrated.profile.shortReaderCode, /^SK-[23456789A-HJ-NP-Z]{5}$/);
+  assert.match(migrated.profile.shortReferralCode, /^DV-[23456789A-HJ-NP-Z]{5}$/);
   assert.equal(migrated.inventory.length, 6);
   assert.deepEqual(migrated.inventory.filter(entry => entry.placed).map(entry => entry.item).sort(), ['cat', 'lamp', 'plant', 'teaSet']);
 
@@ -372,22 +378,33 @@ try {
 
   const invitee = '00000000-0000-4000-a000-000000000100';
   const referredById = '00000000-0000-4000-a000-000000000101';
-  await db.query('insert into auth.users values ($1), ($2)', [invitee, referredById]);
+  const referredByLegacyCode = '00000000-0000-4000-a000-000000000102';
+  await db.query('insert into auth.users values ($1), ($2), ($3)', [invitee, referredById, referredByLegacyCode]);
   const inviter = (await action(first, 'state')).profile;
   assert.match(inviter.readerCode, /^SK-[A-F0-9]{12}$/);
   assert.match(inviter.referralCode, /^DV-[A-F0-9]{12}$/);
   assert.equal((await action(invitee, 'profile', { ...basic, referral: 'WRONG' })).error, 'invalidReferral');
   assert.equal((await action(invitee, 'state')).profile, null);
-  const registration = await action(invitee, 'profile', { ...basic, name: 'Davetli', referral: inviter.referralCode });
+  const registration = await action(invitee, 'profile', { ...basic, name: 'Davetli', referral: ` ${inviter.shortReferralCode.toLowerCase()} ` });
   assert.equal(registration.profile.coins, 35);
-  assert.equal((await action(referredById, 'profile', { ...basic, referral: inviter.readerCode })).profile.coins, 35);
-  assert.equal((await action(invitee, 'profile', { ...basic, name: 'Davetli', referral: inviter.referralCode })).profile.coins, 35);
-  assert.equal((await action(first, 'state')).profile.coins, inviter.coins + 20);
+  assert.match(registration.profile.shortReaderCode, /^SK-[23456789A-HJ-NP-Z]{5}$/);
+  assert.notEqual(registration.profile.shortReaderCode, inviter.shortReaderCode);
+  assert.equal((await action(referredById, 'profile', { ...basic, referral: inviter.shortReaderCode })).profile.coins, 35);
+  assert.equal((await action(referredByLegacyCode, 'profile', { ...basic, referral: inviter.referralCode })).profile.coins, 35);
+  const updated = await action(invitee, 'profile', { ...basic, name: 'Davetli', referral: inviter.referralCode });
+  assert.equal(updated.profile.coins, 35);
+  assert.equal(updated.profile.shortReaderCode, registration.profile.shortReaderCode);
+  assert.equal(updated.profile.shortReferralCode, registration.profile.shortReferralCode);
+  assert.equal((await action(first, 'state')).profile.coins, inviter.coins + 30);
 
-  assert.equal((await action(invitee, 'addFriend', { code: registration.profile.readerCode })).error, 'friendMissing');
-  const sent = await action(invitee, 'addFriend', { code: inviter.readerCode.toLowerCase() });
+  assert.equal((await action(invitee, 'addFriend', { code: registration.profile.shortReaderCode })).error, 'friendMissing');
+  assert.equal((await action(invitee, 'addFriend', { code: inviter.shortReferralCode })).error, 'friendMissing');
+  const sent = await action(invitee, 'addFriend', { code: inviter.shortReaderCode.toLowerCase() });
   assert.equal(sent.friends.length, 1);
+  assert.equal(sent.friends[0].shortCode, inviter.shortReaderCode);
+  assert.equal(sent.friends[0].code, inviter.readerCode);
   const relation = sent.friends[0].id;
+  assert.equal((await action(invitee, 'addFriend', { code: inviter.readerCode })).friends[0].id, relation);
   assert.equal(sent.friends[0].status, 'sent');
   assert.equal((await action(invitee, 'inviteFriend', { id: relation })).error, 'friendMissing');
   assert.equal((await action(outsider, 'answerFriend', { id: relation, answer: 'accept' })).error, 'friendMissing');
@@ -449,6 +466,7 @@ try {
     'delete from public.coin_ledger',
     'select * from public.desk_reactions',
     'select * from public.reader_referrals',
+    'select * from public.profile_share_codes',
     'select * from public.reader_friendships',
     'select * from public.study_invites',
     'select * from public.rewarded_ad_attempts',
@@ -458,12 +476,13 @@ try {
   await db.exec('reset role');
 
   await db.query('delete from auth.users where id = $1', [first]);
+  assert.equal((await db.query('select count(*)::int as count from public.profile_share_codes where profile_id = $1', [first])).rows[0].count, 0);
   assert.equal((await action(third, 'state')).rooms.some(entry => entry.private), false);
   assert.equal((await action(third, 'join', { room: privateRoom.id })).error, 'inviteRequired');
   const closedRoom = (await db.query('select owner_id, name, name_en from public.rooms where id = $1', [privateRoom.id])).rows[0];
   assert.deepEqual(closedRoom, { owner_id: null, name: 'Kapalı özel oda', name_en: 'Closed private room' });
 
-  console.log('Postgres: rooms, activity, RLS, focus, coins, daily quests, chests, referrals, friends, study invites, signed-ad settlement, push leases, shop, pets, ranking and account deletion passed.');
+  console.log('Postgres: rooms, activity, RLS, focus, coins, daily quests, chests, profile codes, referrals, friends, study invites, signed-ad settlement, push leases, shop, pets, ranking and account deletion passed.');
 } finally {
   await db.close();
 }

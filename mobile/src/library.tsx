@@ -24,18 +24,12 @@ import { LeaderboardModal, StudyCardModal } from './study';
 import { presetAssets } from './asset-art';
 import { PrivacyLink } from './auth';
 import { AdRewards } from './ads';
-import { DailyQuests, FriendsPanel, StudyInvitations } from './community';
+import { DailyQuests, FriendsPanel, ProfileCodes, StudyInvitations } from './community';
 
 type Action = { [K in keyof Command]: { name: K; payload?: Command[K] } }[keyof Command];
 
 const styleFields = ['hair', 'hair_color', 'skin_tone', 'beard', 'outfit'] as const;
 const minute = 60000;
-
-const profileCodeStyles = StyleSheet.create({
-  list: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  entry: { maxWidth: '100%', paddingVertical: 6, paddingHorizontal: 10, gap: 2,
-    backgroundColor: '#251d2a', borderRadius: 9, borderColor: '#76545b', borderWidth: 1 },
-});
 
 function AvatarEditor({ profile, onSave, pending, t, locale }: {
   profile: Profile | null; onSave: (data: Command['profile']) => void;
@@ -405,16 +399,7 @@ export function Library({ id }: { id: string }) {
                   <Text style={ui.heading}>{profile.name}</Text>
                   {!!profile.target && <Text numberOfLines={1} style={ui.small}>{profile.target}</Text>}
                 </View></View>
-                <View style={profileCodeStyles.list}>
-                  <View style={profileCodeStyles.entry}>
-                    <Text style={ui.small}>{profile.readerCode ? t.readerCode : t.accountId}</Text>
-                    <Text selectable style={ui.accent}>{profile.readerCode || id}</Text>
-                  </View>
-                  {profile.referralCode && <View style={profileCodeStyles.entry}>
-                    <Text style={ui.small}>{t.referralCode}</Text>
-                    <Text selectable style={ui.accent}>{profile.referralCode}</Text>
-                  </View>}
-                </View>
+                <ProfileCodes profile={profile} accountId={id} t={t} />
                 <Button disabled={pending} onPress={() => setEditing(true)}>{t.editAvatar}</Button>
               </View>}
             <TargetEditor initial={profile.target ?? ''} pending={pending} t={t} save={target => act({ name: 'target', payload: { target } })} />

@@ -387,6 +387,14 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 }
 .profile-codes dt {font-size:12px;color:var(--muted)}
 .profile-codes dd {margin:0;overflow-wrap:anywhere;color:#ffcf9a;font-size:14px;font-weight:700}
+.profile-code-actions {display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.profile-code-actions .secondary {min-height:44px;margin:0;padding:5px 8px}
+#share-code-dialog .field {margin-top:12px}
+#share-code-text {
+  width:100%;padding:10px 12px;resize:vertical;
+  color:var(--ink);background:#201720a8;border:1px solid var(--line);border-radius:9px;font:inherit;
+}
+#share-code-status {color:var(--muted)}
 .avatar-presets {margin: 0;padding: 0 0 4px;min-width: 0;border: 0;color: var(--muted);font-size: 12px}
 .avatar-presets legend {padding: 0 0 6px}
 .avatar-presets > div {display: grid;grid-template-columns: repeat(auto-fit,minmax(min(100%,82px),1fr));gap: 6px}

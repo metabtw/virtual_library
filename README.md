@@ -77,7 +77,7 @@ Bu işlemleri deneme hesaplarıyla yap. Bir hesabın silinmesini içeren adım i
 | Doğrulama penceresini kaçır | Periyot geçersiz olur ve jeton artmaz. Kedi envanterdeyse küskün duruma geçer. |
 | Mağazadan eşya ve evcil hayvan alıp envanterden kuşan | Tutar bir kez düşer. Yetersiz bakiye ve doğrudan sandık ödülü satın alma reddedilir. Işık, aksesuar ve dekor üç ayrı masaya bağlı yuvada görünür. Masa kenarında tek evcil hayvan bulunur. Aynı yuvaya yeni ürün kuşanınca önceki ürün envanterde kalır. |
 | 10 jetona özel oda aç ve davet kodunu kullan | Oda davetsiz hesaba görünmez. Altı haneli kodla katılım çalışır. Oda kapasitesi dokuz kişidir. |
-| Arkadaş koduyla hesap oluştur | Profilden bir Kullanıcı ID'si veya kayıt davet kodu al. Yeni hesaba ilk avatar kaydında 5, kod sahibine 10 ek jeton yazılır. |
+| Arkadaş koduyla hesap oluştur | Profilde sekiz karakterli Kullanıcı ID'si ve kayıt davet kodunun **Kopyala** ve **Paylaş** düğmelerini dene. Yeni hesaba kodla ilk avatar kaydında 5, kod sahibine 10 ek jeton yazılır. Önceden paylaşılmış uzun kodlar da çalışır. |
 | Arkadaşını çalışmaya çağır | Kullanıcı ID'siyle arkadaşlık isteği gönder. İstek kabul edilince dolu olmayan odaya çalışma daveti yolla. Arkadaşın daveti kabul edince doğrudan odaya geçer. |
 | Günlük görevleri tamamla | Doğrulanan günlük süre 30 dakikaya gelince 5, 60 dakikaya gelince ek 10 jeton otomatik yazılır. |
 | Birlikte 100 oda dakikasına ulaş | Eşik anında odada kalanlara sandık verilir. Eşik öncesinde ayrılan hesap sandık almaz. |
