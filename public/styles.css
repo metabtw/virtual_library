@@ -350,13 +350,18 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 .timer-ring b {width: 86%;height: 86%;font-size: clamp(15px,2vw,20px)}
 .control-actions {
   display: grid;
-  grid-template-columns: repeat(2,minmax(0,1fr));
+  grid-template-columns: minmax(0,1fr);
   width: min(100%, 390px);
   min-width: 0;
 }
-.status-group {display: grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-column:1/-1}
-.control-actions > .primary {grid-column:1/-1}
-.control-actions > .field:only-of-type {grid-column: 1/-1}
+.status-group {display: grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.period-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
+  gap: 9px;
+  align-items: start;
+}
+.control-actions > a {text-align: center}
 .profile-card {
   background: linear-gradient(90deg,#201625df,#392637bb),url('/library.webp') center 28%/cover,#352331;
   display: grid;
@@ -516,6 +521,26 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 .compact-heading {flex-direction:row;align-items:center;gap:8px;margin-bottom:12px}
 .compact-heading h1 {min-width:0}
 .compact-heading .secondary {padding:8px 10px;font-size:12px;line-height:1.25;text-align:center;white-space:normal}
+.room-layout {display:grid;gap:14px;align-items:start}
+.room-stage,.room-panel {min-width:0}
+.room-panel,.room-settings {display:grid;gap:12px;min-width:0}
+.room-panel .controls {margin-top:0}
+.room-settings h2 {padding-inline:2px}
+.room-settings .room-preferences {margin-top:0}
+.room-settings .room-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 9px 14px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #211824a8;
+  font-size: 13px;
+}
+.room-settings .room-meta b {color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:.10em}
 .room-identity,.room-card-title {display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0;width:100%}
 .room-identity h1,.room-card-title h2 {margin:0;min-width:0}
 .private-badge {display:inline-block;flex:none;border:1px solid #e8ac6c66;border-radius:999px;background:#e3a75c20;
@@ -572,6 +597,30 @@ nav a:has(#social-unread) {position:relative}
   .heading.compact-heading {flex-direction:row;align-items:center}
   .invite-friends b {display:none}
   .invite-friends span {margin:0;font-size:16px;color:var(--ink)}
+}
+@media (min-width: 1024px) {
+  #content:has(.room-layout) {max-width:none}
+  .room-layout {grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(16px,2vw,32px)}
+  .room-heading h1 {font-size:clamp(30px,3.1vw,48px)}
+  .room-panel {gap:20px}
+  .room-panel .controls {
+    display: grid;
+    grid-template-columns: minmax(0,1fr);
+    gap: clamp(18px, 2vw, 28px);
+    padding: clamp(20px, 2.6vw, 34px);
+    background: radial-gradient(ellipse at 50% 18%, #905f5338, transparent 68%), var(--glass);
+  }
+  .room-panel .timer {flex-direction:column;gap:14px;text-align:center}
+  .room-panel .timer-ring {width:clamp(128px,11.5vw,184px)}
+  .room-panel .timer-ring b {font-size:clamp(30px,2.8vw,46px)}
+  .room-panel .timer-copy h2 {font-size:clamp(19px,1.8vw,25px)}
+  .room-panel .timer-copy p {margin-top:5px;line-height:1.4}
+  .room-panel .control-actions {width:min(100%,440px);justify-self:center}
+  .room-panel .control-actions :is(button,a.primary,.picker summary) {min-height:44px}
+}
+@media (min-width: 1024px) and (max-width: 1280px) {
+  .room-heading .invite-friends b {display:none}
+  .room-heading .invite-friends span {margin:0;font-size:16px;color:var(--ink)}
 }
 .stacked { display: grid; gap: 10px; }
 .stacked label { display: grid; gap: 4px; }

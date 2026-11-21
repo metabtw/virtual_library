@@ -23,6 +23,7 @@ const webWords = {
   quietRoom: ['Sessiz oda', 'Quiet room'],
   people: ['kişi', 'people'],
   periodDuration: ['Periyot süresi', 'Session duration'],
+  roomSettings: ['Oda ayarları', 'Room settings'],
   customDuration: ['Özel süre', 'Custom duration'],
   minutes: ['dakika', 'minutes'],
   focusing: ['Çalışma sürüyor', 'Focus session in progress'],

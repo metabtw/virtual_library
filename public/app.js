@@ -323,27 +323,43 @@ function roomView(room) {
     : paused && room
       ? `<button class="primary" data-action="status" data-value="desk">▶ &nbsp; ${t('resume')}</button><button class="secondary" data-action="abandon">${t('abandon')}</button>`
       : room
-        ? `<div class="status-group"><button data-action="status" data-value="desk" aria-pressed="${data.profile.status === 'desk'}">▣ ${t('desk')}</button><button data-action="status" data-value="break" aria-pressed="${data.profile.status === 'break'}">☕ ${t('break')}</button></div>${picker('duration', t('periodDuration'), durationChoice, durationOptions)}
+        ? `<div class="status-group"><button data-action="status" data-value="desk" aria-pressed="${data.profile.status === 'desk'}">▣ ${t('desk')}</button><button data-action="status" data-value="break" aria-pressed="${data.profile.status === 'break'}">☕ ${t('break')}</button></div>
+        <div class="period-settings">${picker('duration', t('periodDuration'), durationChoice, durationOptions)}
         ${durationChoice === 'custom' ? `<label class="field custom-duration">${t('minutes')} <input id="custom-duration" type="number" inputmode="numeric" min="5" max="180" step="1" value="${escape(customDuration)}"><small>${t('duration')}</small></label>` : ''}
+        </div>
         <button class="primary" data-action="start" ${validDuration() ? '' : 'disabled'}>▶ &nbsp; ${t('start')}</button>`
         : `<a class="primary" href="#rooms">${t('joinRoom')}</a>`;
   const minutes = room?.minutes ?? 0;
   const hasFriends = data.friends?.some(friend => friend.status === 'accepted');
-  return `<div class="heading compact-heading room-heading"><div class="room-identity"><h1>${name}</h1>
-    ${room?.private ? `<span class="private-badge">${t('privateBadge')}</span>` : ''}</div>
-    ${room && hasFriends && !running() ? `<button class="secondary invite-friends" data-action="invite-dialog"
-      aria-label="${t('friendInvite')}" title="${t('friendInvite')}"><span aria-hidden="true">♙+</span><b>${t('friendInvite')}</b></button>` : ''}</div>
-  ${room ? `<div class="room-goal" title="${t('chestGoalInfo')}"><span>🎁 ${t('chestGoal')}</span>
-    <progress aria-label="${t('groupMinutes')}" max="${roomGoalMinutes}" value="${minutes % roomGoalMinutes}"></progress>
-    <b>${minutes % roomGoalMinutes}/${roomGoalMinutes}</b></div>` : ''}
-  <section class="scene" data-room-theme="${roomPreferences.themeFor(room)}" aria-label="${name}">
-  <div class="scene-top"><span><span class="dot"></span> <span id="room-count">${room?.count ?? 0}</span> / ${room?.capacity ?? 9} ${t('people')}</span><span>☾ &nbsp; ${t('quietRoom')}</span></div>
-  <div id="room-seats"></div></section>
-  <section class="controls"><div class="timer"><div class="timer-ring" id="timer-ring"><b id="timer">50:00</b></div><div>
-  <h2>${t('focus')}</h2><p>${t(running() ? 'focusing' : paused ? 'paused' : 'every20')}</p></div></div>
-  <div class="control-actions">${controls}</div></section>
-  ${room?.invite && !running() ? `<p class="room-meta">${t('inviteCode')} <b>${escape(room.invite)}</b></p>` : ''}
-  ${room && !running() ? roomPreferences.markup(room, data.inventory) : ''}`;
+  return `<div class="room-layout">
+    <div class="room-stage">
+      <div class="heading compact-heading room-heading"><div class="room-identity"><h1 id="room-title">${name}</h1>
+        ${room?.private ? `<span class="private-badge">${t('privateBadge')}</span>` : ''}</div>
+        ${room && hasFriends && !running() ? `<button class="secondary invite-friends" data-action="invite-dialog"
+          aria-label="${t('friendInvite')}" title="${t('friendInvite')}"><span aria-hidden="true">♙+</span><b>${t('friendInvite')}</b></button>` : ''}
+      </div>
+      ${room ? `<div class="room-goal" title="${t('chestGoalInfo')}"><span>🎁 ${t('chestGoal')}</span>
+        <progress aria-label="${t('groupMinutes')}" max="${roomGoalMinutes}" value="${minutes % roomGoalMinutes}"></progress>
+        <b>${minutes % roomGoalMinutes}/${roomGoalMinutes}</b></div>` : ''}
+      <section class="scene" data-room-theme="${roomPreferences.themeFor(room)}" aria-labelledby="room-title">
+        <div class="scene-top"><span><span class="dot"></span> <span id="room-count">${room?.count ?? 0}</span> / ${room?.capacity ?? 9} ${t('people')}</span><span>☾ &nbsp; ${t('quietRoom')}</span></div>
+        <div id="room-seats"></div>
+      </section>
+    </div>
+    <div class="room-panel">
+      <section class="controls" aria-labelledby="focus-title">
+        <div class="timer"><div class="timer-ring" id="timer-ring"><b id="timer">50:00</b></div>
+          <div class="timer-copy"><h2 id="focus-title">${t('focus')}</h2><p>${t(running() ? 'focusing' : paused ? 'paused' : 'every20')}</p></div>
+        </div>
+        <div class="control-actions">${controls}</div>
+      </section>
+      ${room && !running() ? `<section class="room-settings" aria-labelledby="room-settings-title">
+        <h2 id="room-settings-title">${t('roomSettings')}</h2>
+        ${roomPreferences.markup(room, data.inventory)}
+        ${room.invite ? `<p class="room-meta">${t('inviteCode')} <b>${escape(room.invite)}</b></p>` : ''}
+      </section>` : ''}
+    </div>
+  </div>`;
 }
 
 function roomsView() {
