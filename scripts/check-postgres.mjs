@@ -11,7 +11,7 @@ async function action(id, name, payload = {}) {
 }
 
 async function shiftSession(id, milliseconds) {
-  await db.query('update public.sessions set start_ms = start_ms - $2, end_ms = end_ms - $2 where user_id = $1', [id, milliseconds]);
+  await db.query("update public.sessions set start_ms = start_ms - $2, end_ms = end_ms - $2 where user_id = $1 and state = 'active'", [id, milliseconds]);
 }
 
 async function settle() {
@@ -117,6 +117,7 @@ try {
   assert.deepEqual((await action(first, 'place', { item: 'plant' })).members.find(member => member.own).placed, ['plant']);
 
   const begin = await action(first, 'start', { duration: 50 });
+  assert.equal(begin.members.find(member => member.own).activity, 'working');
   assert.equal(begin.session.next_check_at, begin.session.start + 20 * 60000);
   assert.equal(begin.session.check_until, begin.session.next_check_at + 30000);
   assert.equal((await action(first, 'leave')).error, 'working');
@@ -128,11 +129,13 @@ try {
   assert.equal(resume.session.end - resume.session.start, 50 * 60000);
   assert.equal(resume.session.next_check_at, resume.session.start + 20 * 60000);
   const desk = resume.members.find(member => member.own).desk_ref;
-  const { rows: updates } = await db.query("select payload, event, topic, private from realtime.desk_events order by ctid");
+  const { rows: updates } = await db.query("select payload, event, topic, private from realtime.desk_events where event = 'desk_status' order by ctid");
   assert.deepEqual(updates.map(({ payload: { at, ...payload }, ...event }) => {
     assert.ok(Number.isSafeInteger(at));
     return [payload, event];
   }), ['break', 'desk'].map(status => [{ desk, status }, { event: 'desk_status', topic: 'room:night', private: true }]));
+  assert.deepEqual((await db.query("select payload->>'status' as activity from realtime.desk_events where event = 'desk_activity' order by ctid"))
+    .rows.map(row => row.activity), ['working', 'break', 'working']);
   await shiftSession(first, 1231000);
   assert.equal(await settle(), 1);
   assert.equal((await action(first, 'verify')).error, 'verificationClosed');
@@ -153,7 +156,7 @@ try {
   const membership = await db.query('select seen from public.room_members where user_id = $1', [second]);
   assert.equal(Number(membership.rows[0].seen), 123, 'maintenance must not refresh Presence');
   const reward = await action(second, 'state');
-  assert.equal(reward.profile.coins, 40);
+  assert.equal(reward.profile.coins, 45);
   assert.equal(reward.session.state, 'completed');
 
   await db.query("insert into public.push_devices values ('ExpoPushToken[example_second]', $1, 'en')", [third]);
@@ -222,7 +225,10 @@ try {
   await action(third, 'abandon');
   assert.deepEqual((await action(third, 'state')).pet, { xp: 0, upset: true });
   assert.equal((await action(third, 'state')).rooms.find(entry => entry.id === privateRoom.id).minutes, 0);
-  await db.query('insert into public.room_progress (room_id, minutes) values ($1,450)', [privateRoom.id]);
+  const departed = users[4];
+  assert.equal((await action(departed, 'joinCode', { code: privateRoom.invite })).profile.room, privateRoom.id);
+  await action(departed, 'leave');
+  await db.query('insert into public.room_progress (room_id, minutes) values ($1,50)', [privateRoom.id]);
   await action(third, 'start', { duration: 50 });
   await shiftSession(third, 1200100);
   await action(third, 'verify');
@@ -232,11 +238,12 @@ try {
   assert.equal(await settle(), 1);
   assert.equal(await settle(), 0);
   const milestone = await action(third, 'state');
-  assert.equal(milestone.rooms.find(entry => entry.id === privateRoom.id).minutes, 500);
+  assert.equal(milestone.rooms.find(entry => entry.id === privateRoom.id).minutes, 100);
   assert.deepEqual(milestone.pet, { xp: 1, upset: false });
   assert.equal(milestone.chests, 1);
   assert.equal((await action(first, 'state')).chests, 1);
   assert.equal((await action(outsider, 'state')).chests, 0);
+  assert.equal((await action(departed, 'state')).chests, 0);
 
   const opening = await action(third, 'openChest');
   assert.equal(opening.chests, 0);
@@ -363,6 +370,76 @@ try {
   await action(ranker, 'rankingVisibility', { visible: false });
   assert.equal((await action(ranker, 'leaderboard')).rows.length, 0);
 
+  const invitee = '00000000-0000-4000-a000-000000000100';
+  const referredById = '00000000-0000-4000-a000-000000000101';
+  await db.query('insert into auth.users values ($1), ($2)', [invitee, referredById]);
+  const inviter = (await action(first, 'state')).profile;
+  assert.match(inviter.readerCode, /^SK-[A-F0-9]{12}$/);
+  assert.match(inviter.referralCode, /^DV-[A-F0-9]{12}$/);
+  assert.equal((await action(invitee, 'profile', { ...basic, referral: 'WRONG' })).error, 'invalidReferral');
+  assert.equal((await action(invitee, 'state')).profile, null);
+  const registration = await action(invitee, 'profile', { ...basic, name: 'Davetli', referral: inviter.referralCode });
+  assert.equal(registration.profile.coins, 35);
+  assert.equal((await action(referredById, 'profile', { ...basic, referral: inviter.readerCode })).profile.coins, 35);
+  assert.equal((await action(invitee, 'profile', { ...basic, name: 'Davetli', referral: inviter.referralCode })).profile.coins, 35);
+  assert.equal((await action(first, 'state')).profile.coins, inviter.coins + 20);
+
+  assert.equal((await action(invitee, 'addFriend', { code: registration.profile.readerCode })).error, 'friendMissing');
+  const sent = await action(invitee, 'addFriend', { code: inviter.readerCode.toLowerCase() });
+  assert.equal(sent.friends.length, 1);
+  const relation = sent.friends[0].id;
+  assert.equal(sent.friends[0].status, 'sent');
+  assert.equal((await action(invitee, 'inviteFriend', { id: relation })).error, 'friendMissing');
+  assert.equal((await action(outsider, 'answerFriend', { id: relation, answer: 'accept' })).error, 'friendMissing');
+  assert.equal((await action(first, 'state')).friends[0].status, 'incoming');
+  assert.equal((await action(first, 'answerFriend', { id: relation, answer: 'accept' })).friends[0].status, 'accepted');
+  assert.ok(!(await action(first, 'inviteFriend', { id: relation })).error);
+  const study = (await action(invitee, 'state')).studyInvites[0];
+  assert.equal(study.private, true);
+  assert.equal((await action(outsider, 'answerStudyInvite', { id: study.id, answer: 'accept' })).error, 'studyInviteMissing');
+  assert.equal((await action(invitee, 'join', { room: privateRoom.id })).error, 'inviteRequired');
+  const accepted = await action(invitee, 'answerStudyInvite', { id: study.id, answer: 'accept' });
+  assert.equal(accepted.joinedInvite, true);
+  assert.equal(accepted.profile.room, privateRoom.id);
+  assert.equal(accepted.studyInvites.length, 0);
+  assert.equal((await action(invitee, 'answerStudyInvite', { id: study.id, answer: 'accept' })).error, 'studyInviteMissing');
+
+  for (const [minutes, expectedCoins] of [[30, 46], [60, 62]]) {
+    await action(invitee, 'start', { duration: 30 });
+    assert.equal((await action(invitee, 'inviteFriend', { id: relation })).error, 'working');
+    await shiftSession(invitee, 1200100);
+    assert.equal((await action(invitee, 'verify')).session.checks, 1);
+    await shiftSession(invitee, 600000);
+    const complete = await action(invitee, 'state');
+    assert.equal(complete.dailyQuests.minutes, minutes);
+    assert.deepEqual(complete.dailyQuests.goals.map(goal => goal.completed), [true, minutes === 60]);
+    assert.equal(complete.profile.coins, expectedCoins);
+    assert.equal((await action(invitee, 'state')).profile.coins, expectedCoins);
+  }
+
+  const openAd = async (network = 'web', placement = 'web') =>
+    (await db.query('select public.open_rewarded_ad($1,$2,$3) as result', [invitee, network, placement])).rows[0].result;
+  const creditAd = async (id, transaction, unit = 'web') =>
+    (await db.query("select public.credit_rewarded_ad($1,'web',$2,$3, clock_timestamp()) as ok", [id, unit, transaction])).rows[0].ok;
+  const attempts = [];
+  for (const [index, wait] of [10, 20, 40, 40].entries()) {
+    const { attempt } = await openAd();
+    attempts.push(attempt);
+    assert.equal((await openAd()).attempt, attempt);
+    assert.equal(await creditAd(attempt, 'wrong-unit', 'wrong'), false);
+    if (index) assert.equal(await creditAd(attempt, 'watch-0'), false);
+    assert.equal(await creditAd(attempt, 'watch-' + index), true);
+    assert.equal(await creditAd(attempt, 'watch-' + index), true, 'duplicate provider callback is acknowledged');
+    assert.equal((await action(invitee, 'state')).profile.coins, 62 + (index + 1) * 5);
+    assert.equal((await openAd('admob', '1234567890')).error, 'adCooldown');
+    const { rows: [{ wait_minutes }] } = await db.query(
+      'select (extract(epoch from retry_at - rewarded_at) / 60)::int as wait_minutes from public.rewarded_ad_attempts where id = $1', [attempt]);
+    assert.equal(wait_minutes, wait);
+    await db.query("update public.rewarded_ad_attempts set retry_at = clock_timestamp() - interval '1 second' where id = $1", [attempt]);
+  }
+  assert.equal(new Set(attempts).size, 4);
+  assert.equal((await action(invitee, 'removeFriend', { id: relation })).friends.length, 0);
+
   await db.exec('set role authenticated');
   await db.query("select set_config('request.jwt.claim.sub', $1, false)", [ranker]);
   for (const sql of [
@@ -371,6 +448,12 @@ try {
     'update public.sessions set checks=999',
     'delete from public.coin_ledger',
     'select * from public.desk_reactions',
+    'select * from public.reader_referrals',
+    'select * from public.reader_friendships',
+    'select * from public.study_invites',
+    'select * from public.rewarded_ad_attempts',
+    "select public.open_rewarded_ad(null,'web','web')",
+    "select public.credit_rewarded_ad(null,'web','web','fake',now())",
   ]) await assert.rejects(db.query(sql), /permission denied/);
   await db.exec('reset role');
 
@@ -380,7 +463,7 @@ try {
   const closedRoom = (await db.query('select owner_id, name, name_en from public.rooms where id = $1', [privateRoom.id])).rows[0];
   assert.deepEqual(closedRoom, { owner_id: null, name: 'Kapalı özel oda', name_en: 'Closed private room' });
 
-  console.log('Postgres: migration, RLS, capacity, commerce, pause, verification, reward settlement, push leases, private rooms, collections, group milestones, pets, wardrobe, chests, server timer, reactions, ranking, streak and account deletion passed.');
+  console.log('Postgres: rooms, activity, RLS, focus, coins, daily quests, chests, referrals, friends, study invites, signed-ad settlement, push leases, shop, pets, ranking and account deletion passed.');
 } finally {
   await db.close();
 }

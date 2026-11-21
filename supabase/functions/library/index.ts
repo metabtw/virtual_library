@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.106.2';
 
 import { deliverRewards } from '../_shared/rewards.ts';
+import { adPlatforms, openRewardedAd } from '../_shared/ad-rewards.ts';
 
 declare const EdgeRuntime: { waitUntil(work: Promise<unknown>): void };
 
@@ -11,6 +12,7 @@ const actions = new Set([
   'state', 'profile', 'join', 'leave', 'status', 'start', 'verify', 'buy', 'place',
   'deleteAccount', 'pushRegister', 'pushRemove', 'target', 'createRoom', 'joinCode',
   'openBox', 'openChest', 'abandon', 'studySummary', 'leaderboard', 'rankingVisibility', 'react',
+  'addFriend', 'answerFriend', 'removeFriend', 'inviteFriend', 'answerStudyInvite', 'adStart',
 ]);
 
 // Browser calls use an explicit Supabase bearer token. The endpoint has no cookie-based session.
@@ -39,6 +41,7 @@ Deno.serve(async (request) => {
     const { error: deletion } = await admin.auth.admin.deleteUser(data.user.id);
     return reply(deletion ? { error: 'accountDeletion' } : { deleted: true }, { status: deletion ? 500 : 200 });
   }
+  if (body.action === 'adStart') return reply(await openRewardedAd(admin, data.user.id, body.payload?.platform));
 
   if (body.action === 'pushRegister' || body.action === 'pushRemove') {
     const token = body.payload?.token;
@@ -62,5 +65,5 @@ Deno.serve(async (request) => {
   if (typeof result?.awarded === 'number' && result.awarded > 0) {
     EdgeRuntime.waitUntil(deliverRewards(admin).catch(() => console.error('reward_delivery_unavailable')));
   }
-  return reply(result);
+  return reply(result?.profile ? { ...result, adPlatforms: adPlatforms() } : result);
 });

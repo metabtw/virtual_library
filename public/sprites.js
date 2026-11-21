@@ -1,4 +1,5 @@
 import { avatarSize, drawAvatar, drawProp, drawWritingHands, standingAvatarSize, writingSize } from './avatar-art.js';
+import { propSize } from './prop-art.js';
 
 const portraits = new Map();
 
@@ -27,7 +28,7 @@ const props = new Map();
 export function propImage(name) {
   if (props.has(name)) return props.get(name);
   const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 16;
+  canvas.width = canvas.height = propSize;
   const context = canvas.getContext('2d');
   drawProp(name, (shade, x, y) => {
     context.fillStyle = shade;

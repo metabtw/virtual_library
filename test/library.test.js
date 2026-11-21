@@ -23,7 +23,7 @@ async function fixture(t, options) {
 test('serves the web app, public deletion route, shared client and artwork', async t => {
   const address = await fixture(t);
   for (const path of ['/', '/account-deletion', '/library-client.js', '/focus-clock.js', '/web-social.js', '/web-strings.js',
-    '/strings.js', '/desk-status.js', '/library.webp',
+    '/strings.js', '/desk-status.js', '/study-rewards.js', '/community.js', '/prop-art.js', '/library.webp',
     '/room-preferences.js', '/room-preferences.css', '/room-themes/rain.webp', '/room-themes/garden.webp', '/room-themes/stars.webp']) {
     const response = await fetch(address + path);
     assert.equal(response.status, 200, path);
@@ -157,14 +157,17 @@ test('a desk update appears immediately and a newer snapshot takes precedence', 
   assert.equal(recordDeskStatus(updates, { desk: peer.desk_ref, status: 'unknown', at: 4000 }), updates);
   assert.deepEqual(displayDeskStatuses([own, peer], 1000, updates), [{ ...own, status: 'break' }, { ...peer, status: 'break' }]);
   assert.deepEqual(displayDeskStatuses([own, peer], 4000, updates), [own, peer]);
+  const working = recordDeskStatus(updates, { desk: peer.desk_ref, status: 'working', at: 5000 });
+  assert.deepEqual(displayDeskStatuses([peer], 4000, working), [{ ...peer, activity: 'working' }]);
 });
 
 test('auto themes follow the room and unlocked milestone until the user chooses a theme', () => {
   assert.equal(resolveRoomTheme('auto', { id: 'night' }), 'classic');
   assert.equal(resolveRoomTheme('auto', { id: 'garden' }), 'garden');
   assert.equal(resolveRoomTheme('auto', { id: 'archive' }), 'stars');
-  assert.equal(resolveRoomTheme('auto', { id: 'night', minutes: 500 }), 'aurora');
-  assert.equal(resolveRoomTheme('rain', { id: 'night', minutes: 500 }), 'rain');
+  assert.equal(resolveRoomTheme('auto', { id: 'night', minutes: 99 }), 'classic');
+  assert.equal(resolveRoomTheme('auto', { id: 'night', minutes: 100 }), 'aurora');
+  assert.equal(resolveRoomTheme('rain', { id: 'night', minutes: 100 }), 'rain');
   const preferences = createRoomPreferences({ storage: () => ({ getItem: () => '{"theme":"garden"}' }) });
   assert.equal(preferences.themeFor({ id: 'night' }), 'garden');
 });

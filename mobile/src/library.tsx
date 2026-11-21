@@ -5,6 +5,7 @@ import { Alert, AppState, Image, Modal, Pressable, ScrollView, StyleSheet, Switc
 import { avatarOptions, avatarPresets, defaultAvatar, hairStyles, pickAvatarStyle } from '../../public/avatar-art';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../../public/focus-clock';
 import { displayDeskStatuses, recordDeskStatus, type DeskUpdates } from '../../public/desk-status';
+import { roomGoalMinutes } from '../../public/study-rewards';
 import { deleteAccount, library, supabase } from './api';
 import type { Avatar, Command, Drop, Focus, Member, Profile, Snapshot } from './model';
 import { RoomScene, Sprite } from './scene';
@@ -13,7 +14,7 @@ import { allowReminders, hasExactReminderSettings, openExactReminderSettings, sy
 import { hasAnalytics, setUsageMeasurement, trackUsage } from './telemetry';
 import { message, usePreferences, words, type Locale, type Translation } from './strings';
 import { Button, Field, Options, ui } from './ui';
-import { Boxes, Directory, Invite, RoomGoal, TargetEditor } from './clubs';
+import { Boxes, Directory, Invite, PrivateBadge, RoomGoal, TargetEditor } from './clubs';
 import { Ambience } from './ambience';
 import { Catalog, ItemIllustration } from './catalog';
 import { dressedAvatar } from './cosmetics';
@@ -21,6 +22,8 @@ import { ThemePicker } from './themes';
 import { LeaderboardModal, StudyCardModal } from './study';
 import { presetAssets } from './asset-art';
 import { PrivacyLink } from './auth';
+import { AdRewards } from './ads';
+import { DailyQuests, FriendsPanel, StudyInvitations } from './community';
 
 type Action = { [K in keyof Command]: { name: K; payload?: Command[K] } }[keyof Command];
 
@@ -32,6 +35,7 @@ function AvatarEditor({ profile, onSave, pending, t, locale }: {
   pending: boolean; t: Translation; locale: Locale;
 }) {
   const [name, setName] = useState(profile?.name ?? '');
+  const [referral, setReferral] = useState('');
   const [avatar, setAvatar] = useState<Avatar>(() => ({ ...defaultAvatar, ...profile?.avatar }));
   const [openStyle, setOpenStyle] = useState<typeof styleFields[number]>();
   const options = { hair: hairStyles[avatar.gender], ...avatarOptions };
@@ -42,6 +46,8 @@ function AvatarEditor({ profile, onSave, pending, t, locale }: {
     <Text style={ui.heading}>{profile ? t.editAvatar : t.newAvatar}</Text>
     <View style={{ alignSelf: 'center' }}><Sprite avatar={avatar} width={90} /></View>
     <Field label={t.name} value={name} onChangeText={setName} maxLength={24} />
+    {!profile && <Field label={t.referralField} value={referral} onChangeText={setReferral} maxLength={15}
+      autoCapitalize="characters" autoCorrect={false} />}
     <View style={ui.field}>
       <Text style={ui.small}>{t.characterPresets}</Text>
       <View style={ui.options}>
@@ -80,7 +86,8 @@ function AvatarEditor({ profile, onSave, pending, t, locale }: {
     <Options label={t.color} value={avatar.color}
       values={[['#bd7050', t.cinnamon], ['#789078', t.sage], ['#7988ab', t.midnight], ['#ad7963', t.coffee]]}
       onChange={color => setAvatar({ ...avatar, color })} />
-    <Button disabled={pending || name.trim().length < 2} onPress={() => onSave({ ...avatar, name })}>{t.save}</Button>
+    <Button disabled={pending || name.trim().length < 2}
+      onPress={() => onSave({ ...avatar, name, referral: referral.trim() || undefined })}>{t.save}</Button>
   </View>;
 }
 
@@ -142,6 +149,7 @@ export function Library({ id }: { id: string }) {
   const [peer, setPeer] = useState<Member>();
   const [rankingOpen, setRankingOpen] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [reactionMessage, setReactionMessage] = useState('');
   const reactionTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const seenReactions = useRef(new Set<string>());
@@ -220,6 +228,7 @@ export function Library({ id }: { id: string }) {
       setMoment(performance.now());
       if (action.name === 'profile') setEditing(false);
       if (['join', 'joinCode', 'createRoom'].includes(action.name)) { setPage('room'); trackUsage('room_joined'); }
+      if (action.name === 'answerStudyInvite' && data.joinedInvite) { setPage('room'); trackUsage('room_joined'); }
       if (action.name === 'start') trackUsage('focus_started');
       if (action.name === 'verify') trackUsage('focus_confirmed');
       if (action.name === 'leave') setPage('rooms');
@@ -227,6 +236,12 @@ export function Library({ id }: { id: string }) {
       if (action.name === 'react') {
         setPeer(undefined);
         setReactionMessage(t.reactionSent);
+        clearTimeout(reactionTimeout.current);
+        reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
+      }
+      if (action.name === 'inviteFriend') {
+        setInviteOpen(false);
+        setReactionMessage(t.studyInviteSent);
         clearTimeout(reactionTimeout.current);
         reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
       }
@@ -244,12 +259,13 @@ export function Library({ id }: { id: string }) {
     onSettled: () => setPendingPauseAt(undefined),
   });
 
+  const clockInterval = focus ? 200 : effectivePage === 'shop' && (snapshot?.adRetryAt ?? 0) > observed ? 1000 : 0;
   useEffect(() => {
-    if (!focus) return;
-    const timer = setInterval(() => setMoment(performance.now()), 200);
+    if (!clockInterval) return;
+    const timer = setInterval(() => setMoment(performance.now()), clockInterval);
     setMoment(performance.now());
     return () => clearInterval(timer);
-  }, [Boolean(focus)]);
+  }, [clockInterval]);
   useEffect(() => {
     setPresenceReadyRoom(null);
     setDeskUpdates(new Map());
@@ -259,12 +275,12 @@ export function Library({ id }: { id: string }) {
     presence.current = channel;
     channel.on('presence', { event: 'sync' }, () => {
       void queryClient.invalidateQueries({ queryKey: ['library', id] });
-    }).on('broadcast', { event: 'desk_status' }, ({ payload }) => {
+    }).on('broadcast', { event: 'desk_activity' }, ({ payload }) => {
       if (presence.current !== channel) return;
       setDeskUpdates(previous => recordDeskStatus(previous, payload));
       const current = queryClient.getQueryData<Snapshot>(['library', id]);
-      if (current && current.profile?.status !== payload?.status
-        && current.members.some(member => member.own && member.desk_ref === payload?.desk)) {
+      if (current?.members.some(member => member.own && member.desk_ref === payload?.desk
+        && (member.activity ?? member.status) !== payload?.status)) {
         void queryClient.invalidateQueries({ queryKey: ['library', id] });
       }
     }).subscribe(status => {
@@ -308,7 +324,10 @@ export function Library({ id }: { id: string }) {
 
   const profile = snapshot.profile;
   const room = snapshot.rooms.find(room => room.id === localRoom);
-  const aurora = (room?.minutes ?? 0) >= 500;
+  const aurora = (room?.minutes ?? 0) >= roomGoalMinutes;
+  const friends = snapshot.friends ?? [];
+  const accepted = friends.filter(friend => friend.status === 'accepted');
+  const unread = friends.filter(friend => friend.status === 'incoming').length + (snapshot.studyInvites?.length ?? 0);
   const prizeItem = prize && 'item' in prize ? snapshot.items.find(item => item.id === prize.item) : undefined;
   const label = (item: { name: string; name_en: string }) => locale === 'tr' ? item.name : item.name_en;
   const pending = mutation.isPending || deleting;
@@ -317,6 +336,8 @@ export function Library({ id }: { id: string }) {
     if (running && action.name === 'status' && action.payload?.status === 'break') setPendingPauseAt(observed);
     mutation.mutate(action);
   }
+  const invitations = <StudyInvitations invites={snapshot.studyInvites} locale={locale} pending={pending} t={t}
+    answer={(id, answer) => act({ name: 'answerStudyInvite', payload: { id, answer } })} />;
 
   return <>
     <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
@@ -328,7 +349,9 @@ export function Library({ id }: { id: string }) {
       {actionError !== '' && <Text accessibilityLiveRegion="polite" style={ui.warning}>{actionError}</Text>}
       {!profile ? <AvatarEditor profile={null} onSave={payload => act({ name: 'profile', payload })} pending={pending} t={t} locale={locale} /> :
         effectivePage === 'rooms' ? <>
-          <Button muted onPress={() => setRankingOpen(true)}>{t.leaderboard}</Button>
+          <View style={ui.row}><Text style={ui.heading}>{t.rooms}</Text>
+            <View style={{ flexShrink: 1 }}><Button muted onPress={() => setRankingOpen(true)}>{t.leaderboard}</Button></View></View>
+          {invitations}
           <Directory rooms={snapshot.rooms} current={profile.room} pending={pending}
           coins={profile.coins} locale={locale} t={t}
           join={room => room === localRoom ? setPage('room') : act({ name: 'join', payload: { room } })}
@@ -336,12 +359,16 @@ export function Library({ id }: { id: string }) {
           create={name => act({ name: 'createRoom', payload: { name } })} />
         </> : effectivePage === 'room' ? <>
           {room && <View style={ui.row}>
-            <Text style={ui.heading}>{label(room)}</Text><Text style={ui.small}>{room.count}/{room.capacity}</Text>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 }}>
+              <Text style={ui.heading}>{label(room)}</Text>{room.private && <PrivateBadge t={t} />}
+            </View>
+            <Text style={ui.small}>{room.count}/{room.capacity}</Text>
+            {!running && !!accepted.length && <Button muted accessibilityLabel={t.friendInvite} onPress={() => setInviteOpen(true)}>♙+</Button>}
           </View>}
+          {room && <RoomGoal minutes={room.minutes ?? 0} t={t} />}
           <RoomScene room={localRoom ?? null} members={roomMembers}
             aurora={aurora} theme={theme} t={t} onDeskPress={running ? undefined : setPeer} />
           {room && !running && <ThemePicker value={theme} room={room.id} aurora={aurora} onChange={setTheme} t={t} />}
-          {room && <RoomGoal minutes={room.minutes ?? 0} t={t} />}
           {room && !running && <Invite room={room} t={t} />}
           {snapshot.session?.state === 'completed' && <>
             <Text style={ui.accent}>{t.reward}</Text>
@@ -356,10 +383,12 @@ export function Library({ id }: { id: string }) {
             <Button muted disabled={pending} onPress={() => act({ name: 'leave' })}>{t.leave}</Button>
           </View>}
           {room && <Ambience locked={running} inventory={snapshot.inventory} t={t} />}
-        </> : effectivePage === 'shop' ?
+        </> : effectivePage === 'shop' ? <>
+          <AdRewards snapshot={snapshot} serverNow={observed} pending={pending} t={t} refresh={() => void query.refetch()} />
+          <DailyQuests quests={snapshot.dailyQuests} t={t} />
           <Catalog snapshot={snapshot} t={t} locale={locale} pending={pending}
             action={item => act({ name: 'buy', payload: { item } })}
-            boxes={<Boxes snapshot={snapshot} pending={pending} t={t} open={name => act({ name })} />} /> :
+            boxes={<Boxes snapshot={snapshot} pending={pending} t={t} open={name => act({ name })} />} /></> :
           <>
             {editing ? <AvatarEditor profile={profile} onSave={payload => act({ name: 'profile', payload })} pending={pending} t={t} locale={locale} /> :
               <View style={ui.card}>
@@ -371,6 +400,13 @@ export function Library({ id }: { id: string }) {
               </View>}
             <TargetEditor initial={profile.target ?? ''} pending={pending} t={t} save={target => act({ name: 'target', payload: { target } })} />
             <Button muted onPress={() => setCardOpen(true)}>{t.studyCard}</Button>
+            <DailyQuests quests={snapshot.dailyQuests} t={t} />
+            {invitations}
+            <FriendsPanel profile={profile} friends={friends} pending={pending} t={t}
+              add={code => act({ name: 'addFriend', payload: { code } })}
+              answer={(id, answer) => act({ name: 'answerFriend', payload: { id, answer } })}
+              remove={id => act({ name: 'removeFriend', payload: { id } })}
+              invite={id => act({ name: 'inviteFriend', payload: { id } })} />
             <Catalog snapshot={snapshot} inventory t={t} locale={locale} pending={pending}
               action={item => act({ name: 'place', payload: { item } })} />
           </>}
@@ -397,13 +433,24 @@ export function Library({ id }: { id: string }) {
       {(['rooms', 'room', 'shop', 'profile'] as const).map(tab =>
         <Pressable key={tab} accessibilityRole="tab" disabled={running} onPress={() => setPage(tab)}
           accessibilityState={{ selected: tab === effectivePage, disabled: running }} style={[ui.navTab, tab === effectivePage && ui.navActive, running && { opacity: .46 }]}>
-          <Text style={[ui.navText, tab === effectivePage && ui.accent]}>{t[tab]}</Text>
+          <Text style={[ui.navText, tab === effectivePage && ui.accent]}>{t[tab]}{tab === 'profile' && unread > 0 ? ` · ${unread}` : ''}</Text>
         </Pressable>)}
     </View>}
     {rankingOpen && !running && !verify && <LeaderboardModal user={id} t={t} close={() => setRankingOpen(false)}
       pending={pending} changeVisibility={visible => act({ name: 'rankingVisibility', payload: { visible } })} />}
     {cardOpen && profile && !running && !verify && <StudyCardModal user={id} profile={profile}
       equipment={equipped} close={() => setCardOpen(false)} t={t} />}
+    <Modal visible={inviteOpen && !!room && !running && !verify} transparent onRequestClose={() => setInviteOpen(false)} accessibilityViewIsModal>
+      <View style={ui.modal}><View style={[ui.card, { width: '100%', maxWidth: 450, maxHeight: '80%' }]}>
+        <Text style={ui.heading}>{t.friendInvite}</Text>
+        <ScrollView contentContainerStyle={{ gap: 7 }}>
+          {accepted.map(friend => <Button key={friend.id} muted disabled={pending}
+            onPress={() => act({ name: 'inviteFriend', payload: { id: friend.id } })}>{friend.name}</Button>)}
+        </ScrollView>
+        {actionError !== '' && <Text style={ui.warning}>{actionError}</Text>}
+        <Button muted onPress={() => setInviteOpen(false)}>{t.done}</Button>
+      </View></View>
+    </Modal>
     <Modal visible={Boolean(peer?.desk_ref && !running && !verify)} transparent onRequestClose={() => setPeer(undefined)} accessibilityViewIsModal>
       <View style={ui.modal}><View style={ui.card}>
         <Text style={ui.heading}>{peer?.name}</Text>

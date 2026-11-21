@@ -9,6 +9,8 @@ import { avatarOptions, avatarPresets, defaultAvatar, deskEquipment, dressedAvat
 import { createRoomPreferences } from './room-preferences.js';
 import { downloadStudyCard, messageFor, reactionArt } from './web-social.js';
 import { webText } from './web-strings.js';
+import { adCooldownSeconds, roomGoalMinutes } from './study-rewards.js';
+import { dailyQuests, friendsPanel, studyInvitations } from './community.js';
 
 const client = config && createClient(config.url, config.key, {
   auth: { flowType: 'pkce', detectSessionInUrl: false },
@@ -18,16 +20,17 @@ const content = document.querySelector('#content');
 const notice = document.querySelector('#notice');
 const verification = document.querySelector('#verify-dialog');
 const reactionDialog = document.querySelector('#reaction-dialog');
+const inviteDialog = document.querySelector('#study-invite-dialog');
+const coinHelp = document.querySelector('#coin-help-dialog');
 const languageToggle = document.querySelector('#language-toggle');
 const labels = { room: 'library', rooms: 'rooms', shop: 'shop', profile: 'profileInventory', ranking: 'leaderboard' };
 const palette = ['#bd7050', '#789078', '#7988ab', '#ad7963'];
 const roomIcons = { night: '☾', garden: '❧', archive: '✦' };
-const itemIcons = { space: '🪐', forest: '🌲' };
 const categories = {
   all: 'catalogAll', wearable: 'catalogClothes', hair: 'catalogHair', desk: 'catalogDesk',
   pet: 'catalogPets', ambience: 'catalogSound', rare: 'catalogChests',
 };
-const draft = { email: '', avatarName: null, target: null, roomName: '', invite: '' };
+const draft = { email: '', avatarName: null, target: null, roomName: '', invite: '', referral: '', friendCode: '' };
 const seenReactions = new Set();
 let locale = initialLanguage();
 const t = key => webText(locale, key);
@@ -59,6 +62,7 @@ let selectedDesk;
 let ranking;
 let rankingRequest;
 let roomSearch = '';
+let openingAd = false;
 const catalogCategory = { shop: 'all', inventory: 'all' };
 
 const escape = (value) => String(value ?? '').replace(/[&<>"']/g, character => ({
@@ -125,13 +129,13 @@ function syncPresence() {
   const channel = client.channel('room:' + room, { config: { private: true, presence: { key: userId } } });
   presence = channel;
   channel.on('presence', { event: 'sync' }, refreshState)
-    .on('broadcast', { event: 'desk_status' }, ({ payload }) => {
+    .on('broadcast', { event: 'desk_activity' }, ({ payload }) => {
       if (presence !== channel) return;
       const next = recordDeskStatus(deskUpdates, payload);
       if (next === deskUpdates) return;
       deskUpdates = next;
       render();
-      if (data.profile?.status !== payload.status && data.members.some(member => member.own && member.desk_ref === payload.desk)) {
+      if (data.members.some(member => member.own && member.desk_ref === payload.desk && (member.activity ?? member.status) !== payload.status)) {
         refreshState();
       }
     })
@@ -192,7 +196,7 @@ function reflectSession(next) {
   busy = refreshing = editing = false;
   avatar = { ...defaultAvatar };
   draft.avatarName = draft.target = null;
-  draft.roomName = draft.invite = '';
+  draft.roomName = draft.invite = draft.referral = draft.friendCode = '';
   stateRequest = undefined;
   refreshRequested = false;
   roomSearch = '';
@@ -270,20 +274,25 @@ function deskItems(equipped, pet) {
   if (!animal && !hasProps) return '';
   return `<div class="desk-equipment" aria-hidden="true">
     ${hasProps ? `<div class="desk-tray">${equipment.props.map((item, slot) => `<div class="desk-cell">${item ?
-      `<span class="desk-prop desk-${item}${slot === 0 ? ' desk-light' : ''}">${item === 'plant'
-        ? `<img src="${propImage('leaves')}" class="plant-leaves" alt=""><img src="${propImage('pot')}" alt="">`
-        : `<img src="${propImage(item)}" alt="">`}</span>` : ''}</div>`).join('')}</div>` : ''}
+      `<span class="desk-prop desk-${item}${slot === 0 ? ' desk-light' : ''}">${deskPropImage(item)}</span>` : ''}</div>`).join('')}</div>` : ''}
     ${animal ? `<div class="pet-path"><span class="desk-pet pet-${equipment.pet}${animal.rests ? ' pet-rest' : ''}">
       <img src="${propImage(animal.art)}" alt=""></span></div>` : ''}
   </div>`;
 }
 
+function deskPropImage(item) {
+  if (item === 'plant') return `<img src="${propImage('leaves')}" class="plant-leaves" alt=""><img src="${propImage('pot')}" alt="">`;
+  if (item === 'jellyTank') return `<img src="${propImage('jellyTankBase')}" alt=""><img src="${propImage('jellyTankDrift')}" class="jelly-drift" alt="">`;
+  return `<img src="${propImage(item)}" alt="">`;
+}
+
 function seat(member, index, [column, row]) {
-  const atDesk = member?.status === 'desk';
+  const activity = member?.activity ?? member?.status;
+  const atDesk = member && activity !== 'break';
   const name = member ? escape(member.name) + (member.own ? ' · ' + t('you') : '') : t('empty') + ' ' + (index + 1);
   const canReact = member?.desk_ref && !member.own && !running();
   return `<div class="seat ${member?.own ? 'own' : member ? '' : 'empty'}${column === 2 ? ' center-column' : ''}" style="grid-column:${column};grid-row:${row}">
-    ${member ? `<span class="seat-status ${atDesk ? '' : 'break'}"><span class="dot"></span> ${t(atDesk ? 'desk' : 'break')}</span>` : ''}
+    ${member ? `<span class="seat-status ${activity}"><span class="dot"></span> ${t(activity === 'working' ? 'studyWorking' : activity)}</span>` : ''}
     <div class="chair"></div>
     ${member && atDesk ? sprite(dressedAvatar(member.avatar, member.placed), true) : ''}
     <div class="desktop" aria-hidden="true">
@@ -310,7 +319,7 @@ function roomView(room) {
   const durationOptions = ['25', '50', '90'].map(value => [value, value + ' ' + t('minutes')]);
   durationOptions.push(['custom', t('customDuration')]);
   const controls = running()
-    ? `<button class="primary" data-action="status" data-value="break">Ⅱ &nbsp; ${t('pause')}</button>`
+    ? `<button class="primary" data-action="status" data-value="break">${t('pause')}</button>`
     : paused && room
       ? `<button class="primary" data-action="status" data-value="desk">▶ &nbsp; ${t('resume')}</button><button class="secondary" data-action="abandon">${t('abandon')}</button>`
       : room
@@ -318,28 +327,38 @@ function roomView(room) {
         ${durationChoice === 'custom' ? `<label class="field custom-duration">${t('minutes')} <input id="custom-duration" type="number" inputmode="numeric" min="5" max="180" step="1" value="${escape(customDuration)}"><small>${t('duration')}</small></label>` : ''}
         <button class="primary" data-action="start" ${validDuration() ? '' : 'disabled'}>▶ &nbsp; ${t('start')}</button>`
         : `<a class="primary" href="#rooms">${t('joinRoom')}</a>`;
-  return `<div class="heading"><h1>${name}</h1>${running() ? '' : `<a class="secondary" href="#rooms">${t('allRooms')}</a>`}</div>
+  const minutes = room?.minutes ?? 0;
+  const hasFriends = data.friends?.some(friend => friend.status === 'accepted');
+  return `<div class="heading compact-heading room-heading"><div class="room-identity"><h1>${name}</h1>
+    ${room?.private ? `<span class="private-badge">${t('privateBadge')}</span>` : ''}</div>
+    ${room && hasFriends && !running() ? `<button class="secondary invite-friends" data-action="invite-dialog"
+      aria-label="${t('friendInvite')}" title="${t('friendInvite')}"><span aria-hidden="true">♙+</span><b>${t('friendInvite')}</b></button>` : ''}</div>
+  ${room ? `<div class="room-goal" title="${t('chestGoalInfo')}"><span>🎁 ${t('chestGoal')}</span>
+    <progress aria-label="${t('groupMinutes')}" max="${roomGoalMinutes}" value="${minutes % roomGoalMinutes}"></progress>
+    <b>${minutes % roomGoalMinutes}/${roomGoalMinutes}</b></div>` : ''}
   <section class="scene" data-room-theme="${roomPreferences.themeFor(room)}" aria-label="${name}">
   <div class="scene-top"><span><span class="dot"></span> <span id="room-count">${room?.count ?? 0}</span> / ${room?.capacity ?? 9} ${t('people')}</span><span>☾ &nbsp; ${t('quietRoom')}</span></div>
   <div id="room-seats"></div></section>
   <section class="controls"><div class="timer"><div class="timer-ring" id="timer-ring"><b id="timer">50:00</b></div><div>
   <h2>${t('focus')}</h2><p>${t(running() ? 'focusing' : paused ? 'paused' : 'every20')}</p></div></div>
   <div class="control-actions">${controls}</div></section>
-  ${room ? `<p class="room-meta">🌳 ${t('commonGoal')} · ${room.minutes ?? 0} ${t('minuteUnit')}${room.invite && !running() ? ` · ${t('inviteCode')} <b>${escape(room.invite)}</b>` : ''}</p>` : ''}
+  ${room?.invite && !running() ? `<p class="room-meta">${t('inviteCode')} <b>${escape(room.invite)}</b></p>` : ''}
   ${room && !running() ? roomPreferences.markup(room, data.inventory) : ''}`;
 }
 
 function roomsView() {
-  return `<div class="heading"><h1>${t('rooms')}</h1><a class="secondary" href="#ranking">${t('leaderboard')}</a></div>
+  return `<div class="heading compact-heading"><h1>${t('rooms')}</h1><a class="secondary" href="#ranking">${t('leaderboard')}</a></div>
+  ${studyInvitations(data, t, escape, locale)}
   <label class="field room-search">${t('searchTarget')} <input type="search" id="room-search" value="${escape(roomSearch)}"></label>
-  <div class="cards">${data.rooms.map(room => `<article class="card room-card" data-room-id="${escape(room.id)}">
-    <span class="item-icon">${room.private ? '◆' : roomIcons[room.id] ?? '☾'}</span><h2>${escape(localName(room))}</h2>
+  <div class="room-grid">${data.rooms.map(room => `<article class="card room-card" data-room-id="${escape(room.id)}">
+    <span class="item-icon" aria-hidden="true">${room.private ? '◆' : roomIcons[room.id] ?? '☾'}</span>
+    <div class="room-card-title"><h2>${escape(localName(room))}</h2>${room.private ? `<span class="private-badge">${t('privateBadge')}</span>` : ''}</div>
     ${room.targets?.length ? `<p>${escape(room.targets.join(' · '))}</p>` : ''}
     <p><span class="dot"></span> ${room.count} / ${room.capacity} ${t('people')}</p>
     <button class="primary" data-action="join" data-value="${escape(room.id)}" ${room.count >= room.capacity && data.profile?.room !== room.id ? 'disabled' : ''}>${t(data.profile?.room === room.id ? 'open' : room.count >= room.capacity ? 'roomFull' : 'joinRoom')}</button>
   </article>`).join('')}</div>
   <p id="room-search-empty" role="status" hidden>${t('noRooms')}</p>
-  <div class="cards private-actions">
+  <div class="room-grid room-actions private-actions">
     <form class="card stacked" id="create-room-form"><label class="field">${t('roomName')} <input name="roomName" value="${escape(draft.roomName)}" required minlength="2" maxlength="32"></label><button class="primary">${t('createRoom')}</button></form>
     <form class="card stacked" id="join-room-form"><label class="field">${t('inviteCode')} <input name="invite" value="${escape(draft.invite)}" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6"></label><button class="secondary">${t('joinCode')}</button></form>
   </div>`;
@@ -358,8 +377,7 @@ function filterRooms() {
 function itemImage(item) {
   if (item.kind === 'wearable' || item.kind === 'hair') return sprite(dressedAvatar(data.profile.avatar, [item.id]));
   if (item.id === 'plant') return `<span class="catalog-plant"><img src="${propImage('leaves')}" alt=""><img src="${propImage('pot')}" alt=""></span>`;
-  const prop = item.id === 'cat' ? 'catSleep' : item.id;
-  return hasPropArt(prop) ? `<img src="${propImage(prop)}" alt="">` : itemIcons[item.id] ?? '✦';
+  return hasPropArt(item.id) ? `<img src="${propImage(item.id)}" alt="">` : '✦';
 }
 
 function itemCards(items, inventoryOnly) {
@@ -397,6 +415,7 @@ function profileView() {
   return `<div class="heading"><h1>${t(profile ? 'profileInventory' : 'newAvatar')}</h1></div>
   <section class="profile-card">${sprite(editing || !profile ? avatar : dressedAvatar(profile.avatar, placed()))}
   ${editing || !profile ? `<form id="avatar-form"><label>${t('name')}<input name="name" value="${escape(draft.avatarName ?? profile?.name)}" minlength="2" maxlength="24" required></label>
+  ${!profile ? `<label>${t('referralField')}<input name="referral" value="${escape(draft.referral)}" maxlength="15" autocapitalize="characters" autocomplete="off"></label>` : ''}
   ${avatarPresetPicker()}<div class="form-options">${avatarFields()}</div><button class="primary">${t('saveAvatar')}</button></form>` : `<div><h2>${name}</h2>
     ${profile.target ? `<p>${escape(profile.target)}</p>` : ''}
     <button class="secondary" data-action="edit">${t('editAvatar')}</button>
@@ -405,6 +424,7 @@ function profileView() {
     <input name="target" maxlength="48" value="${escape(draft.target ?? profile.target)}"></label><button class="secondary">${t('saveTarget')}</button></form>
     <div class="toolbar"><button class="secondary" data-action="study-card">${t('downloadCard')}</button>
     <a class="secondary" href="#ranking">${t('leaderboard')}</a></div>
+    ${dailyQuests(data.dailyQuests, t)}${studyInvitations(data, t, escape, locale)}${friendsPanel(data, draft.friendCode, t, escape)}
     <h2 class="section-title">${t('inventory')}</h2><p class="equipment-note">${t('equipmentLimit')}</p>${catalog(true)}` : ''}
   <div class="toolbar"><button class="secondary" data-action="sign-out">${t('signOut')}</button>
   <a class="secondary" href="${deletionHref()}">${t('deleteAccount')}</a>
@@ -415,6 +435,9 @@ function shopView() {
   const prizes = data.items.filter(item => item.kind === 'rare');
   const allOwned = prizes.length > 0 && prizes.every(item => data.inventory.some(entry => entry.item === item.id));
   return `<div class="heading"><h1>${t('shop')}</h1></div>
+  <div class="toolbar reward-toolbar"><button class="primary" data-action="reward-ad" ${openingAd ? 'disabled' : ''}>${t(openingAd ? 'adLoading' : 'watchAd')}</button>
+    <button class="secondary" data-action="coin-help">${t('coinHelp')}</button><small id="ad-cooldown" role="status"></small></div>
+  ${dailyQuests(data.dailyQuests, t)}
   <div class="toolbar"><button class="primary" data-action="openBox" ${!prizes.length || allOwned || data.profile.coins < 50 ? 'disabled' : ''}>${t('box')} · 50 ${t('coins')}</button>
   <button class="secondary" data-action="openChest" ${!data.chests ? 'disabled' : ''}>${t('chest')} · ${data.chests ?? 0}</button></div>
   ${allOwned ? `<p>${t('collectionComplete')}</p>` : ''}${catalog(false)}`;
@@ -472,6 +495,14 @@ function render() {
   languageToggle.disabled = lock;
   document.body.classList.toggle('focusing', lock);
   document.querySelector('#balance').textContent = data?.profile?.coins ?? 0;
+  const unread = (data?.friends?.filter(friend => friend.status === 'incoming').length ?? 0) + (data?.studyInvites?.length ?? 0);
+  const notification = document.querySelector('#social-unread');
+  notification.hidden = !unread;
+  notification.textContent = unread || '';
+  if (lock || !userId) {
+    if (inviteDialog.open) inviteDialog.close();
+    if (coinHelp.open) coinHelp.close();
+  }
   if (!userId || deletionPage || !data) {
     roomPreferences.sync(null);
     if (verification.open) verification.close();
@@ -491,9 +522,11 @@ function render() {
   if ((view !== 'room' || lock) && reactionDialog.open) reactionDialog.close();
   const room = data.rooms.find(item => item.id === data.profile?.room);
   const signature = JSON.stringify([view, view === 'room'
-    ? [room?.id, room?.minutes, room?.invite, data.profile?.status, data.session, durationChoice, data.inventory]
-    : view === 'rooms' ? data.rooms : view === 'ranking' ? ranking
-      : [data.profile, data.inventory, data.items, view === 'shop' && data.chests], editing, locale,
+    ? [room?.id, room?.minutes, room?.invite, data.profile?.status, data.session, durationChoice, data.inventory,
+      data.friends?.some(friend => friend.status === 'accepted')]
+    : view === 'rooms' ? [data.rooms, data.studyInvites] : view === 'ranking' ? ranking
+      : [data.profile, data.inventory, data.items, data.dailyQuests,
+        view === 'shop' ? [data.chests, data.adPlatforms?.web, openingAd] : [data.friends, data.studyInvites]], editing, locale,
   catalogCategory[view === 'profile' ? 'inventory' : view]]);
   paint(signature, () => view === 'room' ? roomView(room) : view === 'rooms' ? roomsView()
     : view === 'profile' ? profileView() : view === 'ranking' ? rankingView() : shopView());
@@ -530,6 +563,39 @@ function updateClock() {
     verification.querySelector('[data-value="break"]').disabled = !running() || pendingPauseAt !== undefined;
     if (!verification.open) verification.showModal();
   } else if (verification.open) verification.close();
+  const adButton = document.querySelector('[data-action="reward-ad"]');
+  if (adButton) {
+    const seconds = adCooldownSeconds(data?.adRetryAt, observed);
+    adButton.disabled = openingAd || seconds > 0 || !data?.adPlatforms?.web;
+    const help = document.querySelector('#ad-cooldown');
+    const label = seconds ? `${t('adCooldown')} · ${format(seconds)}` : !data?.adPlatforms?.web ? t('adUnavailable') : '';
+    if (help.textContent !== label) help.textContent = label;
+  }
+}
+
+async function watchRewardAd() {
+  if (!data?.adPlatforms?.web) { toast(t('adUnavailable')); return; }
+  if (openingAd || adCooldownSeconds(data.adRetryAt, now())) return;
+  const viewer = window.open('about:blank', '_blank');
+  if (viewer) viewer.opener = null;
+  openingAd = true;
+  render();
+  const viewerId = userId;
+  try {
+    const { url } = await invokeLibrary(client, 'adStart', { platform: 'web' });
+    const placement = new URL(url);
+    if (placement.protocol !== 'https:' || placement.username || placement.password || viewerId !== userId || running()) throw Error('adUnavailable');
+    if (!viewer || viewer.closed) location.assign(placement.href);
+    else viewer.location.replace(placement.href);
+    toast(t('adPending'));
+  } catch (error) {
+    viewer?.close();
+    toast(messageFor(error.message, t));
+    refreshState();
+  } finally {
+    openingAd = false;
+    render();
+  }
 }
 
 function redirectTo() {
@@ -613,7 +679,7 @@ document.addEventListener('keydown', event => {
 
 document.addEventListener('submit', async event => {
   const form = event.target;
-  if (!['email-form', 'code-form', 'avatar-form', 'target-form', 'create-room-form', 'join-room-form'].includes(form.id)) return;
+  if (!['email-form', 'code-form', 'avatar-form', 'target-form', 'create-room-form', 'join-room-form', 'friend-form'].includes(form.id)) return;
   event.preventDefault();
   if (busy || !client) return;
   const fields = new FormData(form);
@@ -639,15 +705,22 @@ document.addEventListener('submit', async event => {
   }
   if (form.id === 'avatar-form') {
     const wasEditing = editing;
-    if (await request('profile', { ...avatar, name: fields.get('name') })) {
+    if (await request('profile', { ...avatar, name: fields.get('name'), referral: fields.get('referral') })) {
       editing = false;
       draft.avatarName = null;
+      draft.referral = '';
       lastView = undefined;
       if (!wasEditing) location.hash = 'rooms';
       render();
     }
   } else if (form.id === 'target-form') {
     if (await request('target', { target: fields.get('target') })) draft.target = null;
+  } else if (form.id === 'friend-form') {
+    if (await request('addFriend', { code: fields.get('friendCode') })) {
+      draft.friendCode = '';
+      const field = document.querySelector('#friend-form input');
+      if (field) field.value = '';
+    }
   } else {
     const create = form.id === 'create-room-form';
     if (await request(create ? 'createRoom' : 'joinCode', create ? { name: fields.get('roomName') } : { code: fields.get('invite') })) {
@@ -681,6 +754,15 @@ document.addEventListener('click', async event => {
     return;
   }
   if (!data?.profile || (running() && action !== 'verify' && !(action === 'status' && value === 'break'))) return;
+  if (action === 'coin-help') { coinHelp.showModal(); return; }
+  if (action === 'reward-ad') { await watchRewardAd(); return; }
+  if (action === 'invite-dialog') {
+    const friends = (data.friends ?? []).filter(friend => friend.status === 'accepted');
+    inviteDialog.querySelector('.study-invite-options').innerHTML = friends.map(friend =>
+      `<button class="secondary" data-action="inviteFriend" data-value="${escape(friend.id)}">${escape(friend.name)}</button>`).join('');
+    inviteDialog.showModal();
+    return;
+  }
   if (action === 'edit') {
     avatar = { ...defaultAvatar, ...data.profile.avatar };
     editing = true;
@@ -712,16 +794,22 @@ document.addEventListener('click', async event => {
     join: { room: value }, status: { status: value }, start: { duration: duration() },
     buy: { item: value }, place: { item: value }, react: { desk: selectedDesk?.desk_ref, kind: value },
     rankingVisibility: { visible: value === 'true' },
+    answerFriend: { id: value, answer: button.dataset.answer }, removeFriend: { id: value },
+    inviteFriend: { id: value }, answerStudyInvite: { id: value, answer: button.dataset.answer },
   };
   const pausing = running() && action === 'status' && value === 'break';
   if (pausing) { pendingPauseAt = now(); updateClock(); }
   const success = await request(action, payload[action]);
   if (pausing) { pendingPauseAt = undefined; updateClock(); }
   if (success) {
-    if (action === 'join') location.hash = 'room';
+    if (action === 'join' || (action === 'answerStudyInvite' && data.joinedInvite)) location.hash = 'room';
     if (action === 'leave') location.hash = 'rooms';
     if (action === 'buy') toast(t('buySuccess'));
     if (action === 'react') { reactionDialog.close(); toast(t('reactionSent')); }
+    if (action === 'inviteFriend') {
+      if (inviteDialog.open) inviteDialog.close();
+      toast(t('studyInviteSent'));
+    }
     if (action === 'rankingVisibility') { ranking = undefined; render(); }
   }
 });

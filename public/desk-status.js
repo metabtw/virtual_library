@@ -1,6 +1,6 @@
 export function recordDeskStatus(updates, message) {
   const { desk, status, at } = message ?? {};
-  if (typeof desk !== 'string' || (status !== 'desk' && status !== 'break') || !Number.isSafeInteger(at)
+  if (typeof desk !== 'string' || !['desk', 'break', 'working'].includes(status) || !Number.isSafeInteger(at)
     || (updates.get(desk)?.at ?? 0) >= at) return updates;
   const next = new Map(updates);
   next.delete(desk);
@@ -13,7 +13,10 @@ export function displayDeskStatuses(members, snapshotTime, updates) {
   if (updates.size === 0) return members;
   return members.map(member => {
     const update = updates.get(member.desk_ref);
-    return update?.at >= snapshotTime && update.status !== member.status
-      ? { ...member, status: update.status } : member;
+    if (!(update?.at >= snapshotTime) || update.status === (member.activity ?? member.status)) return member;
+    if (member.activity || update.status === 'working') {
+      return { ...member, activity: update.status, status: update.status === 'working' ? 'desk' : update.status };
+    }
+    return { ...member, status: update.status };
   });
 }

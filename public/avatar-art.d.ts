@@ -7,7 +7,8 @@ export type DeskPropName =
   | 'lamp' | 'neon' | 'mushroomLamp' | 'goldKeys' | 'plant' | 'teaSet' | 'hourglass' | 'foxMug' | 'retroRadio'
   | 'miniGlobe' | 'crystalTerrarium' | 'jellyTank' | 'origamiCrane';
 export type PropName =
-  | Exclude<DeskPropName, 'plant'> | PetItem | 'leaves' | 'pot' | 'catSleep' | 'catUpset';
+  | Exclude<DeskPropName, 'plant'> | PetItem | 'leaves' | 'pot' | 'catSleep' | 'catUpset' | 'space' | 'forest'
+  | 'jellyTankBase' | 'jellyTankDrift';
 export type AvatarFeatures = {
   hair_style?: number | null;
   outfit_style?: number | null;

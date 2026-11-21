@@ -15,7 +15,7 @@
       <a href="#rooms"><i aria-hidden="true">⌂</i><span data-text="rooms">Odalar</span></a>
       <a href="#room"><i aria-hidden="true">▤</i><span data-text="library">Kütüphane</span></a>
       <a href="#shop"><i aria-hidden="true">♧</i><span data-text="shop">Mağaza</span></a>
-      <a href="#profile"><i aria-hidden="true">♙</i><span data-text="profileNav">Profil &amp; Envanter</span></a>
+      <a href="#profile"><i aria-hidden="true">♙</i><span data-text="profileNav">Profil &amp; Envanter</span><span id="social-unread" hidden></span></a>
     </nav>
     <div class="sidebar-footer"><span class="dot"></span> <span data-text="libraryOpen">Kütüphane açık</span></div>
   </aside>
@@ -34,6 +34,19 @@
     <div class="dialog-actions"><button class="primary" data-action="react" data-value="coffee" data-text="coffeeReaction">☕ Kahve gönder</button>
       <button class="secondary" data-action="react" data-value="clap" data-text="clapReaction">👏 Alkışla</button>
       <form method="dialog"><button class="secondary" data-text="close">Kapat</button></form></div>
+  </dialog>
+  <dialog id="study-invite-dialog" aria-labelledby="study-invite-title">
+    <h2 id="study-invite-title" data-text="friendInvite">Arkadaşını çalışmaya davet et</h2>
+    <div class="study-invite-options"></div>
+    <form method="dialog"><button class="secondary" data-text="close">Kapat</button></form>
+  </dialog>
+  <dialog id="coin-help-dialog" aria-labelledby="coin-help-title">
+    <h2 id="coin-help-title" data-text="coinHelp">Jeton nasıl kazanılır?</h2>
+    <ul class="coin-help-list">
+      <li data-text="coinWelcome"></li><li data-text="coinFocus"></li><li data-text="coinQuests"></li>
+      <li data-text="referralInfo"></li><li data-text="coinAds"></li><li data-text="chestGoalInfo"></li><li data-text="coinChest"></li>
+    </ul>
+    <form method="dialog"><button class="secondary" data-text="close">Kapat</button></form>
   </dialog>
   <script type="module" src="/app.js"></script>
 </body>

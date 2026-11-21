@@ -58,11 +58,12 @@ const writingFramesByTone = [
 ];
 const propSources = {
   ...itemAssets,
-  cat: require('../assets/animations/cat.png'),
-  catSleep: itemAssets.cat,
+  catSleep: require('../assets/animations/catSleep.png'),
   catUpset: require('../assets/animations/catUpset.png'),
   pot: require('../assets/animations/pot.png'),
   leaves: require('../assets/animations/leaves.png'),
+  jellyTankBase: require('../assets/animations/jellyTankBase.png'),
+  jellyTankDrift: require('../assets/animations/jellyTankDrift.png'),
 };
 
 type PropName = keyof typeof propSources;
@@ -151,9 +152,11 @@ function DeskProp({ item, size, clock }: { item: DeskPropName; size: number; clo
     case 'foxMug':
       return <View style={specs}>
         {art(item)}
-        <Animated.View style={[styles.steam, {
-          height: size * .16, opacity: sparkle, transform: [{ translateY: pulse(clock, 1, -4) }],
-        }, item === 'foxMug' && { top: '4%', left: '39%' }]} />
+        {clock && [0, 1].map((wisp) => <Animated.View key={wisp} style={[styles.steam, {
+          height: size * .13, left: `${31 + wisp * 14}%`, top: item === 'foxMug' ? '13%' : '8%',
+          opacity: clock.interpolate({ inputRange: [0, .25, .65, 1], outputRange: wisp ? [.22, .84, .18, .22] : [.72, .24, .69, .72] }),
+          transform: [{ translateY: pulse(clock, 0, -size * .1) }],
+        }]} />)}
       </View>;
     case 'retroRadio': {
       const led = Math.max(2, size * .095);
@@ -175,12 +178,16 @@ function DeskProp({ item, size, clock }: { item: DeskPropName; size: number; clo
     case 'miniGlobe':
     case 'origamiCrane':
       return <Animated.View style={{ transform: [{ rotate: sway(clock, 12) }] }}>{art(item)}</Animated.View>;
-    case 'crystalTerrarium':
     case 'jellyTank':
+      return <View style={[specs, { overflow: 'hidden' }]}>
+        {art('jellyTankBase')}
+        <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateY: pulse(clock, 0, -size * .07) }] }]}>
+          {art('jellyTankDrift')}
+        </Animated.View>
+      </View>;
+    case 'crystalTerrarium':
       return <View style={specs}>
-        <Animated.View style={[styles.glow, {
-          backgroundColor: item === 'jellyTank' ? '#69deef' : '#da75e4', opacity: light,
-        }]} />
+        <Animated.View style={[styles.glow, { backgroundColor: '#da75e4', opacity: light }]} />
         {art(item)}
         <Animated.View style={[styles.spark, { backgroundColor: '#fff0ff', opacity: sparkle }]} />
       </View>;
@@ -206,8 +213,9 @@ function PetPath({ item, progress, width, own, clock }: {
   }) ?? 0;
   return <View pointerEvents="none" testID="pet-path" style={[styles.petPath, { width, height: size + 6 }]}>
     <Animated.View testID={`desk-pet-${item}`} style={[styles.pet, { transform: [
-      { translateX: rests ? edge : travel }, { translateY: rests ? pulse(clock, 0, -2) : step },
+      { translateX: rests ? edge : travel }, { translateY: rests ? pulse(clock, 0, -.6) : step },
       { scaleX: rests ? 1 : direction }, { scale: item === 'cat' ? 1 + Math.min(progress?.xp ?? 0, 5) * .023 : 1 },
+      { scaleY: rests ? pulse(clock, 1, 1.04) : 1 },
     ] }]}>
       <PropArt name={art} size={size} />
     </Animated.View>
@@ -248,14 +256,17 @@ function Desk({ member, width, peerWidth, artHeight, writingClock, itemClock, pe
   const own = member?.own === true;
   const dimensions = deskDimensions(own ? width : peerWidth, own);
   const avatar = member && dressedAvatar(member.avatar, member.placed);
-  const description = member && [member.name, member.target, t[member.status]].filter(Boolean).join(', ');
+  const activity = member?.activity ?? member?.status;
+  const statusLabel = activity ? t[activity === 'working' ? 'studyWorking' : activity] : '';
+  const description = member && [member.name, member.target, statusLabel].filter(Boolean).join(', ');
   const interactive = member?.desk_ref && !member.own && Boolean(onDeskPress);
   const Seat = interactive ? Pressable : View;
   return <Seat style={[styles.seat, { width }]} testID={own ? 'own-desk' : 'room-desk'} accessible accessibilityLabel={description || t.empty}
     accessibilityRole={interactive ? 'button' : undefined}
     onPress={interactive ? () => onDeskPress?.(member) : undefined}>
     <View style={[styles.seatArt, { minHeight: artHeight }]}>
-      {member && <Text numberOfLines={1} style={[styles.status, member.status === 'break' && styles.break]}>{t[member.status]}</Text>}
+      {activity && <Text numberOfLines={1} style={[styles.status, activity === 'break' && styles.break,
+        activity === 'working' && styles.working]}>{statusLabel}</Text>}
       {avatar && member?.status === 'desk' && <Sprite avatar={avatar} width={dimensions.avatar} pose="seated" />}
       <View testID="desk-surface" style={[styles.desk, {
         width: dimensions.surface, height: dimensions.tabletop,
@@ -351,6 +362,7 @@ const styles = StyleSheet.create({
   ownName: { color: '#ffd095', borderWidth: 1, borderColor: '#ffb362' },
   status: { color: '#d6f8ac', fontSize: 9, fontWeight: '700', backgroundColor: '#25252df3', borderRadius: 6, paddingHorizontal: 4, paddingVertical: 2, maxWidth: '100%' },
   break: { color: '#ffbe7e' },
+  working: { color: '#dacaff', backgroundColor: '#332650' },
   glow: { position: 'absolute', top: '4%', left: '6%', width: '80%', height: '78%', borderRadius: 999 },
   shine: { position: 'absolute', height: 2, borderRadius: 2 },
   spark: { position: 'absolute', left: '66%', top: '24%', width: 4, height: 4, transform: [{ rotate: '45deg' }] },

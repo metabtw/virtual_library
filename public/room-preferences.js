@@ -1,4 +1,5 @@
 import { webText } from './web-strings.js';
+import { roomGoalMinutes } from './study-rewards.js';
 
 const preferenceKey = 'library-room-preferences';
 
@@ -22,7 +23,7 @@ const isAvailable = (track, inventory) => !['space', 'forest'].includes(track) |
 
 export function resolveRoomTheme(choice, room) {
   if (choice !== 'auto') return choice;
-  if ((room?.minutes ?? 0) >= 500) return 'aurora';
+  if ((room?.minutes ?? 0) >= roomGoalMinutes) return 'aurora';
   if (room?.id === 'garden') return 'garden';
   if (room?.id === 'archive') return 'stars';
   return 'classic';

@@ -23,7 +23,7 @@ header{height:70px;border-bottom:1px solid var(--line);display:flex;align-items:
 .breadcrumb b{color:var(--ink)}
 .wallet{border:1px solid var(--line);background:var(--panel);padding:8px 14px;border-radius:24px;font-size:13px;white-space:nowrap}
 .wallet span[aria-hidden]{color:var(--accent);margin-right:4px}
-.header-tools{display:flex;align-items:center;justify-content:end;gap:7px;flex-wrap:wrap}
+.header-tools{display:flex;align-items:center;justify-content:end;gap:7px;flex:none}
 #language-toggle{padding-inline:9px}
 .room-search,.catalog-filter{width:min(100%,24rem);margin-bottom:15px}
 .room-card[hidden]{display:none}
@@ -277,7 +277,7 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 .desk-pet img {animation: pet-step .26s steps(2,end) infinite alternate}
 :is(.pet-pinkRabbit,.pet-yellowChick) img {animation-duration: .38s}
 .desk-pet.pet-rest {animation: none;left: max(0px, calc(100% - var(--pet-size)))}
-.desk-pet.pet-rest img {transform-origin: 50% 76%;animation: pet-breathe 2s ease-in-out infinite alternate}
+.desk-pet.pet-rest img {transform-origin: 50% 76%;animation: pet-breathe 2.5s ease-in-out infinite alternate}
 @keyframes lamp-glow {
   from {opacity: .52; transform: scale(.83)}
   to {opacity: .95; transform: scale(1.13)}
@@ -512,6 +512,67 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 .notice-page {display:block;padding: 16px}
 .notice-page .account-card {width: min(100%, 42rem);margin: 20px auto}
 .notice-details {white-space: pre-line;overflow-wrap:anywhere}
+
+.compact-heading {flex-direction:row;align-items:center;gap:8px;margin-bottom:12px}
+.compact-heading h1 {min-width:0}
+.compact-heading .secondary {padding:8px 10px;font-size:12px;line-height:1.25;text-align:center;white-space:normal}
+.room-identity,.room-card-title {display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0;width:100%}
+.room-identity h1,.room-card-title h2 {margin:0;min-width:0}
+.private-badge {display:inline-block;flex:none;border:1px solid #e8ac6c66;border-radius:999px;background:#e3a75c20;
+  color:#ffcd96;font-weight:700;font-size:11px;padding:4px 7px;line-height:1.15;white-space:nowrap}
+.room-heading .invite-friends {flex:none;min-height:40px}
+.invite-friends span {margin:0 4px 0 0}
+.room-goal {display:flex;align-items:center;gap:9px;margin:0 0 10px;padding:8px 10px;border:1px solid #e8ac6c50;
+  background:#31222d;border-radius:12px;color:#ffe2be;font-size:clamp(11px,2.8vw,14px)}
+.room-goal span {min-width:0;font-weight:700}
+.room-goal b {font-variant-numeric:tabular-nums;white-space:nowrap}
+.room-goal progress {flex:1;min-width:22px}
+progress {height:7px;accent-color:#e9b275}
+.seat-status.working {color:#d7c8ff;border-color:#a189d58a;background:#28213aee}
+.seat-status.working .dot {background:#b9a2f3;box-shadow:0 0 6px #b9a2f3}
+.room-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(8px,2vw,16px)}
+.room-card {min-width:0;padding:clamp(9px,2vw,16px);gap:6px}
+.room-card .item-icon {min-height:clamp(39px,12vw,78px);font-size:clamp(22px,5vw,43px)}
+.room-card .room-card-title {padding-top:2px;gap:5px}
+.room-card h2 {font-size:clamp(13px,3.3vw,19px);line-height:1.2}
+.room-card p {font-size:12px;margin:0 0 3px}
+.room-card button {width:100%;padding:8px 6px;white-space:normal;overflow-wrap:anywhere}
+.room-actions .card {min-width:0;gap:7px;padding:clamp(9px,2vw,16px)}
+.room-actions :is(button,input) {font-size:12px}
+.room-actions button {white-space:normal;overflow-wrap:anywhere}
+.room-search {margin-bottom:10px}
+.community-card {width:100%;gap:10px;margin:12px 0}
+.community-card h2,.community-card p {margin:0}
+.community-row {display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;width:100%;
+  border-top:1px solid var(--line);padding-top:8px;overflow-wrap:anywhere}
+.community-row strong {display:block}
+.community-actions,.account-codes,.friend-form,.study-invite-options {display:flex;gap:8px;flex-wrap:wrap;align-items:end;min-width:0}
+.community-actions :is(button,a),.friend-form button {white-space:normal}
+.account-codes > div {background:#211821;border-radius:8px;padding:5px 8px}
+.account-codes small {color:var(--muted)}
+.friend-form {width:100%}
+.friend-form .field {flex:1 1 165px}
+.friend-form button {margin-top:0}
+.quest-grid {display:grid;width:100%;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.quest {display:grid;gap:4px;padding:8px 9px;background:#201720a8;border-radius:9px;min-width:0;font-size:12px}
+.quest div {display:flex;justify-content:space-between;gap:4px;flex-wrap:wrap}
+.quest span {color:#ffcc96}
+.quest small,#ad-cooldown {color:var(--muted)}
+.quest progress {width:100%}
+.reward-toolbar {align-items:center}
+.reward-toolbar small {flex-basis:100%}
+.reward-toolbar small:empty {display:none}
+.study-invite-options {margin:14px 0;max-height:50dvh;overflow:auto}
+.coin-help-list {padding-inline-start:19px;color:var(--muted);line-height:1.5}
+.coin-help-list li + li {margin-top:8px}
+nav a:has(#social-unread) {position:relative}
+#social-unread {position:absolute;inset-block-start:2px;inset-inline-end:3px;border-radius:999px;
+  background:#ffbd73;color:#221523;line-height:1;padding:3px 5px;font-size:10px}
+@media (max-width: 690px) {
+  .heading.compact-heading {flex-direction:row;align-items:center}
+  .invite-friends b {display:none}
+  .invite-friends span {margin:0;font-size:16px;color:var(--ink)}
+}
 .stacked { display: grid; gap: 10px; }
 .stacked label { display: grid; gap: 4px; }
 .toolbar, .dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
@@ -519,7 +580,7 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 .seat-target { color: #e5c9ad; background: #241a2ae0; font-size: 10px; padding: 2px 4px; border-radius: 5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.seat-name { cursor: pointer; color: inherit; }
 button.seat-name:hover { outline: 1px solid #ffb469; }
-.desk-goldKeys img {animation: keyboard-glow 1.9s ease-in-out infinite alternate}
+.desk-goldKeys img {animation: keyboard-glow 2.8s ease-in-out infinite alternate}
 :is(.desk-teaSet, .desk-foxMug)::after {
   content: '';
   position: absolute;
@@ -531,7 +592,7 @@ button.seat-name:hover { outline: 1px solid #ffb469; }
   border-radius: 50%;
   animation: tea-steam 1.7s ease-out infinite;
 }
-.desk-foxMug::after {left: 40%;bottom: 77%}
+.desk-foxMug::after {left: 36%;bottom: 71%;width: 11%;height:18%;box-shadow:4px -2px #ffdacf4a}
 .desk-retroRadio::after {
   content: '';
   position: absolute;
@@ -544,24 +605,22 @@ button.seat-name:hover { outline: 1px solid #ffb469; }
   box-shadow: 0 0 5px #ff9b55;
   animation: radio-light 1.5s ease-in-out infinite alternate;
 }
-.desk-hourglass img {
-  transform-origin: 50% 39%;
-  animation: hourglass-flip 5s ease-in-out infinite;
-}
+.desk-hourglass::after {content:'';position:absolute;left:47%;top:37%;width:6%;height:7%;
+  background:#ffd483;border-radius:50%;animation:sand-fall 1.5s linear infinite}
 :is(.desk-miniGlobe, .desk-origamiCrane) img {
   transform-origin: 46% 70%;
   animation: globe-rock 2.8s ease-in-out infinite alternate;
 }
 .desk-crystalTerrarium {--display-glow:#da92f0}
-.desk-jellyTank {--display-glow:#69deef}
-:is(.desk-crystalTerrarium, .desk-jellyTank) img {animation: display-glow 2.1s ease-in-out infinite alternate}
+.desk-crystalTerrarium img {animation: display-glow 3s ease-in-out infinite alternate}
+.desk-jellyTank .jelly-drift {animation:jelly-drift 2.6s ease-in-out infinite alternate}
 @keyframes keyboard-glow {
   from {filter: brightness(.96)}
-  to {filter: brightness(1.5) drop-shadow(0 0 4px #ffce70)}
+  to {filter: brightness(1.20) drop-shadow(0 0 3px #ffce70)}
 }
 @keyframes pet-breathe {
-  from {transform: scaleY(.94)}
-  to {transform: scaleY(1.12) translateY(-1px)}
+  from {transform: scaleY(1)}
+  to {transform: scaleY(1.045)}
 }
 @keyframes tea-steam {
   from {opacity: .78;transform: translate(0, 3px) scale(.66)}
@@ -571,10 +630,13 @@ button.seat-name:hover { outline: 1px solid #ffb469; }
   from {opacity: .22}
   to {opacity: 1}
 }
-@keyframes hourglass-flip {
-  0%, 44% {transform: rotate(0deg)}
-  56%, 91% {transform: rotate(180deg)}
-  100% {transform: rotate(360deg)}
+@keyframes sand-fall {
+  from {transform:translateY(-40%);opacity:1}
+  to {transform:translateY(150%);opacity:0}
+}
+@keyframes jelly-drift {
+  from {transform:translateY(0)}
+  to {transform:translateY(-7%)}
 }
 @keyframes globe-rock {
   from {transform: rotate(-11deg)}
@@ -586,12 +648,12 @@ button.seat-name:hover { outline: 1px solid #ffb469; }
 }
 @media (prefers-reduced-motion: reduce) {
   .desk-writing img,.desk-prop img,.desk-light::before,.desk-pet,.desk-pet img,.desk-pet.pet-rest img,
-  :is(.desk-teaSet, .desk-foxMug, .desk-retroRadio)::after {animation: none}
+  :is(.desk-teaSet, .desk-foxMug, .desk-retroRadio, .desk-hourglass)::after {animation: none}
   .desk-pet {left: max(0px,calc(100% - var(--pet-size)))}
   :is(.desk-teaSet, .desk-foxMug)::after {display: none}
 }
-.item-preview { min-height: 96px; display: grid; place-items: center; }
-.item-preview img, .catalog-plant { width: 72px; height: 72px; object-fit: contain; image-rendering: pixelated; }
+.item-preview { min-height: 112px; display: grid; place-items: center; }
+.item-preview img, .catalog-plant { width: 100px; max-width: 100%; height: 100px; object-fit: contain; image-rendering: pixelated; }
 .item-preview img.sprite {height: 100px}
 .equipment-note {font-size: 13px;line-height: 1.5}
 .catalog-plant { position: relative; }

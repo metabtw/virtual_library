@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { avatarOptions, avatarPresets, avatarSize, defaultAvatar, deskEquipment, drawAvatar, drawProp, drawWritingHands,
   dressedAvatar, hairStyles, hasPropArt, petAppearance, pickAvatarStyle, standingAvatarSize, writingSize } from '../public/avatar-art.js';
+import { propSize } from '../public/prop-art.js';
 
 test('the shared writing loop has four bounded poses with a moving pencil and notebook', () => {
   const { width, height, frames } = writingSize;
@@ -44,12 +45,13 @@ test('new shop items have distinct skins and complete pixel art', () => {
   assert.equal(new Set([avatarArt(base), ...skins.map(item => avatarArt(dressedAvatar(base, [item])))]).size,
     skins.length + 1);
 
-  for (const item of ['mushroomLamp', 'foxMug', 'retroRadio', 'jellyTank', 'origamiCrane']) {
+  for (const item of ['mushroomLamp', 'foxMug', 'retroRadio', 'jellyTank', 'origamiCrane', 'crystalTerrarium',
+    'cat', 'pugPup', 'goldKeys', 'dragon', 'space', 'forest', 'jellyTankBase', 'jellyTankDrift']) {
     assert.ok(hasPropArt(item));
     const pixels = [];
     drawProp(item, (color, x, y) => {
       assert.match(color, /^#[0-9a-f]{6}$/);
-      assert.ok(x >= 0 && x < 16 && y >= 0 && y < 16);
+      assert.ok(x >= 0 && x < propSize && y >= 0 && y < propSize);
       pixels.push(color);
     });
     assert.ok(pixels.length > 40, `${item} has a visible silhouette`);
@@ -99,7 +101,7 @@ test('tabletop art reserves one cell per slot and pets a separate path', () => {
     assert.equal(petAppearance(item).rests, false);
     drawProp(item, (color, x, y) => {
       assert.match(color, /^#[0-9a-f]{6}$/);
-      assert.ok(x >= 0 && x < 16 && y >= 0 && y < 16);
+      assert.ok(x >= 0 && x < propSize && y >= 0 && y < propSize);
     });
   }
 });

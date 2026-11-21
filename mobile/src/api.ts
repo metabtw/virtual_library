@@ -40,5 +40,6 @@ export const library = (action: string, payload?: object) => invoke<Snapshot>(ac
 export const deleteAccount = () => invoke<{ deleted: boolean }>('deleteAccount');
 export const studySummary = () => invoke<StudySummary>('studySummary');
 export const leaderboard = () => invoke<Leaderboard>('leaderboard');
+export const openRewardedAd = (platform: 'android' | 'ios') => invoke<{ attempt: string; unit: string }>('adStart', { platform });
 export const updateDevice = (action: 'pushRegister' | 'pushRemove', token: string, locale?: string) =>
   invoke<{ ok: boolean }>(action, { token, locale });

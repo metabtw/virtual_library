@@ -1,3 +1,5 @@
+import { hasDetailedProp, paintDetailedProp } from './prop-art.js';
+
 const additionalHair = { tr: ['Kıvırcık', 'Geri taranmış', 'Yandan atkuyruğu'], en: ['Curls', 'Swept back', 'Side ponytail'] };
 export const hairStyles = {
   unspecified: {
@@ -351,12 +353,6 @@ const propPalette = {
 };
 
 const propPixels = {
-  cat: [
-    '................', '.......x..x.....', '......xyxxyx....', 'x.....xyyyyx....',
-    'xx...xyxyxyx....', '.xa.xyyyyyyx....', '..xxyyyyycyx....', '...xyaayyaxx....',
-    '...xaaaaaaaaax..', '....xayxxayxx...', '.....xx..xx.....', '................',
-    '................', '................', '................', '................',
-  ],
   lamp: [
     '................', '......xxxx......', '.....xyyyyx.....', '....xyyyyyyx....',
     '...xyyyyyyyyx...', '...xccccccccx...', '....xxxxxxxx....', '.......yb.......',
@@ -375,11 +371,6 @@ const propPixels = {
     '................', '................', '....xxxxxxxx....', '....xrrrrrrx....',
     '.....xrbbbx.....', '.....xrbbbx.....', '......xbbx......', '......xxxx......',
   ],
-  catSleep: [
-    '.............yy.', '............y...', '.............yy.', '................',
-    '................', '.......xx..xx...', '......xyyxxxyx..', '....xxyyyyyyyx..',
-    '...xyyyxyyxyyxx.', '..xyyyyycyyyyaa.', '.xaaaaayyyyyyax.', '.xxxxxxxxxxxxx..',
-  ],
   catUpset: [
     '................', '................', '................', '................',
     '................', '........x..x....', '.....xxxaxxxax..', '....xaaaaaaaax..',
@@ -390,17 +381,6 @@ const propPixels = {
     '...xccccccccx...', '....xxxxxxxx....', '.......nn.......', '.......ns.......',
     '.......ns.......', '.......ns.......', '.......ns.......', '......xxx.......',
     '....xxnnssxx....', '....xxxxxxxx....', '................', '................',
-  ],
-  goldKeys: [
-    '................', '................', '................', '................',
-    '................', '................', '................', '................',
-    '..xxxxxxxxxxxx..', '.xycycycycycyyx.', '.xyyyyyyyyyyyyx.', '.xycycycycycyax.',
-    '.xyyyyyyyyyyaax.', '..xxxxxxxxxxxx..',
-  ],
-  dragon: [
-    '................', '.........v......', '........vx......', '......xvxx......',
-    '.....xvvvx......', '....xvvsx...vv..', '..xxvvvsxxxxvx..', '.xvvvvssvvvx....',
-    '..xgxsvvvsxxx...', '...xvvvvssvvx...', '....xxvvvvxx....', '......xxxx......',
   ],
   teaSet: [
     '................', '......w.........', '.....w..........', '......w.........',
@@ -420,53 +400,11 @@ const propPixels = {
     '...xthhhnnhx....', '....xtthhhx.....', '.....xxxxx......', '.......ax.......',
     '.....xayaxx.....', '....xxxxxxxx....', '................', '................',
   ],
-  crystalTerrarium: [
-    '.......xx.......', '......xhwx......', '....xxhwwhxx....', '...xw..h..hwx...',
-    '..xw...s...hwx..', '..xh..svs..hhx..', '..xh.vsvs..hhx..', '..xh.mvlm.gthx..',
-    '..xhggllgmgthx..', '..xhtggggghhxx..', '...xbbbrrbbx....', '....xxxxxxxx....',
-    '................', '................', '................', '................',
-  ],
-  mushroomLamp: [
-    '................', '......xxxx......', '....xxffffxx....', '...xfpfccfffx...',
-    '..xfffppffpffx..', '..xfccffffpffx..', '.xffccffffffffx.', '.xppppppppppppx.',
-    '..xxccccccccxx..', '....xxccwcxx....', '.....xcwccx.....', '.....xcwwcx.....',
-    '....xxcwwcxx....', '...xdddrrdddx...', '...xxxxxxxxxx...', '................',
-  ],
-  foxMug: [
-    '................', '................', '...xx....xx.....', '..xaax..xax.....',
-    '..xyyxxxxyx.....', '..xyyyyyyax.xx..', '..xyxyyxyaxxyyx.', '..xycxyxcax..ax.',
-    '..xyccxccaxyax..', '..xacccccaxxx...', '...xaaaaax......', '....xxxxx.......',
-    '...xrrbbrrx.....', '...xxxxxxxx.....', '................', '................',
-  ],
-  retroRadio: [
-    '................', '..........x.....', '.........dx.....', '........dx......',
-    '.......dx.......', '..xxxxxxxxxxxx..', '.xdrddddrrddddx.', '.xdrxdxdxrnnndx.',
-    '.xdrrdxdxrnqndx.', '.xdrxdxdxrrucdx.', '.xdrrdrdrdrrddx.', '.xddddddddddddx.',
-    '..xxxxxxxxxxxx..', '...xx......xx...', '................', '................',
-  ],
-  jellyTank: [
-    '................', '...xxxxxxxxxx...', '..xqqqqqqqqqqx..', '..xqkkkkkkkkhx..',
-    '..xqkknnkkkkhx..', '..xqknsssskkhx..', '..xqkspspskkhx..', '..xqknsssskkhx..',
-    '..xqkkskskkkhx..', '..xqkskkskkqhx..', '..xqgkkqkkgghx..', '..xqggkggggghx..',
-    '..xdddbbbddddx..', '...xxxxxxxxxx...', '................', '................',
-  ],
   origamiCrane: [
     '................', '..........xx....', '.........xqqxx..', '........xqg..xx.',
     '........xqx.....', '.xxxx...xqx.....', '.xqqqxxxqxxx....', '..xqqxqqqqqqxx..',
     '...xqlggqqgqlx..', '....xgglggggx...', '.....xxxxxxx....', '.......xgx......',
     '......xgggx.....', '......xxxxx.....', '................', '................',
-  ],
-  pinkRabbit: [
-    '.....xx..xx.....', '....xiixxiix....', '....xijxxjix....', '.....xijjix.....',
-    '.....xijjjx.....', '....xiiiiijx....', '...xiixiixiix...', '...xipifipijx...',
-    '...xiiiiiiijx...', '..xiijiijijjxx..', '..xiiiijjjjjxix.', '..xiijjjjjjjxx..',
-    '...xjjjjjjjx....', '...xiixxxiix....', '...xxxx.xxxx....', '................',
-  ],
-  pugPup: [
-    '................', '....xxxxxx......', '...xeooooex.....', '..xeoxxooeex....',
-    '..xeocxoceex..xx', '..xextxetxex.xox', '..xeexexexexxox.', '..xeeeeeeooooox.',
-    '...xexfexooooox.', '....xoooooooaox.', '....xooaooooaox.', '....xoooxxooxox.',
-    '....xeox..xoex..', '....xxxx..xxxx..', '................', '................',
   ],
   yellowChick: [
     '................', '......xx.x......', '.....xyxxx......', '....xycyyyx.....',
@@ -495,13 +433,19 @@ export function petAppearance(pet, progress) {
 }
 
 export function hasPropArt(name) {
-  return Object.hasOwn(propPixels, name);
+  return hasDetailedProp(name) || Object.hasOwn(propPixels, name);
 }
 
 export function drawProp(name, paint) {
+  if (hasDetailedProp(name)) { paintDetailedProp(name, paint); return; }
   propPixels[name].forEach((row, y) => {
     Array.from(row).forEach((pixel, x) => {
-      if (pixel !== '.') paint(propPalette[pixel], x, y);
+      if (pixel === '.') return;
+      const shade = propPalette[pixel];
+      paint(shade, x * 2, y * 2);
+      paint(shade, x * 2 + 1, y * 2);
+      paint(shade, x * 2, y * 2 + 1);
+      paint(shade, x * 2 + 1, y * 2 + 1);
     });
   });
 }

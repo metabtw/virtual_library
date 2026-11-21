@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { crc32, deflateSync } from 'node:zlib';
 import { avatarOptions, avatarPresets, drawAvatar, drawProp, drawWritingHands, dressedAvatar,
   standingAvatarSize, writingSize } from '../public/avatar-art.js';
+import { propSize } from '../public/prop-art.js';
 
 const base = { gender: 'unspecified', hair: 0, outfit: 1, color: '#83778f' };
 const root = new URL('../mobile/assets/', import.meta.url);
@@ -59,7 +60,7 @@ function avatar(file, look) {
 }
 
 function prop(file, ...parts) {
-  render(file, 16, 16, 10, rect => {
+  render(file, propSize, propSize, 5, rect => {
     for (const part of parts) drawProp(part, (color, x, y) => rect(color, x, y, 1, 1));
   });
 }
@@ -79,28 +80,13 @@ for (const item of [
 for (const item of [
   'lamp', 'goldKeys', 'dragon', 'neon', 'teaSet', 'hourglass', 'miniGlobe', 'crystalTerrarium',
   'mushroomLamp', 'foxMug', 'retroRadio', 'jellyTank', 'origamiCrane', 'pinkRabbit', 'pugPup', 'yellowChick',
+  'cat', 'space', 'forest',
 ]) {
   prop('items/' + item + '.png', item);
 }
-prop('items/cat.png', 'catSleep');
 prop('items/plant.png', 'leaves', 'pot');
-render('items/space.png', 16, 16, 10, rect => {
-  rect('#635586', 3, 5, 10, 7);
-  rect('#a79bd9', 4, 4, 8, 8);
-  rect('#ded8fa', 5, 5, 3, 2);
-  rect('#e9bb74', 2, 8, 12, 2);
-  rect('#f8e3b0', 13, 2, 2, 2);
-});
-render('items/forest.png', 16, 16, 10, rect => {
-  rect('#638564', 1, 6, 5, 5);
-  rect('#a2c389', 2, 3, 3, 5);
-  rect('#705261', 5, 7, 9, 2);
-  rect('#aa7554', 6, 9, 7, 5);
-  rect('#f9c77a', 8, 9, 3, 3);
-  rect('#477264', 2, 13, 12, 2);
-});
 
-for (const part of ['cat', 'catUpset', 'leaves', 'pot']) prop('animations/' + part + '.png', part);
+for (const part of ['catSleep', 'catUpset', 'leaves', 'pot', 'jellyTankBase', 'jellyTankDrift']) prop('animations/' + part + '.png', part);
 for (let tone = 0; tone < avatarOptions.skin_tone.tr.length; tone++) {
   for (let frame = 0; frame < writingSize.frames; frame++) {
     const file = tone === 0 ? 'writing-' + frame : 'writing-' + tone + '-' + frame;

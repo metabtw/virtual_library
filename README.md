@@ -5,8 +5,8 @@ Sanal Kütüphane, avatarla katılınan ortak odalarda odaklanmak için bir web 
 ## Önkoşullar ve Supabase
 
 - Node.js 24 veya üzeri, npm ve çalışır durumda bir Supabase projesi gerekir.
-- Depoyu ilk kez indiriyorsan `git clone --branch sanal-kutuphane-mvp https://github.com/metabtw/virtual_library.git` komutunu kullan. Depo zaten bilgisayarındaysa `git fetch origin`, `git switch sanal-kutuphane-mvp` ve `git pull --ff-only` komutları güncel sürümü getirir.
-- Depodaki migration'lar, `library` ve `reward-worker` Edge Function'ları ile ödül zamanlayıcısı test projesinde kurulmuş olmalı. E-posta bağlantısı, yönlendirme adresleri, isteğe bağlı Google ve Apple girişi ve zamanlayıcı ayarları için kurulum rehberini kullan. [Supabase kurulum rehberi](docs/supabase-kurulum.md)
+- Depoyu ilk kez indiriyorsan `git clone --branch sanal-kutuphane-sosyal-oduller https://github.com/metabtw/virtual_library.git` komutunu kullan. Depo zaten bilgisayarındaysa `git fetch origin`, `git switch sanal-kutuphane-sosyal-oduller` ve `git pull --ff-only` komutları güncel sürümü getirir.
+- Depodaki migration'lar ile `library`, `reward-worker` ve `ad-reward` Edge Function'larını ayrı bir Supabase test projesinde kur. E-posta girişi, yönlendirmeler, ödül zamanlayıcısı ve reklam ayarları için kurulum rehberlerini kullan. [Supabase kurulumu](docs/supabase-kurulum.md) · [Ödüllü reklam kurulumu](docs/odullu-reklam.md)
 - Web için kökteki `.env.example`, mobil için `mobile/.env.example` dosyasını kendi klasöründe `.env.local` olarak kopyala. Windows PowerShell’de `Copy-Item .env.example .env.local` kullanabilirsin. İki dosyada da aynı projenin `EXPO_PUBLIC_SUPABASE_URL` ve `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` değerlerini kullan. Bu dosyalara yalnızca istemciye açık değerler girilir.
 - E-posta bağlantısını giriş isteğini başlattığın tarayıcı profilinde veya mobil cihazda aç. Genel kullanıcılara e-posta göndermek için Supabase'de özel SMTP yapılandır. E-posta şablonuna kod eklediğinde web ve mobilde `EXPO_PUBLIC_AUTH_EMAIL_CODE=true` ile kod alanını açabilirsin.
 
@@ -70,17 +70,23 @@ Bu işlemleri deneme hesaplarıyla yap. Bir hesabın silinmesini içeren adım i
 | --- | --- |
 | Yeni hesapla giriş yap ve ilk avatarı kaydet | Altı hazır karakterden birini seçip saç modelini, kıyafeti, renkleri ve sakalı değiştir. Görünüm kaydedilir ve ilk profilde 30 jeton bir kez verilir. |
 | Aynı Supabase hesabını web ve mobilde aç | Ad, avatar, jeton ve envanter eşleşir. Bir istemcide yapılan satın alma diğerinde görünür. |
-| İki hesapla aynı odaya katıl | Oda sayısı, hedef etiketi ve Masada/Molada durumu güncellenir. Kendi masan ortadadır. Durum değişiminin diğer ekrana yansıması için hedef 2 saniyedir. Diğer hesaptan kahve veya alkış gönderince tepki alıcıya görünür. |
+| İki hesapla aynı odaya katıl | Katılımcı sayısı, hedef etiketi ve Çalışıyor, Masada, Molada durumları güncellenir. Kendi masan ortadadır. Durum değişiminin diğer ekrana yansıması için hedef 2 saniyedir. Diğer hesaptan kahve veya alkış gönderince tepki alıcıya görünür. |
 | Masada ve molada sahneyi kontrol et | Masada avatarın elleri açık defterde kalemle hareket eder. Bitkinin yaprakları salınır ve lambanın parlaklığı değişir. Evcil hayvan masa kenarındaki kendi alanında hareket eder veya dinlenir. Molada avatar ve yazı animasyonu kaybolur, eşyalar ve evcil hayvan görünmeye devam eder. |
 | Özel süreyi beş dakika seç ve periyodu tamamla | Özel süre 5–180 dakika aralığını kabul eder. Beş dakika doğrulama gerektirmez ve tamamlanınca bir jeton verir. |
 | 50 dakikalık periyodu başlat, mola ver ve geri dön | Mola sırasında kalan süre sabit kalır. Doğrulamayı 20. ve 40. odak dakikalarında açılan 30 saniyelik pencerede yap. Başarıyla tamamlandığında 10 jeton bir kez yazılır. |
 | Doğrulama penceresini kaçır | Periyot geçersiz olur ve jeton artmaz. Kedi envanterdeyse küskün duruma geçer. |
 | Mağazadan eşya ve evcil hayvan alıp envanterden kuşan | Tutar bir kez düşer. Yetersiz bakiye ve doğrudan sandık ödülü satın alma reddedilir. Işık, aksesuar ve dekor üç ayrı masaya bağlı yuvada görünür. Masa kenarında tek evcil hayvan bulunur. Aynı yuvaya yeni ürün kuşanınca önceki ürün envanterde kalır. |
 | 10 jetona özel oda aç ve davet kodunu kullan | Oda davetsiz hesaba görünmez. Altı haneli kodla katılım çalışır. Oda kapasitesi dokuz kişidir. |
+| Arkadaş koduyla hesap oluştur | Profilden bir Kullanıcı ID'si veya kayıt davet kodu al. Yeni hesaba ilk avatar kaydında 5, kod sahibine 10 ek jeton yazılır. |
+| Arkadaşını çalışmaya çağır | Kullanıcı ID'siyle arkadaşlık isteği gönder. İstek kabul edilince dolu olmayan odaya çalışma daveti yolla. Arkadaşın daveti kabul edince doğrudan odaya geçer. |
+| Günlük görevleri tamamla | Doğrulanan günlük süre 30 dakikaya gelince 5, 60 dakikaya gelince ek 10 jeton otomatik yazılır. |
+| Birlikte 100 oda dakikasına ulaş | Eşik anında odada kalanlara sandık verilir. Eşik öncesinde ayrılan hesap sandık almaz. |
 | Sıralamaya katıl ve çalışma kartını aç | Yalnızca doğrulanmış süre hesaba katılır. Sıralama isteğe bağlıdır. Günlük kartta avatar, dakika ve seri görünür. |
 | Deneme hesabını sil | Mobilde **Hesabımı ve Verilerimi Sil** veya webde `/account-deletion` üzerinden hesabı doğrula. Silinen hesaba bağlı profil, envanter ve çalışma kayıtları kaldırılır. |
 
-Kütüphane Ağacı her 500 doğrulanmış dakikada odada bulunan üyelere ücretsiz sandık verir. İlk eşikte **Odaya göre** arka planı kuzey ışıklarına dönüşür. 50 jetonluk Gizem Kutusu koleksiyonda bulunmayan bir nadir eşya verir. Koleksiyon tamamlandığında ücretsiz sandık 10 jeton verir ve ücretli kutu kapalıdır. Bu uzun senaryoların süreleri yerel veritabanı testinde ilerletilir.
+Kütüphane Ağacı her 100 doğrulanmış dakikada odada bulunan üyelere ücretsiz sandık verir. İlk eşikte **Odaya göre** arka planı kuzey ışıklarına dönüşür. 50 jetonluk Gizem Kutusu koleksiyonda bulunmayan bir nadir eşya verir. Koleksiyon tamamlandığında ücretsiz sandık 10 jeton verir ve ücretli kutu kapalıdır.
+
+Çalışma daveti, gönderen odada kaldığı sürece 30 dakika içinde kullanılabilir. Kayıt kodu ilk profil oluşturulurken işlenir. Mağazadaki **Jeton nasıl kazanılır?** düğmesi çalışma, görev, kayıt daveti ve reklam ödüllerini gösterir. [Reklam kurulumu ve testi](docs/odullu-reklam.md)
 
 Yağmur, şömine, kafe ve lo-fi döngüleri herkese açıktır. Uzay İstasyonu ve Orman Kulübesi paketleri mağazada 30'ar jetondur. Kedi her 50 doğrulanmış dakikada bir seviye ilerler. Günlük çalışma kartı ve haftalık sıralama gün ve hafta sınırlarında İstanbul saatini kullanır.
 
@@ -92,8 +98,8 @@ Depo kökünde.
 npm ci
 npm test
 npm run test:postgres
-deno check --no-lock --node-modules-dir=none supabase/functions/library/index.ts supabase/functions/reward-worker/index.ts
-deno test --no-lock --node-modules-dir=none --allow-env=EXPO_PUSH_ACCESS_TOKEN supabase/functions/_shared/rewards_test.ts
+deno check --no-lock --node-modules-dir=none supabase/functions/library/index.ts supabase/functions/reward-worker/index.ts supabase/functions/ad-reward/index.ts
+deno test --no-lock --node-modules-dir=none --allow-env=EXPO_PUSH_ACCESS_TOKEN supabase/functions/_shared/rewards_test.ts supabase/functions/_shared/ad_rewards_test.ts
 ```
 
 - `npm test`, web sunucusunu, Supabase istemci sözleşmesini, sayaç sınırlarını ve ortak piksel animasyonunu kontrol eder.
