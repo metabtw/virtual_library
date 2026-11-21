@@ -14,7 +14,6 @@ const webWords = {
   deletionPage: ['Hesabı silme sayfası', 'Account deletion page'],
   deletionWarning: ['Profilin, envanterin, çalışma geçmişin ve hesabına bağlı kayıtlar kalıcı olarak silinir.',
     'Your profile, inventory, study history and related records will be permanently deleted.'],
-  backToLibrary: ['Kütüphaneye dön', 'Return to the library'],
   accountDeleted: ['Hesabın ve verilerin silindi.', 'Your account and data were deleted.'],
   signedOut: ['Oturum kapatıldı.', 'You have signed out.'],
   allRooms: ['Tüm odalar', 'All rooms'],

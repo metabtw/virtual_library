@@ -1,6 +1,8 @@
+import { words } from './public/strings.js';
+
 const labels = {
   tr: {
-    title: 'Kişisel veri aydınlatması', language: 'English', library: 'Kütüphaneye dön',
+    title: 'Kişisel veri aydınlatması', language: 'English',
     intro: 'Sanal Kütüphane, hesabını yönetmek için e-posta adresini ve giriş sağlayıcını işler. Görünen adın, avatarın, çalışma hedefin, oda durumun, oturumların ve jeton işlemlerin hizmeti sunmak için saklanır.',
     people: 'Odadaki katılımcılar görünen adını, avatarını, oda durumunu ve paylaştığın çalışma hedefini görebilir. Haftalık sıralamaya katılırsan görünen adın ve doğrulanmış çalışma süren listelenir.',
     social: 'Arkadaşlık istekleri, çalışma davetleri, kullanıcı kodları ve ödül işlemleri ilgili özellikleri sunmak için işlenir. Ödüllü reklamı açtığında sağlayıcıya rastgele bir işlem kodu iletilir.',
@@ -10,7 +12,7 @@ const labels = {
     remove: 'Hesabımı ve verilerimi sil',
   },
   en: {
-    title: 'Privacy notice', language: 'Türkçe', library: 'Return to the library',
+    title: 'Privacy notice', language: 'Türkçe',
     intro: 'Virtual Library processes your email address and sign-in provider to manage your account. Your display name, avatar, study target, room status, sessions, and coin transactions are stored to provide the service.',
     people: 'Room participants can see your display name, avatar, room status, and shared study target. If you join the weekly ranking, your display name and verified study time are listed.',
     social: 'Friend requests, study invitations, user codes, and reward transactions are processed to provide these features. Starting a rewarded ad passes a random transaction code to the provider.',
@@ -38,7 +40,10 @@ export function privacyPage(requestedLanguage, env) {
 <link rel="stylesheet" href="/styles.css">
 <title>${text.title}</title>
 <body class="notice-page"><main class="card account-card">
-  <div class="toolbar"><a href="/?lang=${locale}">${text.library}</a><a href="/privacy?lang=${locale === 'tr' ? 'en' : 'tr'}">${text.language}</a></div>
+  <div class="notice-toolbar">
+    <a class="secondary account-back" href="/?lang=${locale}#profile"><span aria-hidden="true">←</span> ${words[locale].goBack}</a>
+    <a class="secondary account-back" href="/privacy?lang=${locale === 'tr' ? 'en' : 'tr'}">${text.language}</a>
+  </div>
   <h1>${text.title}</h1>
   <p>${text.intro}</p><p>${text.people}</p><p>${text.social}</p><p>${text.optional}</p>
   <h2>${text.details}</h2>
@@ -46,6 +51,6 @@ export function privacyPage(requestedLanguage, env) {
   ${contact ? `<p><b>${text.contact}</b> ${escape(contact)}</p>` : ''}
   ${details ? `<p class="notice-details">${escape(details)}</p>` : ''}
   ${controller && contact && details ? '' : `<p>${text.draft}</p>`}
-  <a class="secondary" href="/account-deletion?lang=${locale}">${text.remove}</a>
+  <a class="secondary account-button account-danger" href="/account-deletion?lang=${locale}">${text.remove}</a>
 </main></body></html>`;
 }

@@ -29,9 +29,7 @@ export function friendsPanel(snapshot, friendCode, t, escape) {
   if (!profile.readerCode) return '';
   return `<section class="card community-card">
     <h2>${t('friends')}</h2>
-    <div class="account-codes"><div><small>${t('readerCode')}</small><br><code>${escape(profile.readerCode)}</code></div>
-      <div><small>${t('referralCode')}</small><br><code>${escape(profile.referralCode)}</code></div></div>
-    <p>${t('referralInfo')}</p>
+    ${profile.referralCode ? `<p>${t('referralInfo')}</p>` : ''}
     <form class="friend-form" id="friend-form">
       <label class="field">${t('friendId')} <input name="friendCode" value="${escape(friendCode)}" required maxlength="15"
         autocapitalize="characters" autocomplete="off" placeholder="SK-…"></label>

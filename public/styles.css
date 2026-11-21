@@ -374,6 +374,19 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 }
 .profile-card form {width: min(100%,600px);min-width: 0}
 .profile-card .secondary {max-width: 100%;white-space: normal;margin-block: 3px}
+.profile-codes {display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.profile-codes > div {
+  display:grid;
+  gap:3px;
+  min-width:0;
+  max-width:100%;
+  padding:7px 11px;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:#201720d9;
+}
+.profile-codes dt {font-size:12px;color:var(--muted)}
+.profile-codes dd {margin:0;overflow-wrap:anywhere;color:#ffcf9a;font-size:14px;font-weight:700}
 .avatar-presets {margin: 0;padding: 0 0 4px;min-width: 0;border: 0;color: var(--muted);font-size: 12px}
 .avatar-presets legend {padding: 0 0 6px}
 .avatar-presets > div {display: grid;grid-template-columns: repeat(auto-fit,minmax(min(100%,82px),1fr));gap: 6px}
@@ -513,9 +526,38 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 
 .account-card { width: min(100%, 32rem); margin: 2rem auto; align-items: stretch; gap: 14px; }
 .account-card h1 { font-size: clamp(24px, 5vw, 38px); }
-.account-card a { color: var(--amber, #ffb360); }
+.account-card p {margin:0;line-height:1.55}
+.account-card a:not([class]) {color:var(--accent)}
+.account-section {align-items:stretch;gap:12px;margin-top:24px}
+.account-section h2 {margin:0}
+.account-actions {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr));gap:8px}
+.account-data {--action-fill:#24456a;--action-ink:#d6eaff;--action-border:#5687b7}
+.account-sign-out {--action-fill:#5a451d;--action-ink:#ffe698;--action-border:#a1803e}
+.account-danger {--action-fill:#642934;--action-ink:#ffd9d8;--action-border:#b75e69}
+.account-button {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:46px;
+  min-width:0;
+  margin-top:0;
+  white-space:normal;
+  text-align:center;
+  overflow-wrap:anywhere;
+  color:var(--action-ink);
+  background:var(--action-fill);
+  border-color:var(--action-border);
+}
+.account-button:hover:not(:disabled) {
+  background:color-mix(in srgb,var(--action-fill),var(--action-ink) 12%);
+  border-color:var(--action-ink);
+}
+.account-button:focus-visible {outline-color:var(--action-ink)}
+.account-back {align-self:flex-start;display:inline-flex;align-items:center;gap:7px;min-height:44px}
+.account-back span {margin:0}
 .notice-page {display:block;padding: 16px}
-.notice-page .account-card {width: min(100%, 42rem);margin: 20px auto}
+.notice-page .account-card {width:min(100%,42rem);margin:20px auto;padding:clamp(16px,4vw,28px)}
+.notice-toolbar {display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 .notice-details {white-space: pre-line;overflow-wrap:anywhere}
 
 .compact-heading {flex-direction:row;align-items:center;gap:8px;margin-bottom:12px}
@@ -571,10 +613,8 @@ progress {height:7px;accent-color:#e9b275}
 .community-row {display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;width:100%;
   border-top:1px solid var(--line);padding-top:8px;overflow-wrap:anywhere}
 .community-row strong {display:block}
-.community-actions,.account-codes,.friend-form,.study-invite-options {display:flex;gap:8px;flex-wrap:wrap;align-items:end;min-width:0}
+.community-actions,.friend-form,.study-invite-options {display:flex;gap:8px;flex-wrap:wrap;align-items:end;min-width:0}
 .community-actions :is(button,a),.friend-form button {white-space:normal}
-.account-codes > div {background:#211821;border-radius:8px;padding:5px 8px}
-.account-codes small {color:var(--muted)}
 .friend-form {width:100%}
 .friend-form .field {flex:1 1 165px}
 .friend-form button {margin-top:0}

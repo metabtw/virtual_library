@@ -46,18 +46,16 @@ export function FriendsPanel({ profile, friends = [], pending, t, add, answer, r
   remove: (id: string) => void; invite: (id: string) => void;
 }) {
   const [code, setCode] = useState('');
-  if (!profile.readerCode || !profile.referralCode) return null;
+  if (!profile.readerCode) return null;
   const registrationCode = profile.referralCode;
   return <View style={ui.card}>
     <Text style={ui.heading}>{t.friends}</Text>
-    <View style={styles.actions}>
-      <View><Text style={ui.small}>{t.readerCode}</Text><Text selectable style={ui.accent}>{profile.readerCode}</Text></View>
-      <View><Text style={ui.small}>{t.referralCode}</Text><Text selectable style={ui.accent}>{registrationCode}</Text></View>
-    </View>
-    <Text style={ui.small}>{t.referralInfo}</Text>
-    <Button muted onPress={() => void Share.share({ message: `${t.app} · ${t.referralCode} ${registrationCode}` }).catch(() => {})}>
-      {t.shareRegistration}
-    </Button>
+    {registrationCode && <>
+      <Text style={ui.small}>{t.referralInfo}</Text>
+      <Button muted onPress={() => void Share.share({ message: `${t.app} · ${t.referralCode} ${registrationCode}` }).catch(() => {})}>
+        {t.shareRegistration}
+      </Button>
+    </>}
     <Field label={t.friendId} value={code} onChangeText={setCode} maxLength={15} autoCapitalize="characters" autoCorrect={false} />
     <Button disabled={pending || code.trim().length !== 15} onPress={() => add(code.trim())}>{t.addFriend}</Button>
     {!friends.length && <Text style={ui.small}>{t.noFriends}</Text>}

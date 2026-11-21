@@ -1,12 +1,20 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
-export function Button({ children, onPress, disabled, muted, accessibilityLabel }: {
-  children: ReactNode; onPress: () => void; disabled?: boolean; muted?: boolean; accessibilityLabel?: string;
+const buttonTones = {
+  data: { surface: { backgroundColor: '#24456a', borderColor: '#5687b7', borderWidth: 1 }, label: { color: '#d6eaff' } },
+  signOut: { surface: { backgroundColor: '#5a451d', borderColor: '#a1803e', borderWidth: 1 }, label: { color: '#ffe698' } },
+  danger: { surface: { backgroundColor: '#642934', borderColor: '#b75e69', borderWidth: 1 }, label: { color: '#ffd9d8' } },
+};
+
+export function Button({ children, onPress, disabled, muted, tone, accessibilityLabel }: {
+  children: ReactNode; onPress: () => void; disabled?: boolean; muted?: boolean;
+  tone?: keyof typeof buttonTones; accessibilityLabel?: string;
 }) {
+  const colors = tone ? buttonTones[tone] : undefined;
   return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
-    style={({ pressed }) => [ui.button, muted && ui.mutedButton, (disabled || pressed) && { opacity: .54 }]}>
-    <Text style={[ui.buttonText, muted && ui.ink]}>{children}</Text>
+    style={({ pressed }) => [ui.button, muted && ui.mutedButton, colors?.surface, (disabled || pressed) && { opacity: .54 }]}>
+    <Text style={[ui.buttonText, muted && ui.ink, colors?.label]}>{children}</Text>
   </Pressable>;
 }
 

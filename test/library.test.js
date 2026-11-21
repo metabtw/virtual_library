@@ -45,12 +45,15 @@ test('readiness and both privacy notice languages are public routes', async t =>
   const unconfigured = await fixture(t, { config: null, env: {} });
   assert.equal((await fetch(unconfigured + '/healthz')).status, 503);
   assert.match(await (await fetch(unconfigured + '/privacy')).text(), /Bu taslak/u);
-  assert.match(await (await fetch(address + '/privacy')).text(), /Saklama süresi/u);
+  const tr = await (await fetch(address + '/privacy')).text();
+  assert.match(tr, /Saklama süresi/u);
+  assert.match(tr, /href="\/\?lang=tr#profile".*Geri dön/u);
   const en = await (await fetch(address + '/privacy?lang=en')).text();
   assert.match(en, /<html lang="en">/);
   assert.match(en, /School &amp; Library/);
   assert.match(en, /Retention &lt; 90 days/);
-  assert.match(en, /href="\/account-deletion\?lang=en"/);
+  assert.match(en, /href="\/\?lang=en#profile".*Go back/);
+  assert.match(en, /class="[^"]*account-danger" href="\/account-deletion\?lang=en"/);
   assert.doesNotMatch(en, /completes this draft/);
 });
 

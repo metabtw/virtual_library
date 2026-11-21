@@ -77,6 +77,11 @@ const now = () => clock ? serverTimeAt(clock) : 0;
 const localName = item => locale === 'en' ? item.name_en || item.name : item.name;
 const privacyHref = () => '/privacy?lang=' + locale;
 const deletionHref = () => '/account-deletion?lang=' + locale;
+const profileHref = () => '/?lang=' + locale + '#profile';
+
+function backToProfile() {
+  return `<a class="secondary account-back" href="${profileHref()}"><span aria-hidden="true">←</span> ${t('goBack')}</a>`;
+}
 
 function initialLanguage() {
   const requested = new URLSearchParams(location.search).get('lang');
@@ -211,7 +216,8 @@ function reflectSession(next) {
 }
 
 function signInView() {
-  if (!client) return `<section class="card account-card"><h1>${t('app')}</h1><p>${t('missingConfig')}</p><a href="${privacyHref()}">${t('readPrivacy')}</a></section>`;
+  if (!client) return `<section class="card account-card">${deletionPage ? backToProfile() : ''}
+    <h1>${t('app')}</h1><p>${t('missingConfig')}</p><a href="${privacyHref()}">${t('readPrivacy')}</a></section>`;
   return `<section class="card account-card">
     <h1>${t(deletionPage ? 'deleteAccount' : 'signInTitle')}</h1>
     <p>${t(deletionPage ? 'deletionSignIn' : 'sameAccount')}</p>
@@ -225,14 +231,16 @@ function signInView() {
     ${config.google ? `<button class="secondary" data-action="oauth" data-value="google">${t('google')}</button>` : ''}
     ${config.apple ? `<button class="secondary" data-action="oauth" data-value="apple">${t('apple')}</button>` : ''}
     <a href="${privacyHref()}">${t('readPrivacy')}</a>
-    <a href="${deletionPage ? '/?lang=' + locale : deletionHref()}">${t(deletionPage ? 'backToLibrary' : 'deletionPage')}</a>
+    ${deletionPage ? backToProfile() : `<a href="${deletionHref()}">${t('deletionPage')}</a>`}
   </section>`;
 }
 
 function deletionView() {
-  return `<section class="card account-card"><h1>${t('deleteAccount')}</h1><p>${t('deletionWarning')}</p>
-    <button class="primary" data-action="delete-account">${t('deleteAccount')}</button>
-    <a href="/?lang=${locale}">${t('backToLibrary')}</a></section>`;
+  return `<section class="card account-card">
+    ${backToProfile()}
+    <h1>${t('deleteAccount')}</h1><p>${t('deletionWarning')}</p>
+    <button class="secondary account-button account-danger" data-action="delete-account">${t('deleteAccount')}</button>
+  </section>`;
 }
 
 function picker(name, label, value, choices) {
@@ -434,6 +442,10 @@ function profileView() {
   ${!profile ? `<label>${t('referralField')}<input name="referral" value="${escape(draft.referral)}" maxlength="15" autocapitalize="characters" autocomplete="off"></label>` : ''}
   ${avatarPresetPicker()}<div class="form-options">${avatarFields()}</div><button class="primary">${t('saveAvatar')}</button></form>` : `<div><h2>${name}</h2>
     ${profile.target ? `<p>${escape(profile.target)}</p>` : ''}
+    <dl class="profile-codes">
+      <div><dt>${t(profile.readerCode ? 'readerCode' : 'accountId')}</dt><dd><code>${escape(profile.readerCode || userId)}</code></dd></div>
+      ${profile.referralCode ? `<div><dt>${t('referralCode')}</dt><dd><code>${escape(profile.referralCode)}</code></dd></div>` : ''}
+    </dl>
     <button class="secondary" data-action="edit">${t('editAvatar')}</button>
     ${profile.room ? `<button class="secondary" data-action="leave">${t('leave')}</button>` : ''}</div>`}</section>
   ${profile ? `<form id="target-form" class="card stacked private-actions"><label class="field">${t('target')}
@@ -442,9 +454,14 @@ function profileView() {
     <a class="secondary" href="#ranking">${t('leaderboard')}</a></div>
     ${dailyQuests(data.dailyQuests, t)}${studyInvitations(data, t, escape, locale)}${friendsPanel(data, draft.friendCode, t, escape)}
     <h2 class="section-title">${t('inventory')}</h2><p class="equipment-note">${t('equipmentLimit')}</p>${catalog(true)}` : ''}
-  <div class="toolbar"><button class="secondary" data-action="sign-out">${t('signOut')}</button>
-  <a class="secondary" href="${deletionHref()}">${t('deleteAccount')}</a>
-  <a class="secondary" href="${privacyHref()}">${t('readPrivacy')}</a></div>`;
+  <section class="card account-section" aria-labelledby="account-title">
+    <h2 id="account-title">${t('myAccount')}</h2>
+    <div class="account-actions">
+      <a class="secondary account-button account-data" href="${privacyHref()}">${t('myData')}</a>
+      <button class="secondary account-button account-sign-out" data-action="sign-out">${t('signOut')}</button>
+      <a class="secondary account-button account-danger" href="${deletionHref()}">${t('deleteAccount')}</a>
+    </div>
+  </section>`;
 }
 
 function shopView() {

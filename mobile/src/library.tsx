@@ -2,6 +2,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, Image, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { avatarOptions, avatarPresets, defaultAvatar, hairStyles, pickAvatarStyle } from '../../public/avatar-art';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../../public/focus-clock';
 import { displayDeskStatuses, recordDeskStatus, type DeskUpdates } from '../../public/desk-status';
@@ -29,6 +30,12 @@ type Action = { [K in keyof Command]: { name: K; payload?: Command[K] } }[keyof 
 
 const styleFields = ['hair', 'hair_color', 'skin_tone', 'beard', 'outfit'] as const;
 const minute = 60000;
+
+const profileCodeStyles = StyleSheet.create({
+  list: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  entry: { maxWidth: '100%', paddingVertical: 6, paddingHorizontal: 10, gap: 2,
+    backgroundColor: '#251d2a', borderRadius: 9, borderColor: '#76545b', borderWidth: 1 },
+});
 
 function AvatarEditor({ profile, onSave, pending, t, locale }: {
   profile: Profile | null; onSave: (data: Command['profile']) => void;
@@ -149,6 +156,7 @@ export function Library({ id }: { id: string }) {
   const [peer, setPeer] = useState<Member>();
   const [rankingOpen, setRankingOpen] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
+  const [dataOpen, setDataOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [reactionMessage, setReactionMessage] = useState('');
   const reactionTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -309,6 +317,7 @@ export function Library({ id }: { id: string }) {
     Alert.alert(t.deleteAccount, t.confirmDelete, [
       { text: t.cancel, style: 'cancel' },
       { text: t.deleteAccount, style: 'destructive', onPress: () => {
+        setActionError('');
         setDeleting(true);
         void deleteAccount().then(() => signOut(true)).catch(error => setActionError(message(t, error)))
           .finally(() => setDeleting(false));
@@ -396,6 +405,16 @@ export function Library({ id }: { id: string }) {
                   <Text style={ui.heading}>{profile.name}</Text>
                   {!!profile.target && <Text numberOfLines={1} style={ui.small}>{profile.target}</Text>}
                 </View></View>
+                <View style={profileCodeStyles.list}>
+                  <View style={profileCodeStyles.entry}>
+                    <Text style={ui.small}>{profile.readerCode ? t.readerCode : t.accountId}</Text>
+                    <Text selectable style={ui.accent}>{profile.readerCode || id}</Text>
+                  </View>
+                  {profile.referralCode && <View style={profileCodeStyles.entry}>
+                    <Text style={ui.small}>{t.referralCode}</Text>
+                    <Text selectable style={ui.accent}>{profile.referralCode}</Text>
+                  </View>}
+                </View>
                 <Button disabled={pending} onPress={() => setEditing(true)}>{t.editAvatar}</Button>
               </View>}
             <TargetEditor initial={profile.target ?? ''} pending={pending} t={t} save={target => act({ name: 'target', payload: { target } })} />
@@ -410,24 +429,28 @@ export function Library({ id }: { id: string }) {
             <Catalog snapshot={snapshot} inventory t={t} locale={locale} pending={pending}
               action={item => act({ name: 'place', payload: { item } })} />
           </>}
-      {(!profile || effectivePage === 'profile') && <View style={ui.card}>
-        <Options label="TR / EN" values={([['tr', 'Türkçe'], ['en', 'English']] as const)} value={locale} onChange={setLocale} />
-        <View style={ui.row}><Text style={ui.heading}>{t.alerts}</Text><Switch accessibilityLabel={t.alerts} value={alerts}
-          onValueChange={value => {
-            if (value) void allowReminders().then(setAlerts).catch(() => setAlerts(false));
-            else { setAlerts(false); void removeRemoteReminders().catch(error => setActionError(message(t, error))); }
-          }} /></View>
-        {alerts && hasExactReminderSettings && <Button muted onPress={() => void openExactReminderSettings()
-          .then(() => setReminderRevision(current => current + 1), () => setActionError(t.exactReminderError))}>
-          {t.exactReminderSettings}
-        </Button>}
-        {hasAnalytics && <View style={ui.row}><Text style={ui.heading}>{t.usage}</Text><Switch accessibilityLabel={t.usage}
-          value={usage} onValueChange={setUsage} /></View>}
-        <Text style={ui.heading}>{t.privacy}</Text><Text style={ui.small}>{t.privacyBody}</Text>
-        <PrivacyLink locale={locale} t={t} />
-        <Button muted disabled={pending} onPress={() => void signOut()}>{t.signOut}</Button>
-        <Button muted disabled={pending} onPress={requestDeletion}>{t.deleteAccount}</Button>
-      </View>}
+      {(!profile || effectivePage === 'profile') && <>
+        <View style={ui.card}>
+          <Options label="TR / EN" values={([['tr', 'Türkçe'], ['en', 'English']] as const)} value={locale} onChange={setLocale} />
+          <View style={ui.row}><Text style={ui.heading}>{t.alerts}</Text><Switch accessibilityLabel={t.alerts} value={alerts}
+            onValueChange={value => {
+              if (value) void allowReminders().then(setAlerts).catch(() => setAlerts(false));
+              else { setAlerts(false); void removeRemoteReminders().catch(error => setActionError(message(t, error))); }
+            }} /></View>
+          {alerts && hasExactReminderSettings && <Button muted onPress={() => void openExactReminderSettings()
+            .then(() => setReminderRevision(current => current + 1), () => setActionError(t.exactReminderError))}>
+            {t.exactReminderSettings}
+          </Button>}
+          {hasAnalytics && <View style={ui.row}><Text style={ui.heading}>{t.usage}</Text><Switch accessibilityLabel={t.usage}
+            value={usage} onValueChange={setUsage} /></View>}
+        </View>
+        <View style={ui.card}>
+          <Text style={ui.heading}>{t.myAccount}</Text>
+          <Button tone="data" disabled={pending} onPress={() => { setActionError(''); setDataOpen(true); }}>{t.myData}</Button>
+          <Button tone="signOut" disabled={pending} onPress={() => void signOut()}>{t.signOut}</Button>
+          <Button tone="danger" disabled={pending} onPress={requestDeletion}>{t.deleteAccount}</Button>
+        </View>
+      </>}
     </ScrollView>
     {profile && <View style={ui.nav}>
       {(['rooms', 'room', 'shop', 'profile'] as const).map(tab =>
@@ -440,6 +463,21 @@ export function Library({ id }: { id: string }) {
       pending={pending} changeVisibility={visible => act({ name: 'rankingVisibility', payload: { visible } })} />}
     {cardOpen && profile && !running && !verify && <StudyCardModal user={id} profile={profile}
       equipment={equipped} close={() => setCardOpen(false)} t={t} />}
+    <Modal visible={dataOpen && !running} animationType="slide" onRequestClose={() => setDataOpen(false)}>
+      <SafeAreaView style={ui.screen}>
+        <ScrollView contentContainerStyle={ui.content}>
+          <View style={{ alignSelf: 'flex-start' }}><Button muted onPress={() => setDataOpen(false)}>{t.goBack}</Button></View>
+          <Text accessibilityRole="header" style={ui.title}>{t.myData}</Text>
+          <View style={ui.card}>
+            <Text style={ui.heading}>{t.privacy}</Text>
+            <Text style={[ui.small, { lineHeight: 21 }]}>{t.privacyBody}</Text>
+            <PrivacyLink locale={locale} t={t} />
+          </View>
+          {actionError !== '' && <Text accessibilityLiveRegion="polite" style={ui.warning}>{actionError}</Text>}
+          <Button tone="danger" disabled={pending} onPress={requestDeletion}>{t.deleteAccount}</Button>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
     <Modal visible={inviteOpen && !!room && !running && !verify} transparent onRequestClose={() => setInviteOpen(false)} accessibilityViewIsModal>
       <View style={ui.modal}><View style={[ui.card, { width: '100%', maxWidth: 450, maxHeight: '80%' }]}>
         <Text style={ui.heading}>{t.friendInvite}</Text>
