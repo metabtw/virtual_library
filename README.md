@@ -111,7 +111,9 @@ npx expo export --platform all --output-dir dist --max-workers 2
 
 ## Görseller ve dağıtım
 
-Avatarın yazı hareketi ve eşya çizimleri ortak piksel çiziminden üretilir. Mobil mağaza ve animasyon PNG'lerini depo kökünde `node scripts/render-sprites.mjs` ile yenile. Ambiyans döngülerini `python scripts/make-ambience.py` ile yeniden üretebilirsin.
+Avatarın yazı hareketi ve eşya çizimleri ortak piksel çiziminden üretilir. Mobil mağaza ve animasyon PNG'lerini depo kökünde `node scripts/render-sprites.mjs` ile yenile.
+
+Web ve mobil aynı stereo ambiyans döngülerini kullanır. NumPy ve FFmpeg kurulu olduğunda `python scripts/make-ambience.py` kaynak kayıtları indirip döngüleri yeniden üretir. [Kayıt kaynakları](mobile/assets/ambience/SOURCES.md)
 
 Oda arka planlarında Klasik Kütüphane, Yağmurlu Gece, Cam Sera ve Yıldız Gözlemevi bulunur. Odaya özel görseller için Supabase Storage'daki `room-art` alanına `night.webp`, `garden.webp` veya `archive.webp` ekleyip mobilde `EXPO_PUBLIC_ROOM_ART_FROM_STORAGE=true` ayarlanabilir.
 
