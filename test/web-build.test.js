@@ -36,7 +36,7 @@ test('builds the static Vercel site and keeps browser configuration public', asy
   assert.match(await read('index.html'), /rel="canonical" href="https:\/\/virtualstudycrew\.com\/"/);
   assert.match(await read('robots.txt'), /Sitemap: https:\/\/virtualstudycrew\.com\/sitemap\.xml/);
   assert.match(await read('sitemap.xml'), /<loc>https:\/\/virtualstudycrew\.com\/<\/loc>/);
-  for (const name of ['favicon.png', 'apple-touch-icon.png', 'study-room-preview.jpg']) {
+  for (const name of ['favicon.png', 'app-logo.png', 'apple-touch-icon.png', 'study-room-preview.jpg']) {
     assert.ok((await stat(file(name))).size > 0);
   }
   assert.ok(vercel.headers.some(rule => rule.source === '/account-deletion' &&

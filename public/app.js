@@ -279,7 +279,7 @@ function signInView() {
   if (!client) return `<section class="card account-card">${deletionPage ? backToProfile() : ''}
     <h1>${t('app')}</h1><p>${t('missingConfig')}</p><a href="${privacyHref()}">${t('readPrivacy')}</a></section>`;
   return `<section class="card account-card auth-card">
-    <div class="auth-heading"><img class="auth-emblem" src="/favicon.png" width="45" height="45" alt=""><h1>${t(deletionPage ? 'deleteAccount' : 'signInTitle')}</h1></div>
+    <div class="auth-heading"><img class="auth-emblem" src="/app-logo.png" width="45" height="45" alt=""><h1>${t(deletionPage ? 'deleteAccount' : 'signInTitle')}</h1></div>
     ${deletionPage ? '' : `<p>${t('siteIntro')}</p>`}
     ${config.google || config.apple ? `<div class="auth-providers">
       ${config.google ? `<button class="secondary" data-action="oauth" data-value="google">${t('google')}</button>` : ''}

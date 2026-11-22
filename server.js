@@ -19,6 +19,7 @@ export const webFiles = new Map([
   ['/account-deletion', ['public/index.html', html]],
   ['/styles.css', ['public/styles.css', css]],
   ['/favicon.png', ['public/favicon.png', 'image/png']],
+  ['/app-logo.png', ['public/app-logo.png', 'image/png']],
   ['/apple-touch-icon.png', ['public/apple-touch-icon.png', 'image/png']],
   ['/study-room-preview.jpg', ['public/study-room-preview.jpg', 'image/jpeg']],
   ['/robots.txt', ['public/robots.txt', 'text/plain; charset=utf-8']],

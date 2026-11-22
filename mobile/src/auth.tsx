@@ -1,7 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { AppState, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Image, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { emailAuthMessage } from '../../public/library-client';
 import { authCallbackUrl, completeAuthCode, supabase } from './api';
 import { Button, Field, ui } from './ui';
@@ -84,7 +84,10 @@ export function Login() {
 
   return <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
     <View style={ui.row}>
-      <Text style={ui.title}>{t.app}</Text>
+      <View style={[ui.row, { flexShrink: 1 }]}>
+        <Image source={require('../../public/app-logo.png')} style={{ width: 36, height: 36 }} accessible={false} />
+        <Text style={[ui.title, { flexShrink: 1 }]}>{t.app}</Text>
+      </View>
       <Button muted onPress={() => setLocale(locale === 'tr' ? 'en' : 'tr')}>{locale === 'tr' ? 'EN' : 'TR'}</Button>
     </View>
     {!supabase ? <Text style={ui.warning}>{t.missingConfig}</Text> : <View style={ui.card}>

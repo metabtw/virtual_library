@@ -412,7 +412,10 @@ export function Library({ id }: { id: string }) {
   return <>
     <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
       <View style={ui.row}>
-        <Text style={[profile && effectivePage === 'profile' ? ui.small : ui.title, { flexShrink: 1 }]}>{t.app}</Text>
+        <View style={[ui.row, { flexShrink: 1 }]}>
+          <Image source={require('../../public/app-logo.png')} style={{ width: 32, height: 32 }} accessible={false} />
+          <Text style={[profile && effectivePage === 'profile' ? ui.small : ui.title, { flexShrink: 1 }]}>{t.app}</Text>
+        </View>
         {profile && <Text style={ui.balance}>{profile.coins} {t.coins}</Text>}
       </View>
       {reactionMessage !== '' && <Text accessibilityLiveRegion="polite" style={ui.accent}>{reactionMessage}</Text>}

@@ -19,6 +19,7 @@ nav i{font-style:normal;font-size:21px;width:22px;text-align:center;line-height:
 main{min-width:0}
 header{height:70px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 clamp(18px,4vw,54px);gap:12px}
 .breadcrumb{font-size:13px;color:var(--muted)}
+.breadcrumb-logo{display:none}
 .breadcrumb span{margin:0 7px}
 .breadcrumb b{color:var(--ink)}
 .wallet{border:1px solid var(--line);background:var(--panel);padding:8px 14px;border-radius:24px;font-size:13px;white-space:nowrap}
@@ -540,6 +541,7 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
     border-radius: 19px;
   }
   .brand,.sidebar-footer {display:none}
+  .breadcrumb-logo {display:inline-block;vertical-align:middle;margin-inline-end:5px}
   nav {grid-template-columns:repeat(4,minmax(0,1fr));gap:2px}
   nav a {
     min-height: 48px;
