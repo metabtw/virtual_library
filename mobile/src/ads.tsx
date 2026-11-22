@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Modal, Platform, ScrollView, Text, View } from 'react-native';
+import { Modal, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { adCooldownSeconds } from '../../public/study-rewards';
 import { openRewardedAd } from './api';
 import type { Snapshot } from './model';
@@ -49,8 +49,8 @@ async function watchAd(platform: 'android' | 'ios') {
   });
 }
 
-export function AdRewards({ snapshot, serverNow, pending, t, refresh }: {
-  snapshot: Snapshot; serverNow: number; pending: boolean; t: Translation; refresh: () => void;
+export function ShopRewards({ snapshot, serverNow, pending, t, refresh, openChest }: {
+  snapshot: Snapshot; serverNow: number; pending: boolean; t: Translation; refresh: () => void; openChest: () => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState(false);
@@ -58,6 +58,7 @@ export function AdRewards({ snapshot, serverNow, pending, t, refresh }: {
   const busy = useRef(false);
   const platform = Platform.OS === 'android' || Platform.OS === 'ios' ? Platform.OS : null;
   const available = platform !== null && Boolean(snapshot.adPlatforms?.[platform]);
+  const chests = snapshot.chests ?? 0;
   const seconds = adCooldownSeconds(snapshot.adRetryAt, serverNow);
   const wait = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
@@ -78,12 +79,22 @@ export function AdRewards({ snapshot, serverNow, pending, t, refresh }: {
     }
   }
 
-  return <View style={ui.card}>
-    <Button disabled={pending || loading || seconds > 0 || !available} onPress={() => void play()}>{loading ? t.adLoading : t.watchAd}</Button>
-    {seconds > 0 ? <Text style={ui.small}>{t.adCooldown} · {wait}</Text>
-      : !available && <Text style={ui.small}>{t.adUnavailable}</Text>}
-    {!!notice && notice !== t.adUnavailable && <Text accessibilityLiveRegion="polite" style={ui.accent}>{notice}</Text>}
-    <Button muted onPress={() => setDetails(true)}>{t.coinHelp}</Button>
+  return <>
+    <View style={[ui.row, styles.heading]}>
+      <Text accessibilityRole="header" style={[ui.title, styles.title]}>{t.shop}</Text>
+      <View style={styles.help}><Button compact muted onPress={() => setDetails(true)}>{t.coinHelp}</Button></View>
+    </View>
+    <View style={ui.card}>
+      <View style={styles.actions}>
+        <View style={styles.ad}><Button disabled={pending || loading || seconds > 0 || !available}
+          onPress={() => void play()}>{loading ? t.adLoading : t.watchAd}</Button></View>
+        <View style={styles.chest}><Button muted disabled={pending || !chests}
+          onPress={openChest}>{t.chest} · {chests}</Button></View>
+      </View>
+      {seconds > 0 ? <Text style={ui.small}>{t.adCooldown} · {wait}</Text>
+        : !available && <Text style={ui.small}>{t.adUnavailable}</Text>}
+      {!!notice && notice !== t.adUnavailable && <Text accessibilityLiveRegion="polite" style={ui.accent}>{notice}</Text>}
+    </View>
     <Modal visible={details} transparent onRequestClose={() => setDetails(false)} accessibilityViewIsModal>
       <View style={ui.modal}><View style={[ui.card, { width: '100%', maxWidth: 450, maxHeight: '80%' }]}>
         <Text style={ui.heading}>{t.coinHelp}</Text>
@@ -94,5 +105,14 @@ export function AdRewards({ snapshot, serverNow, pending, t, refresh }: {
         <Button muted onPress={() => setDetails(false)}>{t.done}</Button>
       </View></View>
     </Modal>
-  </View>;
+  </>;
 }
+
+const styles = StyleSheet.create({
+  heading: { justifyContent: 'flex-start' },
+  title: { flexShrink: 1 },
+  help: { maxWidth: '60%', flexShrink: 1 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  ad: { flex: 1.25, minWidth: 0 },
+  chest: { flex: 1, minWidth: 0 },
+});

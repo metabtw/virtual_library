@@ -80,7 +80,7 @@ for (const item of [
 for (const item of [
   'lamp', 'goldKeys', 'dragon', 'neon', 'teaSet', 'hourglass', 'miniGlobe', 'crystalTerrarium',
   'mushroomLamp', 'foxMug', 'retroRadio', 'jellyTank', 'origamiCrane', 'pinkRabbit', 'pugPup', 'yellowChick',
-  'cat', 'space', 'forest',
+  'cat', 'space', 'forest', 'mysteryBox',
 ]) {
   prop('items/' + item + '.png', item);
 }

@@ -16,7 +16,7 @@ import { allowReminders, hasExactReminderSettings, openExactReminderSettings, sy
 import { hasAnalytics, setUsageMeasurement, trackUsage } from './telemetry';
 import { message, usePreferences, words, type Locale, type Translation } from './strings';
 import { Button, Field, Options, ui } from './ui';
-import { Boxes, Directory, Invite, PrivateBadge, RoomGoal, TargetEditor } from './clubs';
+import { Directory, Invite, PrivateBadge, RoomGoal, TargetEditor } from './clubs';
 import { Ambience } from './ambience';
 import { Catalog, ItemIllustration } from './catalog';
 import { dressedAvatar } from './cosmetics';
@@ -24,7 +24,7 @@ import { roomThemes, ThemePicker } from './themes';
 import { LeaderboardModal, StudyCardModal } from './study';
 import { presetAssets } from './asset-art';
 import { PrivacyLink } from './auth';
-import { AdRewards } from './ads';
+import { ShopRewards } from './ads';
 import { DailyQuests, FriendInviteButton, FriendsPanel, ProfileCodeField, ProfileCodes, StudyInvitations } from './community';
 import type { ProfileCodePrefix } from '../../public/room-social';
 
@@ -454,11 +454,12 @@ export function Library({ id }: { id: string }) {
           {!running && room && <Button muted disabled={pending} onPress={requestLeave}>{t.leave}</Button>}
           {room && <Ambience locked={running} inventory={snapshot.inventory} t={t} />}
         </> : effectivePage === 'shop' ? <>
-          <AdRewards snapshot={snapshot} serverNow={observed} pending={pending} t={t} refresh={() => void query.refetch()} />
+          <ShopRewards snapshot={snapshot} serverNow={observed} pending={pending} t={t}
+            refresh={() => void query.refetch()} openChest={() => act({ name: 'openChest' })} />
           <DailyQuests quests={snapshot.dailyQuests} t={t} />
           <Catalog snapshot={snapshot} t={t} locale={locale} pending={pending}
             action={item => act({ name: 'buy', payload: { item } })}
-            boxes={<Boxes snapshot={snapshot} pending={pending} t={t} open={name => act({ name })} />} /></> :
+            openBox={() => act({ name: 'openBox' })} /></> :
           <>
             <View style={profileStyles.header}>
               <Text accessibilityRole="header" style={profileStyles.title}>{t.profileInventory}</Text>

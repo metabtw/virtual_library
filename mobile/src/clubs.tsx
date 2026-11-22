@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { roomGoalMinutes } from '../../public/study-rewards';
-import type { Room, Snapshot } from './model';
+import type { Room } from './model';
 import type { Locale, Translation } from './strings';
 import { Button, Field, ui } from './ui';
 
@@ -68,10 +68,18 @@ export function Invite({ room, t }: { room: Room; t: Translation }) {
 export function TargetEditor({ initial, save, pending, t }: {
   initial: string; save: (target: string) => void; pending: boolean; t: Translation;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const [value, setValue] = useState(initial);
   return <View style={ui.card}>
-    <Field label={t.target} placeholder={t.targetHint} value={value} onChangeText={setValue} maxLength={48} />
-    <Button muted disabled={pending || value.trim() === initial} onPress={() => save(value.trim())}>{t.save}</Button>
+    <Pressable accessibilityRole="button" accessibilityLabel={t.studyTarget} accessibilityState={{ expanded }}
+      style={[ui.row, styles.targetToggle]} onPress={() => setExpanded(open => !open)}>
+      <Text style={ui.heading}>{t.studyTarget}</Text>
+      <Text accessible={false} style={ui.accent}>{expanded ? '▴' : '▾'}</Text>
+    </Pressable>
+    {expanded && <>
+      <Field label={t.target} placeholder={t.targetHint} value={value} onChangeText={setValue} maxLength={48} />
+      <Button muted disabled={pending || value.trim() === initial} onPress={() => save(value.trim())}>{t.save}</Button>
+    </>}
   </View>;
 }
 
@@ -87,24 +95,8 @@ export function RoomGoal({ minutes, t }: { minutes: number; t: Translation }) {
   </View>;
 }
 
-export function Boxes({ snapshot, pending, t, open }: {
-  snapshot: Snapshot; pending: boolean; t: Translation; open: (kind: 'openBox' | 'openChest') => void;
-}) {
-  const chests = snapshot.chests ?? 0;
-  const rare = snapshot.items.filter(item => item.kind === 'rare');
-  const complete = rare.length > 0 && rare.every(item => snapshot.inventory.some(owned => owned.item === item.id));
-  return <View style={ui.card}>
-    <Text style={ui.heading}>🎁 {t.box}</Text>
-    <Text style={ui.small}>{complete ? t.collectionComplete : t.boxRules}</Text>
-    <Button disabled={pending || complete || (snapshot.profile?.coins ?? 0) < 50} onPress={() => open('openBox')}>
-      {t.openBox}
-    </Button>
-    <View style={ui.row}><Text style={ui.heading}>{t.chest}</Text><Text style={ui.accent}>{chests}</Text></View>
-    <Button muted disabled={pending || !chests} onPress={() => open('openChest')}>{t.openChest}</Button>
-  </View>;
-}
-
 const styles = StyleSheet.create({
+  targetToggle: { minHeight: 44 },
   roomGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   roomCard: { width: '48.5%', gap: 6, padding: 9, minWidth: 0 },
   roomForm: { width: '48%', gap: 6, justifyContent: 'space-between' },

@@ -1,5 +1,6 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { mysteryBoxPrice } from '../../public/study-rewards';
 import { itemAssets } from './asset-art';
 import type { Item, ItemId, ItemKind, Snapshot } from './model';
 import type { Locale, Translation } from './strings';
@@ -42,12 +43,25 @@ type GalleryProps = {
   locale: Locale;
   pending: boolean;
   action: (item: ItemId) => void;
+  openBox?: () => void;
 };
 
-function ItemGrid({ items, inventory, owned, snapshot, t, locale, pending, action }: GalleryProps) {
+function ItemGrid({ items, inventory, owned, snapshot, t, locale, pending, action, openBox }: GalleryProps) {
   const { width, fontScale } = useWindowDimensions();
   const compact = width < 350 || fontScale >= 1.35;
+  const coins = snapshot.profile?.coins ?? 0;
+  const rewardAvailable = openBox && snapshot.items.some(item => item.kind === 'rare' && !owned.has(item.id));
   return <View style={styles.grid}>
+    {openBox && <View style={[styles.tile, styles.rare, compact && styles.full]}>
+      <View accessible={false} style={[styles.art, styles.boxArt]}>
+        <Image source={require('../assets/items/mysteryBox.png')} style={styles.prop} resizeMode="contain" accessible={false} />
+      </View>
+      <View style={styles.details}>
+        <Text style={styles.name}>{t.box}</Text>
+        <Text style={ui.small}>{rewardAvailable ? t.boxRules : t.collectionComplete}</Text>
+      </View>
+      <Button disabled={pending || !rewardAvailable || coins < mysteryBoxPrice} onPress={openBox}>{t.openBox}</Button>
+    </View>}
     {items.map(item => {
       const hasItem = owned.has(item.id);
       const equipped = owned.get(item.id) === true;
@@ -55,7 +69,7 @@ function ItemGrid({ items, inventory, owned, snapshot, t, locale, pending, actio
       const audio = item.kind === 'ambience';
       const wearable = item.kind === 'wearable' || item.kind === 'hair';
       const name = locale === 'tr' ? item.name : item.name_en;
-      const afford = (snapshot.profile?.coins ?? 0) >= item.price;
+      const afford = coins >= item.price;
       return <View key={item.id} style={[styles.tile, compact && styles.full, item.kind === 'rare' && styles.rare,
         equipped && styles.equipped]}>
         <ItemIllustration item={item} />
@@ -82,14 +96,14 @@ function ItemGrid({ items, inventory, owned, snapshot, t, locale, pending, actio
   </View>;
 }
 
-export function Catalog({ snapshot, inventory, locale, t, pending, action, boxes }: {
+export function Catalog({ snapshot, inventory, locale, t, pending, action, openBox }: {
   snapshot: Snapshot;
   inventory?: boolean;
   locale: Locale;
   t: Translation;
   pending: boolean;
   action: (item: ItemId) => void;
-  boxes?: ReactNode;
+  openBox?: () => void;
 }) {
   const [category, setCategory] = useState<Category>('all');
   const owned = new Map(snapshot.inventory.map(entry => [entry.item, entry.placed]));
@@ -97,16 +111,16 @@ export function Catalog({ snapshot, inventory, locale, t, pending, action, boxes
   const visible = category === 'all' ? choices : choices.filter(item => item.kind === category);
   const regular = inventory ? visible : visible.filter(item => item.kind !== 'rare');
   const prizes = inventory ? [] : visible.filter(item => item.kind === 'rare');
+  const box = prizes.length ? openBox : undefined;
   const grid = { inventory: !!inventory, owned, snapshot, t, locale, pending, action };
 
   return <>
-    <Text style={ui.heading}>{inventory ? t.inventory : t.shop}</Text>
-    {inventory && <Text style={ui.small}>{t.equipmentLimit}</Text>}
+    {inventory && <><Text style={ui.heading}>{t.inventory}</Text><Text style={ui.small}>{t.equipmentLimit}</Text></>}
     <Options<Category> label={t.catalogFilter} value={category}
       values={(Object.keys(categoryLabels) as Category[]).map(value => [value, t[categoryLabels[value]]])}
       onChange={setCategory} />
     {!visible.length && <Text style={ui.small}>{inventory && !choices.length ? t.emptyInventory : t.catalogEmpty}</Text>}
-    {!!regular.length && <ItemGrid {...grid} items={regular} />}
+    {(regular.length > 0 || box) && <ItemGrid {...grid} items={regular} openBox={box} />}
     {!!prizes.length && <>
       <View style={styles.rewardHeader}>
         <Text style={styles.rewardTitle}>{t.catalogChests}</Text>
@@ -114,7 +128,6 @@ export function Catalog({ snapshot, inventory, locale, t, pending, action, boxes
       </View>
       <ItemGrid {...grid} items={prizes} />
     </>}
-    {!inventory && (category === 'all' || category === 'rare') && boxes}
   </>;
 }
 
@@ -126,6 +139,7 @@ const styles = StyleSheet.create({
   rare: { backgroundColor: '#2f253e', borderColor: '#8f6ba8' },
   equipped: { borderColor: '#88b693' },
   art: { minHeight: 108, borderRadius: 11, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  boxArt: { backgroundColor: '#382941', borderColor: '#a77bb366' },
   prop: { width: 96, maxWidth: '100%', height: 96 },
   skin: { width: 62, height: 96 },
   details: { flexGrow: 1, gap: 4, paddingHorizontal: 2 },

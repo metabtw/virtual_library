@@ -103,12 +103,15 @@ test('browser runtime refuses Supabase service keys and unsafe project origins',
   assert.equal(config(token('anon')).key, token('anon'));
 });
 
-test('enables Firebase Google sign-in for the paired Supabase project', async t => {
-  const env = { EXPO_PUBLIC_SUPABASE_URL: googleWeb.supabaseOrigin, EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: publishable };
+test('enables paired Firebase Google web sign-in independently of the Expo flag', async t => {
+  const env = { EXPO_PUBLIC_SUPABASE_URL: googleWeb.supabaseOrigin, EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: publishable,
+    EXPO_PUBLIC_AUTH_GOOGLE: 'false' };
   const config = getWebConfig(env);
   assert.equal(config.google, true);
   assert.deepEqual(Object.keys(config.firebaseGoogle).sort(), ['apiKey', 'appId', 'authDomain', 'projectId']);
-  assert.equal(getWebConfig({ ...env, EXPO_PUBLIC_AUTH_GOOGLE: 'false' }).google, false);
+  const disabled = getWebConfig({ ...env, WEB_AUTH_GOOGLE: 'false' });
+  assert.equal(disabled.google, false);
+  assert.equal(disabled.firebaseGoogle, undefined);
 
   const directOAuth = getWebConfig({ ...env, EXPO_PUBLIC_SUPABASE_URL: publicUrl, EXPO_PUBLIC_AUTH_GOOGLE: 'true' });
   assert.equal(directOAuth.google, true);

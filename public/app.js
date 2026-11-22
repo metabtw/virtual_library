@@ -9,7 +9,7 @@ import { avatarOptions, avatarPresets, defaultAvatar, deskEquipment, dressedAvat
 import { createRoomPreferences } from './room-preferences.js';
 import { downloadStudyCard, messageFor, reactionArt } from './web-social.js';
 import { webText } from './web-strings.js';
-import { adCooldownSeconds, roomGoalMinutes } from './study-rewards.js';
+import { adCooldownSeconds, mysteryBoxPrice, roomGoalMinutes } from './study-rewards.js';
 import { dailyQuests, friendsPanel, studyInviteButton, studyInvitations } from './community.js';
 import { inviteWait, splitProfileCode } from './room-social.js';
 
@@ -231,7 +231,8 @@ async function request(action, payload) {
       `${reactionArt[event.kind]} ${event.name} ${t(event.kind === 'coffee' ? 'coffeeReceived' : 'clapReceived')}`).join(' · '));
     if (result.drop) {
       const prize = result.items.find(item => item.id === result.drop.item);
-      toast(t('rewardDrop') + ' · ' + (prize ? localName(prize) : result.drop.item ?? result.drop.coins + ' ' + t('coins')));
+      toast(t(action === 'openBox' ? 'prize' : 'rewardDrop') + ' · ' +
+        (prize ? localName(prize) : result.drop.item ?? result.drop.coins + ' ' + t('coins')));
     }
     if (['target', 'place', 'profile', 'react'].includes(action)) trackPresence(presence, result.now);
     return true;
@@ -279,20 +280,22 @@ function signInView() {
     <h1>${t('app')}</h1><p>${t('missingConfig')}</p><a href="${privacyHref()}">${t('readPrivacy')}</a></section>`;
   return `<section class="card account-card auth-card">
     <div class="auth-heading"><span class="auth-emblem" aria-hidden="true">◫</span><h1>${t(deletionPage ? 'deleteAccount' : 'signInTitle')}</h1></div>
+    ${config.google || config.apple ? `<div class="auth-providers">
+      ${config.google ? `<button class="secondary" data-action="oauth" data-value="google">${t('google')}</button>` : ''}
+      ${config.apple ? `<button class="secondary" data-action="oauth" data-value="apple">${t('apple')}</button>` : ''}
+    </div>` : ''}
     ${emailSentTo ? `<p>${t('emailSent')}<strong class="auth-address">${escape(emailSentTo)}</strong></p>
       <form id="code-form" class="stacked"><label class="field">${t('code')} <input id="email-code" name="code" type="text" required
         inputmode="numeric" pattern="[0-9]{6,10}" maxlength="10" autocomplete="one-time-code" value="${escape(draft.code)}"></label>
         <button class="primary">${t('confirmCode')}</button></form>
       <div class="auth-code-tools">
-        <form id="email-form"><button class="secondary" id="resend-email-code">${t('resend')}</button></form>
+        <form id="email-form"><button class="secondary" id="resend-email">${t('resend')}</button></form>
         <button class="secondary" data-action="change-email">${t('changeEmail')}</button>
       </div>` : `<p>${t(deletionPage ? 'deletionSignIn' : 'emailPrompt')}</p>
       <form id="email-form" class="stacked">
         <label class="field">${t('email')} <input id="sign-in-email" type="email" name="email" required autocomplete="email" value="${escape(draft.email)}"></label>
-        <button class="primary">${t('sendCode')}</button>
-      </form>
-      ${config.google ? `<button class="secondary" data-action="oauth" data-value="google">${t('google')}</button>` : ''}
-      ${config.apple ? `<button class="secondary" data-action="oauth" data-value="apple">${t('apple')}</button>` : ''}`}
+        <button class="primary">${t('sendEmail')}</button>
+      </form>`}
     ${emailFeedback ? `<p class="auth-feedback" role="alert">${t(emailFeedback)}</p>` : ''}
     <div class="auth-links"><a href="${privacyHref()}">${t('readPrivacy')}</a>
     ${deletionPage ? backToProfile() : `<a href="${deletionHref()}">${t('deletionPage')}</a>`}</div>
@@ -469,8 +472,8 @@ function itemImage(item) {
   return hasPropArt(item.id) ? `<img src="${propImage(item.id)}" alt="">` : '✦';
 }
 
-function itemCards(items, inventoryOnly) {
-  return `<div class="cards">${items.map(item => {
+function itemCards(items, inventoryOnly, firstCard = '') {
+  return `<div class="cards">${firstCard}${items.map(item => {
     const owned = data.inventory.find(entry => entry.item === item.id);
     const rare = item.kind === 'rare';
     const label = item.kind === 'hair' || item.kind === 'wearable' ? 'catalogWear' : 'use';
@@ -484,6 +487,17 @@ function itemCards(items, inventoryOnly) {
   }).join('')}</div>`;
 }
 
+function mysteryBoxCard() {
+  const prizes = data.items.filter(item => item.kind === 'rare');
+  if (!prizes.length) return '';
+  const available = prizes.some(item => !data.inventory.some(entry => entry.item === item.id));
+  return `<article class="card rare-card mystery-box">
+    <span class="item-icon item-preview"><img src="${propImage('mysteryBox')}" alt=""></span>
+    <h2>${t('box')}</h2><p>${t(available ? 'boxRules' : 'collectionComplete')}</p>
+    <button class="primary" data-action="openBox" ${!available || data.profile.coins < mysteryBoxPrice ? 'disabled' : ''}>${t('openBox')}</button>
+  </article>`;
+}
+
 function catalog(inventoryOnly) {
   const scope = inventoryOnly ? 'inventory' : 'shop';
   const activeCategory = catalogCategory[scope];
@@ -491,10 +505,11 @@ function catalog(inventoryOnly) {
   const visible = activeCategory === 'all' ? choices : choices.filter(item => item.kind === activeCategory);
   const regular = inventoryOnly ? visible : visible.filter(item => item.kind !== 'rare');
   const prizes = inventoryOnly ? [] : visible.filter(item => item.kind === 'rare');
+  const box = !inventoryOnly && (activeCategory === 'all' || activeCategory === 'rare') ? mysteryBoxCard() : '';
   return `<div class="catalog-filter">${picker(scope, t('catalogFilter'), activeCategory,
     Object.entries(categories).map(([value, label]) => [value, t(label)]))}</div>
     ${!visible.length ? `<p class="empty-message">${t(inventoryOnly && !choices.length ? 'emptyInventory' : 'catalogEmpty')}</p>` : ''}
-    ${regular.length ? itemCards(regular, inventoryOnly) : ''}
+    ${regular.length || box ? itemCards(regular, inventoryOnly, box) : ''}
     ${prizes.length ? `<h2 class="section-title">${t('catalogChests')}</h2><p>${t('chestCollectionInfo')}</p>${itemCards(prizes, false)}` : ''}`;
 }
 
@@ -515,6 +530,7 @@ function profileView() {
   const name = escape(profile?.name);
   const readerCode = profile?.shortReaderCode || profile?.readerCode;
   const referralCode = profile?.shortReferralCode || profile?.referralCode;
+  const targetOpen = content.querySelector('#study-target')?.open;
   return `<div class="heading${profile ? ' profile-heading' : ''}"><h1>${t(profile ? 'profileInventory' : 'newAvatar')}</h1>
     ${profile ? `<div class="profile-shortcuts">
       <button class="secondary" data-action="study-card" aria-label="${t('downloadCard')}">${t('studyCardAction')}</button>
@@ -534,8 +550,13 @@ function profileView() {
     </dl>
     <div class="profile-hero-actions"><button class="secondary" data-action="edit">${t('editAvatar')}</button>
     ${profile.room ? `<button class="secondary" data-action="leave">${t('leave')}</button>` : ''}</div></div>`}</section>
-  ${profile ? `<form id="target-form" class="card stacked private-actions"><label class="field">${t('target')}
-    <input name="target" maxlength="48" value="${escape(draft.target ?? profile.target)}"></label><button class="secondary">${t('saveTarget')}</button></form>
+  ${profile ? `<details id="study-target" class="card target-editor private-actions" ${targetOpen ? 'open' : ''}>
+      <summary>${t('studyTarget')}</summary>
+      <form id="target-form" class="stacked"><label class="field">${t('target')}
+        <input name="target" maxlength="48" placeholder="${t('targetHint')}" value="${escape(draft.target ?? profile.target)}"></label>
+        <button class="secondary">${t('saveTarget')}</button>
+      </form>
+    </details>
     ${dailyQuests(data.dailyQuests, t)}${studyInvitations(data, t, escape, locale)}${friendsPanel(data, draft.friendCode, t, escape)}
     <h2 class="section-title">${t('inventory')}</h2><p class="equipment-note">${t('equipmentLimit')}</p>${catalog(true)}` : ''}
   <section class="card account-section" aria-labelledby="account-title">
@@ -549,15 +570,12 @@ function profileView() {
 }
 
 function shopView() {
-  const prizes = data.items.filter(item => item.kind === 'rare');
-  const allOwned = prizes.length > 0 && prizes.every(item => data.inventory.some(entry => entry.item === item.id));
-  return `<div class="heading"><h1>${t('shop')}</h1></div>
+  return `<div class="heading compact-heading shop-heading"><h1>${t('shop')}</h1>
+    <button class="secondary" data-action="coin-help">${t('coinHelp')}</button></div>
   <div class="toolbar reward-toolbar"><button class="primary" data-action="reward-ad" ${openingAd ? 'disabled' : ''}>${t(openingAd ? 'adLoading' : 'watchAd')}</button>
-    <button class="secondary" data-action="coin-help">${t('coinHelp')}</button><small id="ad-cooldown" role="status"></small></div>
-  ${dailyQuests(data.dailyQuests, t)}
-  <div class="toolbar"><button class="primary" data-action="openBox" ${!prizes.length || allOwned || data.profile.coins < 50 ? 'disabled' : ''}>${t('box')} · 50 ${t('coins')}</button>
-  <button class="secondary" data-action="openChest" ${!data.chests ? 'disabled' : ''}>${t('chest')} · ${data.chests ?? 0}</button></div>
-  ${allOwned ? `<p>${t('collectionComplete')}</p>` : ''}${catalog(false)}`;
+    <button class="secondary" data-action="openChest" ${!data.chests ? 'disabled' : ''}>${t('chest')} · ${data.chests ?? 0}</button>
+    <small id="ad-cooldown" role="status"></small></div>
+  ${dailyQuests(data.dailyQuests, t)}${catalog(false)}`;
 }
 
 function rankingView() {
@@ -680,7 +698,7 @@ function renderInviteOptions() {
 const format = seconds => [Math.floor(seconds / 60), seconds % 60].map(part => String(part).padStart(2, '0')).join(':');
 
 function updateEmailResend() {
-  const button = document.querySelector('#resend-email-code');
+  const button = document.querySelector('#resend-email');
   if (!button) return;
   const seconds = Math.max(0, Math.ceil((emailRetryAt - Date.now()) / 1000));
   button.disabled = busy || seconds > 0;
@@ -914,7 +932,11 @@ document.addEventListener('submit', async event => {
       render();
     }
   } else if (form.id === 'target-form') {
-    if (await request('target', { target: fields.get('target') })) draft.target = null;
+    if (await request('target', { target: fields.get('target') })) {
+      draft.target = null;
+      const input = content.querySelector('#target-form input');
+      if (input) input.value = data?.profile?.target ?? '';
+    }
   } else if (form.id === 'friend-form') {
     const { prefix, suffix } = splitProfileCode(fields.get('friendCode'));
     if (prefix === 'SK' && suffix && await request('addFriend', { code: `${prefix}-${suffix}` })) {

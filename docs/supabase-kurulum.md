@@ -1,6 +1,6 @@
 # Supabase ve mobil giriş kurulumu
 
-Sanal Kütüphane e-postaya gönderilen tek kullanımlık kodla açılır. Google ve Apple girişleri kendi sağlayıcı ayarları hazır olduğunda etkinleştirilir.
+Sanal Kütüphane e-postaya gönderilen bağlantı veya tek kullanımlık kodla açılır. Google ve Apple girişleri kendi sağlayıcı ayarları hazır olduğunda etkinleştirilir.
 
 ## Supabase projesini bağla
 
@@ -23,10 +23,12 @@ Migration geçmişi beklenmedikse ya da kuru çalıştırma daha önce oluşturu
 
 ## E-postayla giriş
 
+Varsayılan Supabase göndericisi giriş bağlantısı yollar. Bağlantıyı webde isteği yaptığın tarayıcıda veya mobilde isteği yaptığın cihazda aç. E-postada sayısal kod almak için SMTP ve şablon adımlarını tamamla.
+
 1. Supabase Dashboard'da **Authentication → Sign In / Providers → Email** bölümünü aç ve e-posta sağlayıcısını etkinleştir. **Authentication → URL Configuration** yönlendirme listesine `sanalkutuphane://auth` ekle.
 2. **Authentication → SMTP Settings** bölümünde özel SMTP’yi etkinleştir. Doğrulanmış gönderen adresini ve sağlayıcının sunucu, port, kullanıcı adı ve parola bilgilerini gir. Ücretsiz planda varsayılan gönderici organizasyon ekibiyle sınırlıdır ve Supabase bu ayarla özel şablon kaydına izin vermez.
 3. **Authentication → Email Templates** bölümünde **Confirm signup** ve **Magic Link** için konuyu `Sanal Kütüphane · Giriş kodun` olarak ayarla ve HTML şablonunu içerik olarak kaydet. Supabase `{{ .Token }}` yer tutucusunu tek kullanımlık kodla doldurur. [Giriş kodu şablonu](../supabase/templates/sign-in-code.html)
-4. Uygulamada **Giriş kodu gönder** düğmesini kullan. Gelen kodu girip **Kodu doğrula** ile oturum aç. Yeni bir e-posta adresinde kayıt şablonu, var olan bir hesapta giriş şablonu kullanılır.
+4. Uygulamada **Giriş e-postası gönder** düğmesini kullan. Gelen kodu girip **Kodu doğrula** ile oturum aç. Yeni bir e-posta adresinde kayıt şablonu, var olan bir hesapta giriş şablonu kullanılır.
 
 [Supabase e-posta OTP](https://supabase.com/docs/guides/auth/auth-email-passwordless) · [SMTP ayarları](https://supabase.com/docs/guides/auth/auth-smtp)
 
@@ -40,7 +42,7 @@ Web ve mobil aynı Supabase Auth ve Edge Function kurulumunu kullanır. **Authen
 
 Web, `cqvrxlttlyjjlibitrvh` projesiyle kullanıldığında `google-auth` dalındaki Firebase hesabı seçme penceresini açar. Supabase Google kimlik belirtecini doğrular ve uygulama oturumunu açar. Oda, envanter ve jetonlar aynı Supabase hesabına bağlı kalır. Firebase web yapılandırmasını ve Google Client ID'yi [google-web-config.json](../google-web-config.json) dosyasında görebilirsin.
 
-Supabase Dashboard'da **Authentication → Sign In / Providers → Google** bölümünde bu Google Client ID kayıtlı olmalı. Firebase Authentication **Authorized domains** listesinde web uygulamasını açtığın adresin alan adı bulunmalı. `localhost` ve `127.0.0.1` yerel test içindir. Google girişini gizlemek için `EXPO_PUBLIC_AUTH_GOOGLE=false` ayarlayabilirsin.
+Supabase Dashboard'da **Authentication → Sign In / Providers → Google** bölümünde bu Google Client ID kayıtlı olmalı. Firebase Authentication **Authorized domains** listesinde web uygulamasını açtığın adresin alan adı bulunmalı. `localhost` ve `127.0.0.1` yerel test içindir. Webde Google girişini gizlemek için kök `.env.local` dosyasında `WEB_AUTH_GOOGLE=false` kullan.
 
 ### Expo ve ayrı Supabase projeleri
 
@@ -53,6 +55,8 @@ Supabase Dashboard'da **Authentication → Sign In / Providers → Google** böl
 
 3. Supabase **Authentication → Sign In / Providers → Google** bölümünde Google Client ID ve Client Secret değerlerini girip sağlayıcıyı etkinleştir. Supabase **Authentication → URL Configuration** yönlendirme listesine `sanalkutuphane://auth` ekle.
 4. `mobile/.env.local` dosyasında `EXPO_PUBLIC_AUTH_GOOGLE=true` ayarla ve Expo'yu yeniden başlat. Android ve iOS development build üzerinde Google hesabıyla giriş yap.
+
+Ayrı bir Supabase projesine bağlanan web sunucusunda Google OAuth girişini göstermek için kök `.env.local` dosyasında `WEB_AUTH_GOOGLE=true` ayarla.
 
 Bağlı projeye Expo için ayrı bir OAuth istemcisi ekliyorsan, **Client IDs** alanına yeni web istemcisini ilk sırada, Firebase istemcisini virgülle ikinci sırada yaz. **Client Secret** alanına ilk istemcinin sırrını gir.
 

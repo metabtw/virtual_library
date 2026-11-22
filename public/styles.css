@@ -394,6 +394,12 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 .profile-details {min-width:0;width:min(100%,620px)}
 .profile-details h2 {font-size:clamp(17px,4vw,23px)}
 .profile-details p {margin:4px 0 0;overflow-wrap:anywhere}
+.target-editor {display:block;padding-block:8px}
+.target-editor summary {display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;font-weight:700;cursor:pointer}
+.target-editor summary::-webkit-details-marker {display:none}
+.target-editor summary::after {content:'';width:7px;height:7px;border:solid var(--accent);border-width:0 2px 2px 0;transform:rotate(45deg);margin-right:4px}
+.target-editor[open] summary::after {transform:rotate(225deg)}
+.target-editor form {padding:6px 0 8px}
 .profile-hero-actions {display:flex;flex-wrap:wrap;gap:5px}
 .profile-hero-actions .secondary {min-height:44px;margin:0;padding:7px 9px;text-align:center}
 .profile-card form {width: min(100%,600px);min-width: 0}
@@ -574,6 +580,7 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 .auth-emblem {display:grid;place-items:center;flex:none;width:45px;height:45px;background:#f3a35e20;color:var(--accent);border-radius:12px;font:32px Georgia,serif}
 .auth-address {display:block;margin-top:3px;color:var(--ink);overflow-wrap:anywhere}
 .auth-card .primary,.auth-card [data-action="oauth"] {min-height:44px}
+.auth-providers {display:grid;gap:8px}
 #email-code {text-align:center;font:700 22px ui-monospace,Consolas,monospace;letter-spacing:.2em;color:#ffcf9a}
 .auth-code-tools {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .auth-code-tools .secondary {width:100%;min-height:44px;padding:7px 5px;white-space:normal}
@@ -681,8 +688,10 @@ progress {height:7px;accent-color:#e9b275}
 .quest span {color:#ffcc96}
 .quest small,#ad-cooldown {color:var(--muted)}
 .quest progress {width:100%}
-.reward-toolbar {align-items:center}
-.reward-toolbar small {flex-basis:100%}
+.shop-heading {justify-content:flex-start;gap:12px}
+.shop-heading .secondary,.reward-toolbar button {min-height:44px}
+.toolbar.reward-toolbar {display:grid;grid-template-columns:repeat(2,minmax(0,max-content));align-items:stretch}
+.reward-toolbar small {grid-column:1/-1}
 .reward-toolbar small:empty {display:none}
 .study-invite-options {margin:14px 0;max-height:50dvh;overflow:auto}
 .coin-help-list {padding-inline-start:19px;color:var(--muted);line-height:1.5}
@@ -815,6 +824,7 @@ button.seat-name:hover { outline: 1px solid #ffb469; }
 .catalog-plant { position: relative; }
 .catalog-plant img { position: absolute; inset: 0; }
 .rare-card { border-color: #ad79bd; }
+.mystery-box .item-preview {background:radial-gradient(ellipse,#634066,#312439 74%)}
 .room-meta { color: #deb991; }
 .ranking-list { padding: 0; margin: 0; list-style: none; width: 100%; }
 .ranking-list li { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid #80605b55; }

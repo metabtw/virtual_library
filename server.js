@@ -81,9 +81,10 @@ export function getWebConfig(env = process.env) {
     || (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))) {
     return null;
   }
-  const firebaseGoogle = url.origin === googleWeb.supabaseOrigin && env.EXPO_PUBLIC_AUTH_GOOGLE !== 'false';
-  return { url: url.origin, key, google: firebaseGoogle || env.EXPO_PUBLIC_AUTH_GOOGLE === 'true',
-    ...(firebaseGoogle ? { firebaseGoogle: googleWeb.firebase } : {}),
+  const paired = url.origin === googleWeb.supabaseOrigin;
+  const google = env.WEB_AUTH_GOOGLE !== 'false' && (paired || env.WEB_AUTH_GOOGLE === 'true' || env.EXPO_PUBLIC_AUTH_GOOGLE === 'true');
+  return { url: url.origin, key, google,
+    ...(google && paired ? { firebaseGoogle: googleWeb.firebase } : {}),
     apple: env.EXPO_PUBLIC_AUTH_APPLE === 'true' };
 }
 

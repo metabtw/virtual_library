@@ -89,6 +89,8 @@ export function Login() {
     </View>
     {!supabase ? <Text style={ui.warning}>{t.missingConfig}</Text> : <View style={ui.card}>
       <Text accessibilityRole="header" style={ui.heading}>{t.signInTitle}</Text>
+      {googleEnabled && <Button muted disabled={busy} onPress={() => void run(() => oauth('google'))}>{t.google}</Button>}
+      {appleEnabled && <Button muted disabled={busy} onPress={() => void run(() => oauth('apple'))}>{t.apple}</Button>}
       {sentTo ? <>
         <Text accessibilityLiveRegion="polite" style={ui.small}>{t.emailSent}</Text>
         <Text selectable style={ui.accent}>{sentTo}</Text>
@@ -110,9 +112,7 @@ export function Login() {
         <Text style={ui.small}>{t.emailPrompt}</Text>
         <Field label={t.email} value={email} editable={!busy} autoCapitalize="none" autoComplete="email" keyboardType="email-address"
           onChangeText={setEmail} />
-        <Button disabled={busy || !email.includes('@')} onPress={() => void run(sendEmail)}>{t.sendCode}</Button>
-        {appleEnabled && <Button muted disabled={busy} onPress={() => void run(() => oauth('apple'))}>{t.apple}</Button>}
-        {googleEnabled && <Button muted disabled={busy} onPress={() => void run(() => oauth('google'))}>{t.google}</Button>}
+        <Button disabled={busy || !email.includes('@')} onPress={() => void run(sendEmail)}>{t.sendEmail}</Button>
       </>}
       {feedback && <Text accessibilityLiveRegion="polite" style={ui.warning}>{t[feedback]}</Text>}
     </View>}

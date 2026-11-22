@@ -46,7 +46,7 @@ test('new shop items have distinct skins and complete pixel art', () => {
     skins.length + 1);
 
   for (const item of ['mushroomLamp', 'foxMug', 'retroRadio', 'jellyTank', 'origamiCrane', 'crystalTerrarium',
-    'cat', 'pugPup', 'goldKeys', 'dragon', 'space', 'forest', 'jellyTankBase', 'jellyTankDrift']) {
+    'cat', 'pugPup', 'goldKeys', 'dragon', 'space', 'forest', 'jellyTankBase', 'jellyTankDrift', 'mysteryBox']) {
     assert.ok(hasPropArt(item));
     const pixels = [];
     drawProp(item, (color, x, y) => {

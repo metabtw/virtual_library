@@ -8,7 +8,7 @@ Sanal Kütüphane, avatarla katılınan ortak odalarda odaklanmak için bir web 
 - Depoyu ilk kez indiriyorsan `git clone --branch sanal-kutuphane-sosyal-oduller https://github.com/metabtw/virtual_library.git` komutunu kullan. Depo zaten bilgisayarındaysa `git fetch origin`, `git switch sanal-kutuphane-sosyal-oduller` ve `git pull --ff-only` komutları güncel sürümü getirir.
 - Depodaki migration'lar ile `library`, `reward-worker` ve `ad-reward` Edge Function'larını ayrı bir Supabase test projesinde kur. E-posta girişi, yönlendirmeler, ödül zamanlayıcısı ve reklam ayarları için kurulum rehberlerini kullan. [Supabase kurulumu](docs/supabase-kurulum.md) · [Ödüllü reklam kurulumu](docs/odullu-reklam.md)
 - Web için kökteki `.env.example`, mobil için `mobile/.env.example` dosyasını kendi klasöründe `.env.local` olarak kopyala. Windows PowerShell’de `Copy-Item .env.example .env.local` kullanabilirsin. İki dosyada da aynı projenin `EXPO_PUBLIC_SUPABASE_URL` ve `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` değerlerini kullan. Bu dosyalara yalnızca istemciye açık değerler girilir.
-- **Giriş kodu gönder** düğmesine bas ve e-postana gelen tek kullanımlık kodu uygulamada doğrula. Genel kullanıcılara e-posta teslim etmek için Supabase'de özel SMTP gerekir. [E-posta şablonu ve SMTP kurulumu](docs/supabase-kurulum.md#e-postayla-giriş)
+- **Giriş e-postası gönder** düğmesine bas. Varsayılan bağlantıyı isteği yaptığın tarayıcıda aç veya kod şablonu etkinse tek kullanımlık kodu uygulamada doğrula. Genel kullanıcılara e-posta teslim etmek ve kod şablonunu etkinleştirmek için Supabase'de özel SMTP gerekir. [E-posta şablonu ve SMTP kurulumu](docs/supabase-kurulum.md#e-postayla-giriş)
 
 Tarayıcı ve Expo istemcisi `library` Edge Function'ına bağlanır. Sayaç kuralları, jetonlar, XP, oda kapasitesi ve sandık ödülleri Supabase tarafında yürütülür. Eski SQLite prototip profilleri yerel dosyada kalır.
 
@@ -83,6 +83,8 @@ Bu işlemleri deneme hesaplarıyla yap. Bir hesabın silinmesini içeren adım i
 | Arka plana geç ve uygulamayı kapat | İkinci hesap aynı odadayken ilk hesabın sekmesini gizle veya mobil uygulamayı arka plana al. Masada geçici bir durum etiketi görünür. Web sekmesi kapanınca tarayıcı ayrılma isteği gönderir. Mobilde işletim sistemi işlemi sinyal vermeden kapattığında sunucudaki bağlantı süresi dolunca masa boşalır. Doğrulama penceresi geçerse **Uyuyakaldı** görünür. |
 | Günlük görevleri tamamla | Doğrulanan günlük süre 30 dakikaya gelince 5, 60 dakikaya gelince ek 10 jeton otomatik yazılır. |
 | Birlikte 100 oda dakikasına ulaş | Eşik anında odada kalanlara sandık verilir. Eşik öncesinde ayrılan hesap sandık almaz. |
+| Gizem Kutusu ve Oda sandığını aç | Gizem Kutusu mağazada ürün kartı olarak görünür ve 50 jetona açılır. Reklam düğmesinin yanındaki Oda sandığı, kazanılmış bir sandığı ücretsiz açar. |
+| Profilde çalışma hedefini düzenle | Çalışma hedefini aç, bir hedef yazıp kaydet, kapat ve yeniden aç. Son hedef formda ve avatarın yanında görünür. |
 | Sıralamaya katıl ve çalışma kartını aç | Yalnızca doğrulanmış süre hesaba katılır. Sıralama isteğe bağlıdır. Günlük kartta avatar, dakika ve seri görünür. |
 | Deneme hesabını sil | Mobilde **Hesabımı ve Verilerimi Sil** veya webde `/account-deletion` üzerinden hesabı doğrula. Silinen hesaba bağlı profil, envanter ve çalışma kayıtları kaldırılır. |
 

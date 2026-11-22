@@ -5,6 +5,8 @@ const webWords = {
   library: ['Kütüphane', 'Library'],
   libraryOpen: ['Kütüphane açık', 'Library open'],
   profileNav: ['Profil & Envanter', 'Profile & Inventory'],
+  emailSent: ['Kod geldiyse aşağıya gir. Giriş bağlantısı geldiyse isteği yaptığın tarayıcıda aç.',
+    'Enter the code or open the sign-in link in the browser where you requested it.'],
   deletionSignIn: ['Silmek istediğin hesapla giriş yap.', 'Sign in to the account you want to delete.'],
   deletionPage: ['Hesabı silme sayfası', 'Account deletion page'],
   deletionWarning: ['Profilin, envanterin, çalışma geçmişin ve hesabına bağlı kayıtlar kalıcı olarak silinir.',
