@@ -10,6 +10,10 @@ additional_redirect_urls = [
   "http://127.0.0.1:3000/account-deletion"
 ]
 
+[auth.email]
+otp_length = 6
+otp_expiry = 120
+
 [auth.email.template.confirmation]
 subject = "Sanal Kütüphane · Giriş kodun"
 content_path = "./supabase/templates/sign-in-code.html"

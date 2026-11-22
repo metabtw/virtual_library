@@ -287,7 +287,7 @@ function signInView() {
     </div>` : ''}
     ${emailSentTo ? `<p>${t('emailSent')}<strong class="auth-address">${escape(emailSentTo)}</strong></p>
       <form id="code-form" class="stacked"><label class="field">${t('code')} <input id="email-code" name="code" type="text" required
-        inputmode="numeric" pattern="[0-9]{6,10}" maxlength="10" autocomplete="one-time-code" value="${escape(draft.code)}"></label>
+        inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" value="${escape(draft.code)}"></label>
         <button class="primary">${t('confirmCode')}</button></form>
       <div class="auth-code-tools">
         <form id="email-form"><button class="secondary" id="resend-email">${t('resend')}</button></form>

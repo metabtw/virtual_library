@@ -99,8 +99,8 @@ export function getWebConfig(env = process.env) {
   return { url: url.origin, key, google,
     ...(google && paired ? {
       firebaseGoogle: googleWeb.firebase,
-      ...(env.WEB_FIREBASE_AUTH_DOMAIN === 'virtualstudycrew.com'
-        ? { firebaseGoogleDomain: env.WEB_FIREBASE_AUTH_DOMAIN } : {}),
+      ...(env.WEB_FIREBASE_AUTH_REDIRECT_URI === 'https://virtualstudycrew.com/__/auth/handler'
+        ? { firebaseGoogleDomain: 'virtualstudycrew.com' } : {}),
     } : {}),
     apple: env.EXPO_PUBLIC_AUTH_APPLE === 'true' };
 }

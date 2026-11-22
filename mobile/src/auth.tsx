@@ -98,9 +98,9 @@ export function Login() {
         <Text accessibilityLiveRegion="polite" style={ui.small}>{t.emailSent}</Text>
         <Text selectable style={ui.accent}>{sentTo}</Text>
         <Field label={t.code} value={code} editable={!busy} autoFocus keyboardType="number-pad"
-          autoComplete="one-time-code" textContentType="oneTimeCode" maxLength={10}
-          style={[ui.input, authStyles.code]} onChangeText={value => setCode(value.replace(/\D/g, ''))} />
-        <Button disabled={busy || !/^\d{6,10}$/.test(code)} onPress={() => void run(confirmCode)}>{t.confirmCode}</Button>
+          autoComplete="one-time-code" textContentType="oneTimeCode" maxLength={6}
+          style={[ui.input, authStyles.code]} onChangeText={value => setCode(value.replace(/\D/g, '').slice(0, 6))} />
+        <Button disabled={busy || !/^\d{6}$/.test(code)} onPress={() => void run(confirmCode)}>{t.confirmCode}</Button>
         <View style={authStyles.codeActions}>
           <View style={authStyles.action}><Button compact muted disabled={busy || resendSeconds > 0} onPress={() => void run(sendEmail)}>
             {t.resend}{resendSeconds ? ` · ${resendSeconds} ${t.secondsShort}` : ''}

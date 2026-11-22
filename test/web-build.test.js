@@ -50,9 +50,11 @@ test('builds the static Vercel site and keeps browser configuration public', asy
   }
   assert.ok(vercel.rewrites.some(rule => rule.source === '/__/auth/:path*' &&
     rule.destination === `https://${googleWeb.firebase.authDomain}/__/auth/:path*`));
-  assert.equal(getWebConfig({ ...env, WEB_FIREBASE_AUTH_DOMAIN: 'virtualstudycrew.com' }).firebaseGoogleDomain,
+  assert.equal(getWebConfig({
+    ...env, WEB_FIREBASE_AUTH_REDIRECT_URI: 'https://virtualstudycrew.com/__/auth/handler',
+  }).firebaseGoogleDomain,
     'virtualstudycrew.com');
-  assert.equal(getWebConfig({ ...env, WEB_FIREBASE_AUTH_DOMAIN: 'www.virtualstudycrew.com' }).firebaseGoogleDomain,
+  assert.equal(getWebConfig({ ...env, WEB_FIREBASE_AUTH_DOMAIN: 'virtualstudycrew.com' }).firebaseGoogleDomain,
     undefined);
 
   await buildWeb(output, { ...env, WEB_AUTH_GOOGLE: 'false' });

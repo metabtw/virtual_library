@@ -130,6 +130,9 @@ test('enables paired Firebase Google web sign-in independently of the Expo flag'
 test('signup and sign-in email templates both deliver a one-time code', async () => {
   const config = await readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8');
   const html = await readFile(new URL('../supabase/templates/sign-in-code.html', import.meta.url), 'utf8');
+  const email = config.split('[auth.email]')[1]?.split('\n[')[0];
+  assert.match(email, /^otp_length = 6$/m);
+  assert.match(email, /^otp_expiry = 120$/m);
   for (const template of ['confirmation', 'magic_link']) {
     const section = config.split(`[auth.email.template.${template}]`)[1]?.split('\n[')[0];
     assert.match(section, /content_path = "\.\/supabase\/templates\/sign-in-code\.html"/);
