@@ -24,8 +24,8 @@ Migration geçmişi beklenmedikse ya da kuru çalıştırma daha önce oluşturu
 ## E-postayla giriş
 
 1. Supabase Dashboard'da **Authentication → Sign In / Providers → Email** bölümünü aç ve e-posta sağlayıcısını etkinleştir. **Authentication → URL Configuration** yönlendirme listesine `sanalkutuphane://auth` ekle.
-2. **Authentication → Email Templates** bölümünde **Confirm signup** ve **Magic Link** için konuyu `Sanal Kütüphane · Giriş kodun`, içeriği [giriş kodu şablonundaki](../supabase/templates/sign-in-code.html) HTML olarak kaydet. `{{ .Token }}` yer tutucusunu Supabase her e-posta için tek kullanımlık kodla doldurur.
-3. Genel kullanıcılara e-posta göndermek için **Authentication → SMTP Settings** bölümünde doğrulanmış bir gönderen ve kendi SMTP sağlayıcının bilgilerini gir. Supabase’in varsayılan gönderimi organizasyon ekibindeki adreslerle sınırlıdır.
+2. **Authentication → SMTP Settings** bölümünde özel SMTP’yi etkinleştir. Doğrulanmış gönderen adresini ve sağlayıcının sunucu, port, kullanıcı adı ve parola bilgilerini gir. Ücretsiz planda varsayılan gönderici organizasyon ekibiyle sınırlıdır ve Supabase bu ayarla özel şablon kaydına izin vermez.
+3. **Authentication → Email Templates** bölümünde **Confirm signup** ve **Magic Link** için konuyu `Sanal Kütüphane · Giriş kodun` olarak ayarla ve HTML şablonunu içerik olarak kaydet. Supabase `{{ .Token }}` yer tutucusunu tek kullanımlık kodla doldurur. [Giriş kodu şablonu](../supabase/templates/sign-in-code.html)
 4. Uygulamada **Giriş kodu gönder** düğmesini kullan. Gelen kodu girip **Kodu doğrula** ile oturum aç. Yeni bir e-posta adresinde kayıt şablonu, var olan bir hesapta giriş şablonu kullanılır.
 
 [Supabase e-posta OTP](https://supabase.com/docs/guides/auth/auth-email-passwordless) · [SMTP ayarları](https://supabase.com/docs/guides/auth/auth-smtp)
