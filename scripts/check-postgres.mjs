@@ -518,6 +518,10 @@ try {
   assert.equal((await action(privateReader, 'state')).profile.ownsPrivateRoom, false);
   assert.equal((await action(lifecycleActor, 'joinCode', { code: temporary.invite })).error, 'invalidInvite');
   const replacement = (await action(privateReader, 'createRoom', { name: 'Yeni Oda' })).rooms.find(entry => entry.owned);
+  await db.query('update public.room_members set seen = public.library_time_ms() - 16000 where user_id = $1', [privateReader]);
+  await db.query('update public.rooms set empty_since_ms = public.library_time_ms() - 42000000 where id = $1', [replacement.id]);
+  assert.equal((await action(privateReader, 'state')).profile.room, replacement.id);
+  assert.equal((await db.query('select empty_since_ms from public.rooms where id = $1', [replacement.id])).rows[0].empty_since_ms, null);
   await action(privateReader, 'leave');
   await db.query('update public.rooms set empty_since_ms = public.library_time_ms() - 43201000 where id = $1', [replacement.id]);
   await settle();
