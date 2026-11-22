@@ -20,3 +20,9 @@ export function createRoomConnection() {
     payload() { return { clientId, generation }; },
   };
 }
+
+export function emailAuthMessage(error) {
+  if (error?.code === 'otp_expired') return 'emailCodeInvalid';
+  if (error?.status === 429) return 'emailRateLimited';
+  return 'authError';
+}

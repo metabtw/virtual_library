@@ -80,7 +80,7 @@ export function getWebConfig(env = process.env) {
     return null;
   }
   return { url: url.origin, key, google: env.EXPO_PUBLIC_AUTH_GOOGLE === 'true',
-    apple: env.EXPO_PUBLIC_AUTH_APPLE === 'true', emailCode: env.EXPO_PUBLIC_AUTH_EMAIL_CODE === 'true' };
+    apple: env.EXPO_PUBLIC_AUTH_APPLE === 'true' };
 }
 
 export async function bundleSupabase() {

@@ -1,6 +1,6 @@
 # Supabase ve mobil giriş kurulumu
 
-Sanal Kütüphane önce e-postadaki giriş bağlantısıyla açılabilir. Google ve Apple girişleri kendi sağlayıcı ayarları hazır olduğunda etkinleştirilir.
+Sanal Kütüphane e-postaya gönderilen tek kullanımlık kodla açılır. Google ve Apple girişleri kendi sağlayıcı ayarları hazır olduğunda etkinleştirilir.
 
 ## Supabase projesini bağla
 
@@ -24,8 +24,9 @@ Migration geçmişi beklenmedikse ya da kuru çalıştırma daha önce oluşturu
 ## E-postayla giriş
 
 1. Supabase Dashboard'da **Authentication → Sign In / Providers → Email** bölümünü aç ve e-posta sağlayıcısını etkinleştir. **Authentication → URL Configuration** yönlendirme listesine `sanalkutuphane://auth` ekle.
-2. Development build'de **Giriş e-postası gönder** düğmesine bas ve gelen bağlantıyı aynı cihazda aç. Uygulama bağlantıdaki tek kullanımlık kodu oturuma çevirir.
-3. Genel kullanıcılara giriş e-postası göndermek için özel SMTP sağlayıcısı yapılandır. Kodla giriş de sunacaksan hem **Magic Link** hem **Confirm signup** şablonuna `{{ .Token }}` ekle ve web ile mobil ortamlarında `EXPO_PUBLIC_AUTH_EMAIL_CODE=true` ayarla. Varsayılan akış e-postadaki bağlantıyı kullanır.
+2. **Authentication → Email Templates** bölümünde **Confirm signup** ve **Magic Link** için konuyu `Sanal Kütüphane · Giriş kodun`, içeriği [giriş kodu şablonundaki](../supabase/templates/sign-in-code.html) HTML olarak kaydet. `{{ .Token }}` yer tutucusunu Supabase her e-posta için tek kullanımlık kodla doldurur.
+3. Genel kullanıcılara e-posta göndermek için **Authentication → SMTP Settings** bölümünde doğrulanmış bir gönderen ve kendi SMTP sağlayıcının bilgilerini gir. Supabase’in varsayılan gönderimi organizasyon ekibindeki adreslerle sınırlıdır.
+4. Uygulamada **Giriş kodu gönder** düğmesini kullan. Gelen kodu girip **Kodu doğrula** ile oturum aç. Yeni bir e-posta adresinde kayıt şablonu, var olan bir hesapta giriş şablonu kullanılır.
 
 [Supabase e-posta OTP](https://supabase.com/docs/guides/auth/auth-email-passwordless) · [SMTP ayarları](https://supabase.com/docs/guides/auth/auth-smtp)
 

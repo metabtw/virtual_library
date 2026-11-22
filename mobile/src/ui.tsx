@@ -7,14 +7,14 @@ const buttonTones = {
   danger: { surface: { backgroundColor: '#642934', borderColor: '#b75e69', borderWidth: 1 }, label: { color: '#ffd9d8' } },
 };
 
-export function Button({ children, onPress, disabled, muted, tone, accessibilityLabel }: {
-  children: ReactNode; onPress: () => void; disabled?: boolean; muted?: boolean;
+export function Button({ children, onPress, disabled, muted, compact, tone, accessibilityLabel }: {
+  children: ReactNode; onPress: () => void; disabled?: boolean; muted?: boolean; compact?: boolean;
   tone?: keyof typeof buttonTones; accessibilityLabel?: string;
 }) {
   const colors = tone ? buttonTones[tone] : undefined;
   return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
-    style={({ pressed }) => [ui.button, muted && ui.mutedButton, colors?.surface, (disabled || pressed) && { opacity: .54 }]}>
-    <Text style={[ui.buttonText, muted && ui.ink, colors?.label]}>{children}</Text>
+    style={({ pressed }) => [ui.button, compact && ui.compactButton, muted && ui.mutedButton, colors?.surface, (disabled || pressed) && { opacity: .54 }]}>
+    <Text style={[ui.buttonText, compact && ui.compactButtonText, muted && ui.ink, colors?.label]}>{children}</Text>
   </Pressable>;
 }
 
@@ -60,6 +60,8 @@ export const ui = StyleSheet.create({
   button: { minHeight: 46, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 11,
     backgroundColor: '#ffb360', alignItems: 'center', justifyContent: 'center' },
   buttonText: { color: '#271722', fontWeight: '700', textAlign: 'center' },
+  compactButton: { paddingHorizontal: 5, paddingVertical: 7 },
+  compactButtonText: { fontSize: 12 },
   mutedButton: { backgroundColor: '#2b202e', borderColor: '#a77a70', borderWidth: 1 },
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { minHeight: 44, justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: '#76545b', padding: 8 },

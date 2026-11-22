@@ -1,6 +1,6 @@
 import { createClient } from './supabase-web.js';
 import { config } from './config.js';
-import { createRoomConnection, invokeLibrary } from './library-client.js';
+import { createRoomConnection, emailAuthMessage, invokeLibrary } from './library-client.js';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from './focus-clock.js';
 import { displayDeskStatuses, recordDeskStatus } from './desk-status.js';
 import { portrait, propImage, writingFrames } from './sprites.js';
@@ -34,7 +34,7 @@ const categories = {
   all: 'catalogAll', wearable: 'catalogClothes', hair: 'catalogHair', desk: 'catalogDesk',
   pet: 'catalogPets', ambience: 'catalogSound', rare: 'catalogChests',
 };
-const draft = { email: '', avatarName: null, target: null, roomName: '', invite: '', referral: '', friendCode: '' };
+const draft = { email: '', code: '', avatarName: null, target: null, roomName: '', invite: '', referral: '', friendCode: '' };
 const seenReactions = new Set();
 const roomConnection = createRoomConnection();
 let locale = initialLanguage();
@@ -64,6 +64,8 @@ let editing = false;
 let durationChoice = '50';
 let customDuration = '35';
 let emailSentTo = '';
+let emailRetryAt = 0;
+let emailFeedback = '';
 let selectedDesk;
 let lastInviteOptions;
 let ranking;
@@ -264,7 +266,8 @@ function reflectSession(next) {
   lastRead = 0;
   lastView = lastScene = undefined;
   seenReactions.clear();
-  if (!id) emailSentTo = '';
+  emailSentTo = emailFeedback = draft.code = '';
+  emailRetryAt = 0;
   syncPresence();
   render();
   if (id && !deletionPage) void request('state');
@@ -273,20 +276,25 @@ function reflectSession(next) {
 function signInView() {
   if (!client) return `<section class="card account-card">${deletionPage ? backToProfile() : ''}
     <h1>${t('app')}</h1><p>${t('missingConfig')}</p><a href="${privacyHref()}">${t('readPrivacy')}</a></section>`;
-  return `<section class="card account-card">
-    <h1>${t(deletionPage ? 'deleteAccount' : 'signInTitle')}</h1>
-    <p>${t(deletionPage ? 'deletionSignIn' : 'sameAccount')}</p>
-    <form id="email-form" class="stacked">
-      <label class="field">${t('email')} <input type="email" name="email" required autocomplete="email" value="${escape(draft.email)}"></label>
-      <button class="primary">${t(emailSentTo ? 'resend' : 'sendCode')}</button>
-    </form>
-    ${emailSentTo ? `<p>${t(config.emailCode ? 'emailSent' : 'emailLinkSent')}</p>` : ''}
-    ${emailSentTo && config.emailCode ? `<form id="code-form" class="stacked"><label class="field">${t('code')} <input name="code" required
-      inputmode="numeric" pattern="[0-9]{6,10}" autocomplete="one-time-code"></label><button class="secondary">${t('confirmCode')}</button></form>` : ''}
-    ${config.google ? `<button class="secondary" data-action="oauth" data-value="google">${t('google')}</button>` : ''}
-    ${config.apple ? `<button class="secondary" data-action="oauth" data-value="apple">${t('apple')}</button>` : ''}
-    <a href="${privacyHref()}">${t('readPrivacy')}</a>
-    ${deletionPage ? backToProfile() : `<a href="${deletionHref()}">${t('deletionPage')}</a>`}
+  return `<section class="card account-card auth-card">
+    <div class="auth-heading"><span class="auth-emblem" aria-hidden="true">◫</span><h1>${t(deletionPage ? 'deleteAccount' : 'signInTitle')}</h1></div>
+    ${emailSentTo ? `<p>${t('emailSent')}<strong class="auth-address">${escape(emailSentTo)}</strong></p>
+      <form id="code-form" class="stacked"><label class="field">${t('code')} <input id="email-code" name="code" type="text" required
+        inputmode="numeric" pattern="[0-9]{6,10}" maxlength="10" autocomplete="one-time-code" value="${escape(draft.code)}"></label>
+        <button class="primary">${t('confirmCode')}</button></form>
+      <div class="auth-code-tools">
+        <form id="email-form"><button class="secondary" id="resend-email-code">${t('resend')}</button></form>
+        <button class="secondary" data-action="change-email">${t('changeEmail')}</button>
+      </div>` : `<p>${t(deletionPage ? 'deletionSignIn' : 'emailPrompt')}</p>
+      <form id="email-form" class="stacked">
+        <label class="field">${t('email')} <input id="sign-in-email" type="email" name="email" required autocomplete="email" value="${escape(draft.email)}"></label>
+        <button class="primary">${t('sendCode')}</button>
+      </form>
+      ${config.google ? `<button class="secondary" data-action="oauth" data-value="google">${t('google')}</button>` : ''}
+      ${config.apple ? `<button class="secondary" data-action="oauth" data-value="apple">${t('apple')}</button>` : ''}`}
+    ${emailFeedback ? `<p class="auth-feedback" role="alert">${t(emailFeedback)}</p>` : ''}
+    <div class="auth-links"><a href="${privacyHref()}">${t('readPrivacy')}</a>
+    ${deletionPage ? backToProfile() : `<a href="${deletionHref()}">${t('deletionPage')}</a>`}</div>
   </section>`;
 }
 
@@ -396,15 +404,15 @@ function roomView(room) {
   const minutes = room?.minutes ?? 0;
   const hasFriends = data.friends?.some(friend => friend.status === 'accepted');
   return `<div class="room-layout">
+    <div class="heading compact-heading room-heading"><div class="room-identity"><h1 id="room-title">${name}</h1>
+      ${room?.private ? `<span class="private-badge">${t('privateBadge')}</span>` : ''}</div>
+      ${room && hasFriends && !running() ? `<button class="secondary invite-friends" data-action="invite-dialog"
+        aria-label="${t('friendInvite')}" title="${t('friendInvite')}"><span aria-hidden="true">♙+</span><b>${t('friendInvite')}</b></button>` : ''}
+    </div>
+    ${room ? `<div class="room-goal" title="${t('chestGoalInfo')}"><span>🎁 ${t('chestGoal')}</span>
+      <progress aria-label="${t('groupMinutes')}" max="${roomGoalMinutes}" value="${minutes % roomGoalMinutes}"></progress>
+      <b>${minutes % roomGoalMinutes}/${roomGoalMinutes}</b></div>` : ''}
     <div class="room-stage">
-      <div class="heading compact-heading room-heading"><div class="room-identity"><h1 id="room-title">${name}</h1>
-        ${room?.private ? `<span class="private-badge">${t('privateBadge')}</span>` : ''}</div>
-        ${room && hasFriends && !running() ? `<button class="secondary invite-friends" data-action="invite-dialog"
-          aria-label="${t('friendInvite')}" title="${t('friendInvite')}"><span aria-hidden="true">♙+</span><b>${t('friendInvite')}</b></button>` : ''}
-      </div>
-      ${room ? `<div class="room-goal" title="${t('chestGoalInfo')}"><span>🎁 ${t('chestGoal')}</span>
-        <progress aria-label="${t('groupMinutes')}" max="${roomGoalMinutes}" value="${minutes % roomGoalMinutes}"></progress>
-        <b>${minutes % roomGoalMinutes}/${roomGoalMinutes}</b></div>` : ''}
       <section class="scene" data-room-theme="${roomPreferences.themeFor(room)}" aria-labelledby="room-title">
         <div class="scene-top"><span><span class="dot"></span> <span id="room-count">${room?.count ?? 0}</span> / ${room?.capacity ?? 9} ${t('people')}</span><span>☾ &nbsp; ${t('quietRoom')}</span></div>
         <div id="room-seats"></div>
@@ -430,16 +438,16 @@ function roomsView() {
   return `<div class="heading compact-heading"><h1>${t('rooms')}</h1><a class="secondary" href="#ranking">${t('leaderboard')}</a></div>
   ${studyInvitations(data, t, escape, locale)}
   <label class="field room-search">${t('searchTarget')} <input type="search" id="room-search" value="${escape(roomSearch)}"></label>
-  <div class="room-grid">${data.rooms.map(room => `<article class="card room-card" data-room-id="${escape(room.id)}">
+  <div class="room-grid room-list">${data.rooms.map(room => `<article class="card room-card" data-room-id="${escape(room.id)}">
     <span class="item-icon" aria-hidden="true">${room.private ? '◆' : roomIcons[room.id] ?? '☾'}</span>
     <div class="room-card-title"><h2>${escape(localName(room))}</h2>${room.private ? `<span class="private-badge">${t('privateBadge')}</span>` : ''}</div>
-    ${room.targets?.length ? `<p>${escape(room.targets.join(' · '))}</p>` : ''}
+    ${room.targets?.length ? `<p class="room-targets">${escape(room.targets.join(' · '))}</p>` : ''}
     <p><span class="dot"></span> ${room.count} / ${room.capacity} ${t('people')}</p>
     <button class="primary" data-action="join" data-value="${escape(room.id)}" ${room.count >= room.capacity && data.profile?.room !== room.id ? 'disabled' : ''}>${t(data.profile?.room === room.id ? 'open' : room.count >= room.capacity ? 'roomFull' : 'joinRoom')}</button>
   </article>`).join('')}</div>
   <p id="room-search-empty" role="status" hidden>${t('noRooms')}</p>
   <div class="room-grid room-actions private-actions">
-    ${data.profile.ownsPrivateRoom ? `<p class="card room-owned" role="status">${t('privateRoomOwned')}</p>` : `<form class="card stacked" id="create-room-form"><label class="field">${t('roomName')} <input name="roomName" value="${escape(draft.roomName)}" required minlength="2" maxlength="32"></label><button class="primary">${t('createRoom')}</button></form>`}
+    ${data.profile.ownsPrivateRoom ? `<div class="card room-owned" role="status"><p>${t('privateRoomOwned')}</p></div>` : `<form class="card stacked" id="create-room-form"><label class="field">${t('roomName')} <input name="roomName" value="${escape(draft.roomName)}" required minlength="2" maxlength="32"></label><button class="primary">${t('createRoom')}</button></form>`}
     <form class="card stacked" id="join-room-form"><label class="field">${t('inviteCode')} <input name="invite" value="${escape(draft.invite)}" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6"></label><button class="secondary">${t('joinCode')}</button></form>
   </div>`;
 }
@@ -506,24 +514,27 @@ function profileView() {
   const name = escape(profile?.name);
   const readerCode = profile?.shortReaderCode || profile?.readerCode;
   const referralCode = profile?.shortReferralCode || profile?.referralCode;
-  return `<div class="heading"><h1>${t(profile ? 'profileInventory' : 'newAvatar')}</h1></div>
-  <section class="profile-card">${sprite(editing || !profile ? avatar : dressedAvatar(profile.avatar, placed()))}
+  return `<div class="heading${profile ? ' profile-heading' : ''}"><h1>${t(profile ? 'profileInventory' : 'newAvatar')}</h1>
+    ${profile ? `<div class="profile-shortcuts">
+      <button class="secondary" data-action="study-card" aria-label="${t('downloadCard')}">${t('studyCardAction')}</button>
+      <a class="secondary" href="#ranking">${t('leaderboard')}</a>
+    </div>` : ''}
+  </div>
+  <section class="profile-card${profile && !editing ? ' profile-overview' : ''}">${sprite(editing || !profile ? avatar : dressedAvatar(profile.avatar, placed()))}
   ${editing || !profile ? `<form id="avatar-form"><label>${t('name')}<input name="name" value="${escape(draft.avatarName ?? profile?.name)}" minlength="2" maxlength="24" required></label>
   ${!profile ? `<div class="field"><label for="registration-code">${t('referralField')}</label>
     <div class="code-field"><button type="button" class="secondary" data-referral-prefix aria-label="${t('switchCodePrefix')} · ${referralPrefix}-">${referralPrefix}-</button>
     <input id="registration-code" name="referral" value="${escape(draft.referral)}" maxlength="15" autocapitalize="characters" autocomplete="off"></div></div>` : ''}
-  ${avatarPresetPicker()}<div class="form-options">${avatarFields()}</div><button class="primary">${t('saveAvatar')}</button></form>` : `<div><h2>${name}</h2>
+  ${avatarPresetPicker()}<div class="form-options">${avatarFields()}</div><button class="primary">${t('saveAvatar')}</button></form>` : `<div class="profile-details"><h2>${name}</h2>
     ${profile.target ? `<p>${escape(profile.target)}</p>` : ''}
     <dl class="profile-codes">
       ${readerCode ? profileCode('readerCode', readerCode) : profileCode('accountId', userId, false)}
       ${referralCode ? profileCode('referralCode', referralCode) : ''}
     </dl>
-    <button class="secondary" data-action="edit">${t('editAvatar')}</button>
-    ${profile.room ? `<button class="secondary" data-action="leave">${t('leave')}</button>` : ''}</div>`}</section>
+    <div class="profile-hero-actions"><button class="secondary" data-action="edit">${t('editAvatar')}</button>
+    ${profile.room ? `<button class="secondary" data-action="leave">${t('leave')}</button>` : ''}</div></div>`}</section>
   ${profile ? `<form id="target-form" class="card stacked private-actions"><label class="field">${t('target')}
     <input name="target" maxlength="48" value="${escape(draft.target ?? profile.target)}"></label><button class="secondary">${t('saveTarget')}</button></form>
-    <div class="toolbar"><button class="secondary" data-action="study-card">${t('downloadCard')}</button>
-    <a class="secondary" href="#ranking">${t('leaderboard')}</a></div>
     ${dailyQuests(data.dailyQuests, t)}${studyInvitations(data, t, escape, locale)}${friendsPanel(data, draft.friendCode, t, escape)}
     <h2 class="section-title">${t('inventory')}</h2><p class="equipment-note">${t('equipmentLimit')}</p>${catalog(true)}` : ''}
   <section class="card account-section" aria-labelledby="account-title">
@@ -614,8 +625,9 @@ function render() {
     if (verification.open) verification.close();
     const signIn = !userId;
     document.querySelector('#location').textContent = t(signIn ? 'signIn' : deletionPage ? 'deletionPage' : 'library');
-    paint(JSON.stringify([signIn, deletionPage, emailSentTo, Boolean(data), locale]),
+    paint(JSON.stringify([signIn, deletionPage, emailSentTo, emailFeedback, Boolean(data), locale]),
       signIn ? signInView : deletionPage ? deletionView : () => `<p>${t('loading')}</p>`);
+    updateEmailResend();
     return;
   }
   const inRoom = Boolean(data.profile?.room);
@@ -666,7 +678,17 @@ function renderInviteOptions() {
 
 const format = seconds => [Math.floor(seconds / 60), seconds % 60].map(part => String(part).padStart(2, '0')).join(':');
 
+function updateEmailResend() {
+  const button = document.querySelector('#resend-email-code');
+  if (!button) return;
+  const seconds = Math.max(0, Math.ceil((emailRetryAt - Date.now()) / 1000));
+  button.disabled = busy || seconds > 0;
+  const label = seconds ? `${t('resend')} · ${seconds} ${t('secondsShort')}` : t('resend');
+  if (button.textContent !== label) button.textContent = label;
+}
+
 function updateClock() {
+  updateEmailResend();
   const active = session();
   const observed = now();
   const remain = active ? focusRemaining(active, pendingPauseAt ?? observed) : validDuration() ? duration() * 60000 : null;
@@ -850,23 +872,32 @@ document.addEventListener('submit', async event => {
   if (busy || !client) return;
   const fields = new FormData(form);
   if (form.id === 'email-form' || form.id === 'code-form') {
+    if (form.id === 'email-form' && emailSentTo && Date.now() < emailRetryAt) return;
     const button = form.querySelector('button');
     busy = button.disabled = true;
+    emailFeedback = '';
+    let sent = false;
     try {
       if (form.id === 'email-form') {
-        const email = fields.get('email').trim();
+        const email = emailSentTo || fields.get('email').trim();
         const { error } = await client.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo() } });
         if (error) throw error;
         emailSentTo = email;
-        render();
-        toast(t('checkEmail'));
+        emailRetryAt = Date.now() + 60000;
+        draft.code = '';
+        sent = true;
       } else {
-        if (!config.emailCode || !emailSentTo) return;
+        if (!emailSentTo) return;
         const { error } = await client.auth.verifyOtp({ email: emailSentTo, token: fields.get('code').trim(), type: 'email' });
         if (error) throw error;
       }
-    } catch { toast(t('authError')); }
-    finally { busy = button.disabled = false; }
+    } catch (error) { emailFeedback = emailAuthMessage(error); }
+    finally {
+      busy = button.disabled = false;
+      if (sent) lastView = undefined;
+      render();
+      if (sent) document.querySelector('#email-code')?.focus();
+    }
     return;
   }
   if (form.id === 'avatar-form') {
@@ -903,6 +934,12 @@ document.addEventListener('click', async event => {
   const button = event.target.closest('[data-action]');
   if (!button || busy) return;
   const { action, value } = button.dataset;
+  if (action === 'change-email') {
+    emailSentTo = emailFeedback = draft.code = '';
+    render();
+    document.querySelector('#sign-in-email')?.focus();
+    return;
+  }
   if (action === 'oauth' && client) {
     const { error } = await client.auth.signInWithOAuth({ provider: value, options: { redirectTo: redirectTo() } });
     if (error) toast(t('authError'));

@@ -372,23 +372,48 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
   padding: 8px;
   background: radial-gradient(circle,#f7a7595c,#b35d2625 62%,transparent 70%);
 }
+.heading.profile-heading {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,clamp(166px,49%,322px));
+  align-items:center;
+  gap:clamp(8px,2vw,20px);
+  margin-bottom:16px;
+}
+.profile-heading h1 {font-size:clamp(22px,5.2vw,48px)}
+.profile-shortcuts {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.profile-shortcuts .secondary {
+  display:flex;align-items:center;justify-content:center;min-height:44px;padding:7px 5px;
+  white-space:normal;text-align:center;overflow-wrap:anywhere;font-size:clamp(11px,2.7vw,13px);line-height:1.25;
+}
+.profile-card.profile-overview {
+  grid-template-columns:clamp(54px,18vw,120px) minmax(0,1fr);
+  gap:clamp(8px,2vw,22px);
+  margin-top:0;
+}
+.profile-overview > .sprite {width:100%;height:auto;padding:0;align-self:center;object-fit:contain}
+.profile-details {min-width:0;width:min(100%,620px)}
+.profile-details h2 {font-size:clamp(17px,4vw,23px)}
+.profile-details p {margin:4px 0 0;overflow-wrap:anywhere}
+.profile-hero-actions {display:flex;flex-wrap:wrap;gap:5px}
+.profile-hero-actions .secondary {min-height:44px;margin:0;padding:7px 9px;text-align:center}
 .profile-card form {width: min(100%,600px);min-width: 0}
 .profile-card .secondary {max-width: 100%;white-space: normal;margin-block: 3px}
-.profile-codes {display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.profile-codes {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,5.25rem),1fr));gap:7px;margin:10px 0}
 .profile-codes > div {
-  display:grid;
+  display:flex;
+  flex-direction:column;
   gap:3px;
   min-width:0;
   max-width:100%;
-  padding:7px 11px;
+  padding:7px clamp(5px,1.7vw,11px);
   border:1px solid var(--line);
   border-radius:9px;
   background:#201720d9;
 }
 .profile-codes dt {font-size:12px;color:var(--muted)}
-.profile-codes dd {margin:0;overflow-wrap:anywhere;color:#ffcf9a;font-size:14px;font-weight:700}
-.profile-code-actions {display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
-.profile-code-actions .secondary {min-height:44px;margin:0;padding:5px 8px}
+.profile-codes dd {display:flex;flex:1;flex-direction:column;justify-content:space-between;margin:0;overflow-wrap:anywhere;color:#ffcf9a;font-size:14px;font-weight:700}
+.profile-code-actions {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,3.35rem),1fr));gap:4px;margin-top:5px}
+.profile-code-actions .secondary {min-height:44px;margin:0;padding:5px 2px;font-size:11.5px;overflow-wrap:normal}
 .code-field {display:flex;align-items:stretch;min-width:0}
 .code-field > :first-child {display:grid;place-items:center;margin:0;padding:0 9px;color:var(--accent);border:1px solid var(--line);border-radius:12px 0 0 12px;background:#201720a8;font-weight:700}
 .code-field input {flex:1;min-width:0;width:100%;border-radius:0 12px 12px 0;border-inline-start:0}
@@ -531,8 +556,9 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
   #notice {bottom:calc(73px + env(safe-area-inset-bottom));z-index:5}
 }
 @media(max-width: 440px) {
-  .profile-card {grid-template-columns:minmax(0,1fr)}
-  .profile-card > .sprite {justify-self: center}
+  .profile-card:not(.profile-overview) {grid-template-columns:minmax(0,1fr)}
+  .profile-card:not(.profile-overview) > .sprite {justify-self:center}
+  .profile-card.profile-overview {padding:11px}
   .form-options {grid-template-columns:repeat(auto-fit,minmax(min(100%,94px),1fr))}
   .seat-name {font-size: 10px}
   .scene-top>span {padding: 5px 8px}
@@ -543,6 +569,16 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 .account-card h1 { font-size: clamp(24px, 5vw, 38px); }
 .account-card p {margin:0;line-height:1.55}
 .account-card a:not([class]) {color:var(--accent)}
+.auth-card {padding:clamp(16px,4vw,28px)}
+.auth-heading {display:flex;align-items:center;gap:12px}
+.auth-emblem {display:grid;place-items:center;flex:none;width:45px;height:45px;background:#f3a35e20;color:var(--accent);border-radius:12px;font:32px Georgia,serif}
+.auth-address {display:block;margin-top:3px;color:var(--ink);overflow-wrap:anywhere}
+.auth-card .primary {min-height:44px}
+#email-code {text-align:center;font:700 22px ui-monospace,Consolas,monospace;letter-spacing:.2em;color:#ffcf9a}
+.auth-code-tools {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.auth-code-tools .secondary {width:100%;min-height:44px;padding:7px 5px;white-space:normal}
+.auth-card .auth-feedback {color:#ffd0c9;background:#622d3b66;border:1px solid #da777966;border-radius:10px;padding:9px 11px}
+.auth-links {display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;font-size:13px}
 .account-section {align-items:stretch;gap:12px;margin-top:24px}
 .account-section h2 {margin:0}
 .account-actions {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr));gap:8px}
@@ -578,8 +614,10 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 .compact-heading {flex-direction:row;align-items:center;gap:8px;margin-bottom:12px}
 .compact-heading h1 {min-width:0}
 .compact-heading .secondary {padding:8px 10px;font-size:12px;line-height:1.25;text-align:center;white-space:normal}
-.room-layout {display:grid;gap:14px;align-items:start}
+.room-layout {display:grid;gap:14px}
+.room-layout > :is(.room-heading,.room-goal) {grid-column:1/-1;margin:0}
 .room-stage,.room-panel {min-width:0}
+.room-stage {display:grid}
 .room-panel,.room-settings {display:grid;gap:12px;min-width:0}
 .room-panel .controls {margin-top:0}
 .room-settings h2 {padding-inline:2px}
@@ -613,13 +651,17 @@ progress {height:7px;accent-color:#e9b275}
 .seat-status.working {color:#d7c8ff;border-color:#a189d58a;background:#28213aee}
 .seat-status.working .dot {background:#b9a2f3;box-shadow:0 0 6px #b9a2f3}
 .room-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(8px,2vw,16px)}
+.room-list {grid-auto-rows:1fr}
 .room-card {min-width:0;padding:clamp(9px,2vw,16px);gap:6px}
 .room-card .item-icon {min-height:clamp(39px,12vw,78px);font-size:clamp(22px,5vw,43px)}
 .room-card .room-card-title {padding-top:2px;gap:5px}
 .room-card h2 {font-size:clamp(13px,3.3vw,19px);line-height:1.2}
 .room-card p {font-size:12px;margin:0 0 3px}
+.room-targets {display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .room-card button {width:100%;padding:8px 6px;white-space:normal;overflow-wrap:anywhere}
-.room-actions .card {min-width:0;gap:7px;padding:clamp(9px,2vw,16px)}
+.room-actions .card {min-width:0;gap:7px;margin:0;padding:clamp(9px,2vw,16px)}
+.room-actions .room-owned {justify-content:center}
+.room-actions .room-owned p {margin:0}
 .room-actions :is(button,input) {font-size:12px}
 .room-actions button {white-space:normal;overflow-wrap:anywhere}
 .room-search {margin-bottom:10px}
@@ -657,13 +699,23 @@ nav a:has(#social-unread) {position:relative}
   #content:has(.room-layout) {max-width:none}
   .room-layout {grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(16px,2vw,32px)}
   .room-heading h1 {font-size:clamp(30px,3.1vw,48px)}
-  .room-panel {gap:20px}
+  .room-panel {
+    display:flex;flex-direction:column;gap:20px;
+    padding:clamp(16px,2.4vw,32px);
+    border:1px solid var(--line);border-radius:24px;box-shadow:var(--glow);
+    background:radial-gradient(ellipse at 50% 18%,#905f5338,transparent 68%),var(--glass);
+  }
   .room-panel .controls {
     display: grid;
     grid-template-columns: minmax(0,1fr);
+    flex:1;
+    align-content:center;
     gap: clamp(18px, 2vw, 28px);
-    padding: clamp(20px, 2.6vw, 34px);
-    background: radial-gradient(ellipse at 50% 18%, #905f5338, transparent 68%), var(--glass);
+    padding:0;
+    border:0;
+    background:none;
+    backdrop-filter:none;
+    box-shadow:none;
   }
   .room-panel .timer {flex-direction:column;gap:14px;text-align:center}
   .room-panel .timer-ring {width:clamp(128px,11.5vw,184px)}

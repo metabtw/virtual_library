@@ -1,14 +1,15 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, AppState, BackHandler, Image, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, AppState, BackHandler, Image, ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text,
+  useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { avatarOptions, avatarPresets, defaultAvatar, hairStyles, pickAvatarStyle } from '../../public/avatar-art';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../../public/focus-clock';
 import { displayDeskStatuses, recordDeskStatus, type DeskUpdates } from '../../public/desk-status';
 import { roomGoalMinutes } from '../../public/study-rewards';
 import { deleteAccount, library, notifyRoomPresence, roomConnection, supabase } from './api';
-import type { Avatar, Command, Drop, Focus, Member, Profile, Snapshot } from './model';
+import type { Avatar, Command, Drop, Focus, ItemId, Member, Profile, Snapshot } from './model';
 import { RoomScene, Sprite } from './scene';
 import { allowReminders, hasExactReminderSettings, openExactReminderSettings, syncRemoteReminders,
   removeRemoteReminders, useReminder } from './reminders';
@@ -19,7 +20,7 @@ import { Boxes, Directory, Invite, PrivateBadge, RoomGoal, TargetEditor } from '
 import { Ambience } from './ambience';
 import { Catalog, ItemIllustration } from './catalog';
 import { dressedAvatar } from './cosmetics';
-import { ThemePicker } from './themes';
+import { roomThemes, ThemePicker } from './themes';
 import { LeaderboardModal, StudyCardModal } from './study';
 import { presetAssets } from './asset-art';
 import { PrivacyLink } from './auth';
@@ -99,6 +100,40 @@ const avatarEditorStyles = StyleSheet.create({
   preview: { width: 35, height: 68 },
   name: { textAlign: 'center', fontSize: 12 },
   option: { flexShrink: 1 },
+});
+
+function ProfileOverview({ profile, accountId, equipment, pending, t, onEdit, onLeave }: {
+  profile: Profile; accountId: string; equipment: ItemId[]; pending: boolean;
+  t: Translation; onEdit: () => void; onLeave: () => void;
+}) {
+  const { width } = useWindowDimensions();
+  const avatarWidth = Math.round(Math.min(113, Math.max(57, width * 0.18)));
+  return <ImageBackground source={roomThemes.classic.image} style={profileStyles.hero} resizeMode="cover">
+    <View style={profileStyles.heroContent}>
+      <Sprite avatar={dressedAvatar(profile.avatar, equipment)} width={avatarWidth} pose="standing" />
+      <View style={profileStyles.details}>
+        <Text style={ui.heading}>{profile.name}</Text>
+        {!!profile.target && <Text numberOfLines={2} style={ui.small}>{profile.target}</Text>}
+        <ProfileCodes profile={profile} accountId={accountId} t={t} />
+        <View style={profileStyles.heroActions}>
+          <View style={profileStyles.heroAction}><Button compact muted disabled={pending} onPress={onEdit}>{t.editAvatar}</Button></View>
+          {profile.room && <View style={profileStyles.heroAction}><Button compact muted disabled={pending} onPress={onLeave}>{t.leave}</Button></View>}
+        </View>
+      </View>
+    </View>
+  </ImageBackground>;
+}
+
+const profileStyles = StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  title: { flex: 1, color: '#fff0dc', fontSize: 24, fontWeight: '700', fontFamily: Platform.select({ ios: 'Georgia', default: 'serif' }) },
+  shortcuts: { flex: 1.55, flexDirection: 'row', gap: 5 },
+  shortcut: { flex: 1, justifyContent: 'center', minWidth: 0 },
+  hero: { borderRadius: 19, borderWidth: 1, borderColor: '#986c5e', overflow: 'hidden', backgroundColor: '#352331' },
+  heroContent: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 11, backgroundColor: '#211526b8' },
+  details: { flex: 1, minWidth: 0, gap: 8 },
+  heroActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  heroAction: { flexGrow: 1 },
 });
 
 function Period({ focus, remaining, pending, onAction, t, canStart }: {
@@ -377,7 +412,7 @@ export function Library({ id }: { id: string }) {
   return <>
     <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
       <View style={ui.row}>
-        <Text style={[ui.title, { flexShrink: 1 }]}>{t.app}</Text>
+        <Text style={[profile && effectivePage === 'profile' ? ui.small : ui.title, { flexShrink: 1 }]}>{t.app}</Text>
         {profile && <Text style={ui.balance}>{profile.coins} {t.coins}</Text>}
       </View>
       {reactionMessage !== '' && <Text accessibilityLiveRegion="polite" style={ui.accent}>{reactionMessage}</Text>}
@@ -425,17 +460,17 @@ export function Library({ id }: { id: string }) {
             action={item => act({ name: 'buy', payload: { item } })}
             boxes={<Boxes snapshot={snapshot} pending={pending} t={t} open={name => act({ name })} />} /></> :
           <>
+            <View style={profileStyles.header}>
+              <Text accessibilityRole="header" style={profileStyles.title}>{t.profileInventory}</Text>
+              <View style={profileStyles.shortcuts}>
+                <View style={profileStyles.shortcut}><Button compact muted onPress={() => setCardOpen(true)}>{t.studyCardAction}</Button></View>
+                <View style={profileStyles.shortcut}><Button compact muted onPress={() => setRankingOpen(true)}>{t.leaderboard}</Button></View>
+              </View>
+            </View>
             {editing ? <AvatarEditor profile={profile} onSave={payload => act({ name: 'profile', payload })} pending={pending} t={t} locale={locale} /> :
-              <View style={ui.card}>
-                <View style={ui.row}><Sprite avatar={dressedAvatar(profile.avatar, equipped)} width={74} /><View style={{ flex: 1 }}>
-                  <Text style={ui.heading}>{profile.name}</Text>
-                  {!!profile.target && <Text numberOfLines={1} style={ui.small}>{profile.target}</Text>}
-                </View></View>
-                <ProfileCodes profile={profile} accountId={id} t={t} />
-                <Button disabled={pending} onPress={() => setEditing(true)}>{t.editAvatar}</Button>
-              </View>}
+              <ProfileOverview profile={profile} accountId={id} equipment={equipped} pending={pending} t={t}
+                onEdit={() => setEditing(true)} onLeave={requestLeave} />}
             <TargetEditor initial={profile.target ?? ''} pending={pending} t={t} save={target => act({ name: 'target', payload: { target } })} />
-            <Button muted onPress={() => setCardOpen(true)}>{t.studyCard}</Button>
             <DailyQuests quests={snapshot.dailyQuests} t={t} />
             {invitations}
             <FriendsPanel profile={profile} friends={friends} pending={pending} now={observed} t={t}

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { bundleSupabase, createWebServer, getWebConfig } from '../server.js';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../public/focus-clock.js';
@@ -99,11 +100,17 @@ test('browser runtime refuses Supabase service keys and unsafe project origins',
   assert.equal(config(publishable, 'https://user:pass@project.supabase.co'), null);
   assert.equal(config(publishable, 'http://project.supabase.co'), null);
   assert.equal(config(token('anon')).key, token('anon'));
-  assert.equal(config(publishable).emailCode, false);
-  assert.equal(getWebConfig({
-    EXPO_PUBLIC_SUPABASE_URL: publicUrl, EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: publishable,
-    EXPO_PUBLIC_AUTH_EMAIL_CODE: 'true',
-  }).emailCode, true);
+});
+
+test('signup and sign-in email templates both deliver a one-time code', async () => {
+  const config = await readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8');
+  const html = await readFile(new URL('../supabase/templates/sign-in-code.html', import.meta.url), 'utf8');
+  for (const template of ['confirmation', 'magic_link']) {
+    const section = config.split(`[auth.email.template.${template}]`)[1]?.split('\n[')[0];
+    assert.match(section, /content_path = "\.\/supabase\/templates\/sign-in-code\.html"/);
+  }
+  assert.match(html, /\{\{ \.Token \}\}/);
+  assert.doesNotMatch(html, /\{\{ .*ConfirmationURL/);
 });
 
 test('bundles the official Supabase browser client', async t => {

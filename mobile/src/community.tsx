@@ -46,9 +46,9 @@ function ProfileCode({ label, code, t, shareable = true }: {
   return <View style={styles.code}>
     <Text style={ui.small}>{label}</Text>
     <Text selectable style={ui.accent}>{code}</Text>
-    <View style={styles.actions}>
-      <Button muted accessibilityLabel={`${t.copyCode} · ${label}`} onPress={() => void copy()}>{t.copyCode}</Button>
-      {shareable && <Button muted accessibilityLabel={`${t.shareCode} · ${label}`} onPress={() => void share()}>{t.shareCode}</Button>}
+    <View style={styles.codeActions}>
+      <View style={styles.codeAction}><Button compact muted accessibilityLabel={`${t.copyCode} · ${label}`} onPress={() => void copy()}>{t.copyCode}</Button></View>
+      {shareable && <View style={styles.codeAction}><Button compact muted accessibilityLabel={`${t.shareCode} · ${label}`} onPress={() => void share()}>{t.shareCode}</Button></View>}
     </View>
     {feedback && <Text accessibilityLiveRegion="polite" style={ui.small}>{t[feedback]}</Text>}
   </View>;
@@ -149,8 +149,10 @@ const styles = StyleSheet.create({
   progress: { height: 6, backgroundColor: '#523744', overflow: 'hidden', borderRadius: 6 },
   fill: { height: '100%', backgroundColor: '#c69a6b' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  codes: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 8 },
-  code: { maxWidth: '100%', padding: 8, gap: 5, backgroundColor: '#251d2a', borderRadius: 9, borderColor: '#76545b', borderWidth: 1 },
+  codes: { flexDirection: 'row', alignItems: 'stretch', gap: 6 },
+  code: { flex: 1, minWidth: 0, padding: 6, gap: 5, backgroundColor: '#251d2aee', borderRadius: 9, borderColor: '#76545b', borderWidth: 1 },
+  codeActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 'auto' },
+  codeAction: { flexBasis: 53, flexGrow: 1, minWidth: 0 },
   codeField: { flexDirection: 'row' },
   prefix: { justifyContent: 'center', paddingHorizontal: 9, borderWidth: 1, borderColor: '#76545b',
     borderTopLeftRadius: 10, borderBottomLeftRadius: 10, backgroundColor: '#251d2a' },

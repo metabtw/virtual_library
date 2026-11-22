@@ -1,14 +1,14 @@
 import type { Session } from '@supabase/supabase-js';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { AppState, Linking, ScrollView, Text, View } from 'react-native';
+import { AppState, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { emailAuthMessage } from '../../public/library-client';
 import { authCallbackUrl, completeAuthCode, supabase } from './api';
 import { Button, Field, ui } from './ui';
 import { usePreferences, words, type Locale, type Translation } from './strings';
 
 const appleEnabled = process.env.EXPO_PUBLIC_AUTH_APPLE === 'true';
 const googleEnabled = process.env.EXPO_PUBLIC_AUTH_GOOGLE === 'true';
-const codeEnabled = process.env.EXPO_PUBLIC_AUTH_EMAIL_CODE === 'true';
 const privacyUrl = process.env.EXPO_PUBLIC_PRIVACY_URL;
 WebBrowser.maybeCompleteAuthSession();
 
@@ -27,37 +27,46 @@ export function Login() {
   const t = words[locale];
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
-  const [sent, setSent] = useState(false);
-  const [resendLocked, setResendLocked] = useState(false);
+  const [sentTo, setSentTo] = useState('');
+  const [retryAt, setRetryAt] = useState(0);
+  const [now, setNow] = useState(Date.now);
   const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [feedback, setFeedback] = useState<ReturnType<typeof emailAuthMessage>>();
+  const resendSeconds = Math.max(0, Math.ceil((retryAt - now) / 1000));
 
   useEffect(() => {
-    if (!resendLocked) return;
-    const timer = setTimeout(() => setResendLocked(false), 60000);
-    return () => clearTimeout(timer);
-  }, [resendLocked]);
+    if (!sentTo || retryAt <= Date.now()) return;
+    const timer = setInterval(() => {
+      const observed = Date.now();
+      setNow(observed);
+      if (observed >= retryAt) clearInterval(timer);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [sentTo, retryAt]);
 
   async function run(work: () => Promise<void>) {
     setBusy(true);
-    setFailed(false);
+    setFeedback(undefined);
     try { await work(); }
-    catch { setFailed(true); }
+    catch (error) { setFeedback(emailAuthMessage(error)); }
     finally { setBusy(false); }
   }
 
   async function sendEmail() {
+    const address = sentTo || email.trim();
     const { error } = await supabase!.auth.signInWithOtp({
-      email: email.trim(), options: { emailRedirectTo: authCallbackUrl },
+      email: address, options: { emailRedirectTo: authCallbackUrl },
     });
     if (error) throw error;
     setCode('');
-    setSent(true);
-    setResendLocked(true);
+    setSentTo(address);
+    const sentAt = Date.now();
+    setNow(sentAt);
+    setRetryAt(sentAt + 60000);
   }
 
   async function confirmCode() {
-    const { error } = await supabase!.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' });
+    const { error } = await supabase!.auth.verifyOtp({ email: sentTo, token: code, type: 'email' });
     if (error) throw error;
   }
 
@@ -79,21 +88,33 @@ export function Login() {
       <Button muted onPress={() => setLocale(locale === 'tr' ? 'en' : 'tr')}>{locale === 'tr' ? 'EN' : 'TR'}</Button>
     </View>
     {!supabase ? <Text style={ui.warning}>{t.missingConfig}</Text> : <View style={ui.card}>
-      <Field label={t.email} value={email} autoCapitalize="none" autoComplete="email" keyboardType="email-address"
-        onChangeText={value => { setEmail(value); setSent(false); }} />
-      {sent && <>
-        <Text accessibilityLiveRegion="polite" style={ui.small}>{codeEnabled ? t.emailSent : t.emailLinkSent}</Text>
-        {codeEnabled && <Field label={t.code} value={code} onChangeText={setCode} keyboardType="number-pad"
-          autoComplete="one-time-code" maxLength={10} />}
+      <Text accessibilityRole="header" style={ui.heading}>{t.signInTitle}</Text>
+      {sentTo ? <>
+        <Text accessibilityLiveRegion="polite" style={ui.small}>{t.emailSent}</Text>
+        <Text selectable style={ui.accent}>{sentTo}</Text>
+        <Field label={t.code} value={code} editable={!busy} autoFocus keyboardType="number-pad"
+          autoComplete="one-time-code" textContentType="oneTimeCode" maxLength={10}
+          style={[ui.input, authStyles.code]} onChangeText={value => setCode(value.replace(/\D/g, ''))} />
+        <Button disabled={busy || !/^\d{6,10}$/.test(code)} onPress={() => void run(confirmCode)}>{t.confirmCode}</Button>
+        <View style={authStyles.codeActions}>
+          <View style={authStyles.action}><Button compact muted disabled={busy || resendSeconds > 0} onPress={() => void run(sendEmail)}>
+            {t.resend}{resendSeconds ? ` · ${resendSeconds} ${t.secondsShort}` : ''}
+          </Button></View>
+          <View style={authStyles.action}><Button compact muted disabled={busy} onPress={() => {
+            setSentTo('');
+            setCode('');
+            setFeedback(undefined);
+          }}>{t.changeEmail}</Button></View>
+        </View>
+      </> : <>
+        <Text style={ui.small}>{t.emailPrompt}</Text>
+        <Field label={t.email} value={email} editable={!busy} autoCapitalize="none" autoComplete="email" keyboardType="email-address"
+          onChangeText={setEmail} />
+        <Button disabled={busy || !email.includes('@')} onPress={() => void run(sendEmail)}>{t.sendCode}</Button>
+        {appleEnabled && <Button muted disabled={busy} onPress={() => void run(() => oauth('apple'))}>{t.apple}</Button>}
+        {googleEnabled && <Button muted disabled={busy} onPress={() => void run(() => oauth('google'))}>{t.google}</Button>}
       </>}
-      {!sent && <Button disabled={busy || !email.includes('@')}
-        onPress={() => void run(sendEmail)}>{t.sendCode}</Button>}
-      {sent && codeEnabled && <Button disabled={busy || !/^\d{6,10}$/.test(code.trim())}
-        onPress={() => void run(confirmCode)}>{t.signIn}</Button>}
-      {sent && <Button muted disabled={busy || resendLocked} onPress={() => void run(sendEmail)}>{t.resend}</Button>}
-      {appleEnabled && <Button muted disabled={busy} onPress={() => void run(() => oauth('apple'))}>{t.apple}</Button>}
-      {googleEnabled && <Button muted disabled={busy} onPress={() => void run(() => oauth('google'))}>{t.google}</Button>}
-      {failed && <Text accessibilityLiveRegion="polite" style={ui.warning}>{t.authError}</Text>}
+      {feedback && <Text accessibilityLiveRegion="polite" style={ui.warning}>{t[feedback]}</Text>}
     </View>}
     <View style={ui.card}>
       <Text style={ui.heading}>{t.privacy}</Text><Text style={ui.small}>{t.privacyBody}</Text>
@@ -101,6 +122,12 @@ export function Login() {
     </View>
   </ScrollView>;
 }
+
+const authStyles = StyleSheet.create({
+  code: { textAlign: 'center', fontSize: 22, letterSpacing: 4, fontVariant: ['tabular-nums'] },
+  codeActions: { flexDirection: 'row', gap: 6 },
+  action: { flex: 1, minWidth: 0 },
+});
 
 export function watchSession(setSession: (session: Session | null) => void, ready: () => void) {
   if (!supabase) { ready(); return; }
