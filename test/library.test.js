@@ -1,259 +1,258 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { test } from 'node:test';
-import { bundleSupabase, createWebServer, getWebConfig } from '../server.js';
-import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../public/focus-clock.js';
-import { displayDeskStatuses, recordDeskStatus } from '../public/desk-status.js';
-import { invokeLibrary } from '../public/library-client.js';
-import { writingSize } from '../public/avatar-art.js';
-import { writingFrames } from '../public/sprites.js';
-import { createRoomPreferences, resolveRoomTheme } from '../public/room-preferences.js';
+import { createLibrary } from '../server.js';
 
-const publicUrl = 'https://project.supabase.co';
-const publishable = 'sb_publishable_unit_test';
+const minute = 60_000;
+const avatar = { hair: 0, outfit: 0, color: '#bd7050' };
 
-async function fixture(t, options) {
-  const server = createWebServer(options);
+async function fixture(t) {
+  let now = 100_000;
+  const server = createLibrary({ clock: () => now });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   t.after(() => new Promise(resolve => server.close(resolve)));
-  return 'http://127.0.0.1:' + server.address().port;
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  const client = () => {
+    let cookie;
+    return async (action, data, expected = 200) => {
+      const headers = cookie ? { Cookie: cookie } : {};
+      if (data) headers['Content-Type'] = 'application/json';
+      const response = await fetch(origin + '/api/' + action, {
+        method: data ? 'POST' : 'GET', headers, body: data ? JSON.stringify(data) : undefined,
+      });
+      const token = response.headers.get('set-cookie');
+      if (token) cookie = token.split(';')[0];
+      const result = await response.json();
+      assert.equal(response.status, expected, JSON.stringify(result));
+      return result;
+    };
+  };
+  return { client, advance: value => { now += value; }, origin };
 }
 
-test('serves the web app, public deletion route, shared client and artwork', async t => {
-  const address = await fixture(t);
-  for (const path of ['/', '/account-deletion', '/library-client.js', '/focus-clock.js', '/web-social.js', '/web-strings.js',
-    '/strings.js', '/desk-status.js', '/study-rewards.js', '/community.js', '/prop-art.js', '/library.webp',
-    '/room-preferences.js', '/room-preferences.css', '/room-themes/rain.webp', '/room-themes/garden.webp', '/room-themes/stars.webp']) {
-    const response = await fetch(address + path);
-    assert.equal(response.status, 200, path);
+test('serves the application and room illustration', async t => {
+  const { origin } = await fixture(t);
+  for (const path of ['/', '/app.js', '/sprites.js', '/styles.css', '/library.webp']) {
+    const response = await fetch(origin + path);
+    assert.equal(response.status, 200);
     assert.ok((await response.arrayBuffer()).byteLength > 0);
   }
 });
 
-test('readiness and both privacy notice languages are public routes', async t => {
-  const env = {
-    PRIVACY_CONTROLLER_NAME: 'School & Library',
-    PRIVACY_CONTACT_EMAIL: 'privacy@example.test',
-    PRIVACY_DETAILS_TR: 'Saklama süresi',
-    PRIVACY_DETAILS_EN: 'Retention < 90 days',
+test('a verified 50-minute session awards 10 coins once and permits one purchase', async t => {
+  const { client, advance } = await fixture(t);
+  const api = client();
+  await api('profile', { ...avatar, name: 'Ada' });
+  await api('join', { room: 'night' });
+  await api('start', { duration: 50 });
+  await api('verify', {}, 400);
+  advance(20 * minute);
+  await api('verify', {});
+  await api('verify', {}, 400);
+  advance(20 * minute);
+  await api('verify', {});
+  advance(10 * minute);
+  assert.equal((await api('state')).profile.coins, 40);
+  assert.equal((await api('state')).profile.coins, 40);
+  await api('buy', { item: 'cat' });
+  await api('buy', { item: 'plant' }, 400);
+  const bought = await api('buy', { item: 'lamp' });
+  assert.equal(bought.profile.coins, 0);
+  await api('buy', { item: 'lamp' }, 400);
+  assert.deepEqual((await api('place', { item: 'lamp' })).members[0].placed, ['lamp']);
+});
+
+test('missing a verification by exactly 30 seconds invalidates the session', async t => {
+  const { client, advance } = await fixture(t);
+  const api = client();
+  await api('profile', { ...avatar, name: 'Ada' });
+  await api('join', { room: 'night' });
+  await api('start', { duration: 25 });
+  advance(20 * minute + 30_000);
+  await api('verify', {}, 400);
+  assert.equal((await api('state')).session.state, 'invalid');
+  advance(5 * minute);
+  assert.equal((await api('state')).profile.coins, 30);
+});
+
+test('isolated clients see room status and the server rejects a thirteenth member', async t => {
+  const { client } = await fixture(t);
+  const clients = Array.from({ length: 13 }, client);
+  for (const [index, api] of clients.entries()) {
+    await api('profile', { ...avatar, name: 'Okur ' + index });
+    await api('join', { room: 'night' }, index < 12 ? 200 : 400);
+  }
+  await clients[0]('status', { status: 'break' });
+  const observer = await clients[1]('state');
+  assert.equal(observer.members.length, 12);
+  assert.equal(observer.members[0].status, 'break');
+  assert.equal(observer.members[0].own, false);
+  await clients[0]('leave', {});
+  assert.equal((await clients[12]('join', { room: 'night' })).members.length, 12);
+});
+
+test('mola freezes focus time and only running sessions lock other actions', async t => {
+  const { client, advance } = await fixture(t);
+  const api = client();
+  assert.equal((await api('profile', { ...avatar, name: 'Ada' })).profile.coins, 30);
+  assert.equal((await api('profile', { ...avatar, name: 'Ada 2' })).profile.coins, 30);
+  await api('join', { room: 'night' });
+  const started = await api('start', { duration: 25 });
+  await api('buy', { item: 'lamp' }, 400);
+  await api('join', { room: 'garden' }, 400);
+  await api('leave', {}, 400);
+  await api('profile', { ...avatar, name: 'Ada 3' }, 400);
+  advance(18 * minute);
+  const paused = await api('status', { status: 'break' });
+  assert.equal(paused.session.end - paused.session.paused_at, 7 * minute);
+  advance(60 * minute);
+  assert.equal((await api('state')).session.paused_at, paused.session.paused_at);
+  await api('buy', { item: 'lamp' });
+  const resumed = await api('status', { status: 'desk' });
+  assert.equal(resumed.session.paused_at, null);
+  assert.equal(resumed.session.end, started.session.end + 60 * minute);
+  await api('verify', {}, 400);
+  advance(2 * minute);
+  await api('verify', {});
+  advance(5 * minute);
+  assert.equal((await api('state')).profile.coins, 25);
+});
+
+test('pausing or resuming during an open verification does not extend its deadline', async t => {
+  const { client, advance } = await fixture(t);
+  const api = client();
+  await api('profile', { ...avatar, name: 'Ada' });
+  await api('join', { room: 'night' });
+  await api('start', { duration: 25 });
+  advance(20 * minute + 10_000);
+  await api('status', { status: 'break' });
+  advance(10_000);
+  await api('status', { status: 'desk' });
+  advance(10_000);
+  assert.equal((await api('state')).session.state, 'invalid');
+});
+
+test('custom focus durations are validated and timed by the server', async t => {
+  const { client, advance } = await fixture(t);
+  const api = client();
+  await api('profile', { ...avatar, name: 'Ada' });
+  await api('join', { room: 'night' });
+  for (const duration of [4, 181, 7.5, '7']) {
+    await api('start', { duration }, 400);
+  }
+  const { session } = await api('start', { duration: 7 });
+  assert.equal(session.end - session.start, 7 * minute);
+  advance(7 * minute);
+  const completed = await api('state');
+  assert.equal(completed.session.state, 'completed');
+  assert.equal(completed.profile.coins, 31);
+});
+
+test('avatar gender is optional, validated and visible to room members', async t => {
+  const { client } = await fixture(t);
+  const ada = client();
+  const observer = client();
+  assert.equal((await ada('profile', { ...avatar, name: 'Ada' })).profile.avatar.gender, 'unspecified');
+  await ada('profile', { ...avatar, name: 'Ada', gender: 'female' });
+  await ada('profile', { ...avatar, name: 'Ada 2', gender: 'invalid' }, 400);
+  assert.equal((await ada('profile', { ...avatar, name: 'Ada' })).profile.avatar.gender, 'female');
+  await ada('join', { room: 'night' });
+  await observer('profile', { ...avatar, name: 'Efe', gender: 'male' });
+  const room = await observer('join', { room: 'night' });
+  assert.deepEqual(room.members.map(member => member.avatar.gender), ['female', 'male']);
+});
+
+test('Google Sign-In creates/restores profile across browsers, links guest profile, and protects PII', async t => {
+  let now = 100_000;
+  const tokens = {
+    'token-ada': { uid: 'google-uid-ada', email: 'ada@example.com', emailVerified: true, name: 'Ada Lovelace' },
+    'token-unverified': { uid: 'google-uid-bad', email: 'spoof@example.com', emailVerified: false, name: 'Spoof' },
+    'token-efe': { uid: 'google-uid-efe', email: 'efe@example.com', emailVerified: true, name: 'Efe Kaya' },
   };
-  const address = await fixture(t, { config: { url: publicUrl, key: publishable }, env });
-  const ready = await fetch(address + '/healthz');
-  assert.equal(ready.status, 200);
-  assert.deepEqual(await ready.json(), { ok: true });
-  const unconfigured = await fixture(t, { config: null, env: {} });
-  assert.equal((await fetch(unconfigured + '/healthz')).status, 503);
-  assert.match(await (await fetch(unconfigured + '/privacy')).text(), /Bu taslak/u);
-  const tr = await (await fetch(address + '/privacy')).text();
-  assert.match(tr, /Saklama süresi/u);
-  assert.match(tr, /href="\/\?lang=tr#profile".*Geri dön/u);
-  const en = await (await fetch(address + '/privacy?lang=en')).text();
-  assert.match(en, /<html lang="en">/);
-  assert.match(en, /School &amp; Library/);
-  assert.match(en, /Retention &lt; 90 days/);
-  assert.match(en, /href="\/\?lang=en#profile".*Go back/);
-  assert.match(en, /class="[^"]*account-danger" href="\/account-deletion\?lang=en"/);
-  assert.doesNotMatch(en, /completes this draft/);
-});
-
-test('serves the shared ambience tracks and supports media byte ranges', async t => {
-  const address = await fixture(t);
-  for (const track of ['rain', 'fire', 'cafe', 'lofi', 'space', 'forest']) {
-    const response = await fetch(`${address}/room-ambience/${track}.m4a`, { method: 'HEAD' });
-    assert.equal(response.status, 200, track);
-    assert.equal(response.headers.get('Content-Type'), 'audio/mp4');
-    assert.equal(response.headers.get('Accept-Ranges'), 'bytes');
-    assert.ok(Number(response.headers.get('Content-Length')) > 1000);
-  }
-  const source = address + '/room-ambience/rain.m4a';
-  const ranged = await fetch(source, { headers: { Range: 'bytes=0-1' } });
-  assert.equal(ranged.status, 206);
-  assert.match(ranged.headers.get('Content-Range'), /^bytes 0-1\/\d+$/);
-  assert.equal((await ranged.arrayBuffer()).byteLength, 2);
-  const unavailable = await fetch(source, { headers: { Range: 'bytes=9999999999-' } });
-  assert.equal(unavailable.status, 416);
-  assert.match(unavailable.headers.get('Content-Range'), /^bytes \*\/\d+$/);
-});
-
-test('web server exposes only the public config and does not own game mutations', async t => {
-  const config = getWebConfig({ EXPO_PUBLIC_SUPABASE_URL: publicUrl, EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: publishable });
-  const address = await fixture(t, { config });
-  const response = await fetch(address + '/config.js');
-  assert.match(await response.text(), /sb_publishable_unit_test/);
-  for (const path of ['/api/state', '/.env.local', '/supabase/config.toml', '/.data/library.sqlite']) {
-    const missing = await fetch(address + path);
-    assert.equal(missing.status, 404);
-  }
-  const oldWrite = await fetch(address + '/api/buy', { method: 'POST' });
-  assert.equal(oldWrite.status, 404);
-});
-
-test('browser runtime refuses Supabase service keys and unsafe project origins', () => {
-  const token = role => 'header.' + Buffer.from(JSON.stringify({ role })).toString('base64url') + '.sig';
-  const config = (key, url = publicUrl) => getWebConfig({
-    EXPO_PUBLIC_SUPABASE_URL: url, EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: key,
+  const server = createLibrary({
+    clock: () => now,
+    firebaseConfig: { apiKey: 'pub-key', authDomain: 'test.firebaseapp.com', projectId: 'test-proj', appId: '1:1:web:1' },
+    verifyIdToken: async (idToken) => {
+      if (!tokens[idToken]) throw new Error('Invalid token');
+      return tokens[idToken];
+    },
   });
-  assert.equal(config('sb_secret_private'), null);
-  assert.equal(config(token('service_role')), null);
-  assert.equal(config(publishable, 'https://user:pass@project.supabase.co'), null);
-  assert.equal(config(publishable, 'http://project.supabase.co'), null);
-  assert.equal(config(token('anon')).key, token('anon'));
-  assert.equal(config(publishable).emailCode, false);
-  assert.equal(getWebConfig({
-    EXPO_PUBLIC_SUPABASE_URL: publicUrl, EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: publishable,
-    EXPO_PUBLIC_AUTH_EMAIL_CODE: 'true',
-  }).emailCode, true);
-});
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const origin = 'http://127.0.0.1:' + server.address().port;
 
-test('bundles the official Supabase browser client', async t => {
-  const bundle = await bundleSupabase();
-  assert.ok(bundle.byteLength > 1000);
-  const address = await fixture(t, { bundle });
-  assert.equal((await (await fetch(address + '/supabase-web.js')).arrayBuffer()).byteLength, bundle.byteLength);
-});
-
-test('common client sends the same command to the library Edge Function', async () => {
-  const data = { profile: { coins: 30 }, now: 1000 };
-  const client = { functions: { invoke: async (name, options) => {
-    assert.equal(name, 'library');
-    assert.deepEqual(options.body, { action: 'start', payload: { duration: 50 } });
-    return { data, error: null };
-  } } };
-  assert.deepEqual(await invokeLibrary(client, 'start', { duration: 50 }), data);
-});
-
-test('common client preserves safe RPC errors and authenticated HTTP failures', async () => {
-  const client = value => ({ functions: { invoke: async () => value } });
-  for (const [value, message] of [
-    [{ data: { error: 'insufficientCoins' } }, 'insufficientCoins'],
-    [{ data: null, error: { context: Response.json({ error: 'unauthorized' }) } }, 'unauthorized'],
-    [{ data: null, error: new Error('network') }, 'server'],
-  ]) await assert.rejects(invokeLibrary(client(value), 'buy'), { message });
-});
-
-test('focus display catches up after suspended callbacks and freezes during a pause', () => {
-  const clock = markServerTime(1000);
-  const observed = serverTimeAt(clock, clock.receivedMonotonic + 90000);
-  assert.equal(observed, 91000);
-  assert.equal(focusRemaining({ end: 120000, paused_at: null }, observed), 29000);
-  assert.equal(focusRemaining({ end: 120000, paused_at: 60000 }, observed), 60000);
-});
-
-test('the verification modal uses the server-provided window boundaries', () => {
-  const session = { state: 'active', next_check_at: 10000, check_until: 40000 };
-  assert.equal(verificationRemaining(session, 9999), 0);
-  assert.equal(verificationRemaining(session, 10000), 30000);
-  assert.equal(verificationRemaining(session, 39999), 1);
-  assert.equal(verificationRemaining(session, 40000), 0);
-  assert.equal(verificationRemaining({ ...session, state: 'invalid' }, 12000), 0);
-  assert.equal(verificationRemaining({ state: 'active' }, 12000), 0);
-});
-
-test('a desk update appears immediately and a newer snapshot takes precedence', () => {
-  const own = { own: true, desk_ref: 'local', status: 'desk' };
-  const peer = { own: false, desk_ref: 'remote', status: 'desk' };
-  let updates = recordDeskStatus(new Map(), { desk: peer.desk_ref, status: 'break', at: 3000 });
-  updates = recordDeskStatus(updates, { desk: own.desk_ref, status: 'break', at: 3000 });
-  const stale = recordDeskStatus(updates, { desk: peer.desk_ref, status: 'desk', at: 2500 });
-  assert.equal(stale, updates);
-  assert.equal(recordDeskStatus(updates, { desk: peer.desk_ref, status: 'unknown', at: 4000 }), updates);
-  assert.deepEqual(displayDeskStatuses([own, peer], 1000, updates), [{ ...own, status: 'break' }, { ...peer, status: 'break' }]);
-  assert.deepEqual(displayDeskStatuses([own, peer], 4000, updates), [own, peer]);
-  const working = recordDeskStatus(updates, { desk: peer.desk_ref, status: 'working', at: 5000 });
-  assert.deepEqual(displayDeskStatuses([peer], 4000, working), [{ ...peer, activity: 'working' }]);
-});
-
-test('auto themes follow the room and unlocked milestone until the user chooses a theme', () => {
-  assert.equal(resolveRoomTheme('auto', { id: 'night' }), 'classic');
-  assert.equal(resolveRoomTheme('auto', { id: 'garden' }), 'garden');
-  assert.equal(resolveRoomTheme('auto', { id: 'archive' }), 'stars');
-  assert.equal(resolveRoomTheme('auto', { id: 'night', minutes: 99 }), 'classic');
-  assert.equal(resolveRoomTheme('auto', { id: 'night', minutes: 100 }), 'aurora');
-  assert.equal(resolveRoomTheme('rain', { id: 'night', minutes: 100 }), 'rain');
-  const preferences = createRoomPreferences({ storage: () => ({ getItem: () => '{"theme":"garden"}' }) });
-  assert.equal(preferences.themeFor({ id: 'night' }), 'garden');
-});
-
-test('ambience mixes saved levels, enables only owned packs, and stops when leaving', t => {
-  const players = new Map();
-  const storage = () => ({ getItem: () => '{"volumes":{"rain":1,"lofi":3,"space":2,"forest":2}}' });
-  const createAudio = t.mock.fn(source => {
-    const player = {
-      paused: true,
-      play() { this.paused = false; return Promise.resolve(); },
-      pause() { this.paused = true; },
+  const client = () => {
+    const jar = new Map();
+    return async (action, data, expected = 200) => {
+      const cookieHeader = Array.from(jar.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
+      const headers = cookieHeader ? { Cookie: cookieHeader } : {};
+      if (data) headers['Content-Type'] = 'application/json';
+      const response = await fetch(origin + '/api/' + action, {
+        method: data ? 'POST' : 'GET', headers, body: data ? JSON.stringify(data) : undefined,
+      });
+      for (const raw of response.headers.getSetCookie()) {
+        const [pair] = raw.split(';');
+        const eq = pair.indexOf('=');
+        const name = pair.slice(0, eq);
+        const val = pair.slice(eq + 1);
+        if (!val) jar.delete(name);
+        else jar.set(name, val);
+      }
+      const result = await response.json();
+      assert.equal(response.status, expected, JSON.stringify(result));
+      return result;
     };
-    players.set(source, player);
-    return player;
-  });
-  const preferences = createRoomPreferences({ storage, createAudio });
-  const room = { id: 'night' };
-  assert.match(preferences.markup(room, []), /Uzay İstasyonu · Mağazada açılır/);
-  preferences.sync(room, []);
-  assert.deepEqual([...players.keys()], ['/room-ambience/rain.m4a', '/room-ambience/lofi.m4a']);
-  assert.equal(players.get('/room-ambience/rain.m4a').volume, 0.16);
-  assert.equal(players.get('/room-ambience/lofi.m4a').volume, 0.48);
-  assert.ok([...players.values()].every(player => player.loop && !player.paused));
-  preferences.sync(room, [{ item: 'space', placed: false }]);
-  assert.equal(createAudio.mock.callCount(), 3);
-  assert.equal(players.get('/room-ambience/space.m4a').volume, 0.32);
-  preferences.sync(null);
-  assert.ok([...players.values()].every(player => player.paused));
+  };
+
+  const configRes = await fetch(origin + '/api/auth/config');
+  const config = await configRes.json();
+  assert.equal(config.enabled, true);
+  assert.equal(config.projectId, 'test-proj');
+
+  const browser1 = client();
+  // Unverified email is rejected
+  await browser1('auth/google', { idToken: 'token-unverified' }, 400);
+
+  // Sign in with Google before creating avatar
+  const signedIn = await browser1('auth/google', { idToken: 'token-ada' });
+  assert.equal(signedIn.auth.signedIn, true);
+  assert.equal(signedIn.auth.email, 'ada@example.com');
+  assert.equal(signedIn.profile, null);
+
+  // Create profile while signed in -> linked to Google account
+  const created = await browser1('profile', { ...avatar, name: 'Ada' });
+  assert.equal(created.profile.googleLinked, true);
+  assert.equal(created.profile.email, 'ada@example.com');
+  await browser1('buy', { item: 'lamp' });
+  await browser1('join', { room: 'night' });
+
+  // Second browser signs in with the same Google account -> restores Ada's profile, coins, and inventory
+  const browser2 = client();
+  const restored = await browser2('auth/google', { idToken: 'token-ada' });
+  assert.equal(restored.profile.name, 'Ada');
+  assert.equal(restored.profile.coins, 20);
+  assert.deepEqual(restored.inventory.map(i => i.item), ['lamp']);
+
+  // Another user (guest first, then links Google) joins same room -> never sees Ada's email
+  const efeClient = client();
+  await efeClient('profile', { ...avatar, name: 'Efe' });
+  await efeClient('buy', { item: 'plant' });
+  const linkedEfe = await efeClient('auth/google', { idToken: 'token-efe' });
+  assert.equal(linkedEfe.profile.googleLinked, true);
+  assert.equal(linkedEfe.profile.coins, 10);
+  const roomView = await efeClient('join', { room: 'night' });
+  const adaMember = roomView.members.find(m => m.name === 'Ada');
+  assert.equal(adaMember.email, undefined);
+  assert.equal(adaMember.google_uid, undefined);
+
+  // Logout is blocked during active focus session, succeeds after break
+  await efeClient('start', { duration: 25 });
+  await efeClient('auth/logout', {}, 400);
+  await efeClient('status', { status: 'break' });
+  const loggedOut = await efeClient('auth/logout', {});
+  assert.equal(loggedOut.auth.signedIn, false);
+  assert.equal(loggedOut.profile, null);
 });
 
-test('ambience shows a play button after an autoplay rejection and retries on click', async () => {
-  let attempts = 0;
-  const player = {
-    paused: true,
-    play() {
-      attempts++;
-      if (attempts === 1) return Promise.reject(new Error('playback blocked'));
-      this.paused = false;
-      return Promise.resolve();
-    },
-  };
-  const preferences = createRoomPreferences({
-    storage: () => ({ getItem: () => '{"volumes":{"rain":1}}' }), createAudio: () => player,
-  });
-  const handlers = new Map();
-  const notice = {};
-  const play = {};
-  preferences.attach({
-    addEventListener: (type, handler) => handlers.set(type, handler),
-    querySelector: selector => selector === '[data-ambience-notice]' ? notice : play,
-  }, () => false);
-  preferences.sync({ id: 'night' });
-  await Promise.resolve();
-  assert.equal(play.hidden, false);
-  assert.match(notice.textContent, /yeniden başlatmak/i);
-  handlers.get('click')({ target: { closest: selector => selector === '[data-play-ambience]' ? play : null } });
-  assert.equal(attempts, 2);
-  assert.equal(player.paused, false);
-  assert.equal(play.hidden, true);
-});
-
-test('web writing uses a cached pixel strip with distinct frames', t => {
-  const frames = Array.from({ length: writingSize.frames }, () => []);
-  const brush = {
-    fillStyle: '',
-    fillRect(x, y, width, height) {
-      const frame = Math.floor(x / writingSize.width);
-      frames[frame].push([this.fillStyle, x % writingSize.width, y, width, height]);
-    },
-  };
-  const canvas = {
-    getContext: () => brush,
-    toDataURL: t.mock.fn(() => 'data:image/png;base64,stub'),
-  };
-  const createElement = t.mock.fn(() => canvas);
-  globalThis.document = { createElement };
-  t.after(() => { delete globalThis.document; });
-  assert.equal(writingFrames(), canvas.toDataURL.mock.calls[0].result);
-  assert.equal(writingFrames(), canvas.toDataURL.mock.calls[0].result);
-  assert.equal(createElement.mock.callCount(), 1);
-  assert.equal(canvas.toDataURL.mock.callCount(), 1);
-  assert.equal(canvas.width, writingSize.width * writingSize.frames);
-  assert.equal(canvas.height, writingSize.height);
-  assert.equal(new Set(frames.map(frame => JSON.stringify(frame))).size, writingSize.frames);
-});

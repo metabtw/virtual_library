@@ -6,58 +6,24 @@
   <meta name="theme-color" content="#171513">
   <title>Sanal Kütüphane</title>
   <link rel="stylesheet" href="/styles.css">
-  <link rel="stylesheet" href="/room-preferences.css">
 </head>
 <body>
   <aside class="sidebar">
-    <a class="brand" href="#room"><span aria-hidden="true">◫</span><b data-text="app">Sanal Kütüphane</b></a>
+    <a class="brand" href="#room"><span>◫</span><b>Sanal<br>Kütüphane</b></a>
     <nav aria-label="Ana menü">
-      <a href="#rooms"><i aria-hidden="true">⌂</i><span data-text="rooms">Odalar</span></a>
-      <a href="#room"><i aria-hidden="true">▤</i><span data-text="library">Kütüphane</span></a>
-      <a href="#shop"><i aria-hidden="true">♧</i><span data-text="shop">Mağaza</span></a>
-      <a href="#profile"><i aria-hidden="true">♙</i><span data-text="profileNav">Profil &amp; Envanter</span><span id="social-unread" hidden></span></a>
+      <a href="#rooms"><i>⌂</i> Odalar</a>
+      <a href="#room"><i>▤</i> Kütüphane</a>
+      <a href="#shop"><i>♧</i> Mağaza</a>
+      <a href="#profile"><i>♙</i> Profil &amp; Envanter</a>
     </nav>
-    <div class="sidebar-footer"><span class="dot"></span> <span data-text="libraryOpen">Kütüphane açık</span></div>
+    <div class="sidebar-footer"><span class="dot"></span> Kütüphane açık</div>
   </aside>
   <main>
-    <header><span class="breadcrumb"><strong data-text="app">Sanal Kütüphane</strong> <span>›</span> <b id="location">Kütüphane</b></span>
-      <div class="header-tools"><button class="secondary" id="language-toggle" type="button" aria-label="Switch to English" lang="en">EN</button>
-        <div class="wallet"><span aria-hidden="true">◉</span> <b id="balance">0</b> <span class="wallet-unit" data-text="coins">jeton</span></div></div></header>
+    <header><span class="breadcrumb">Sanal Kütüphane <span>›</span> <b id="location">Kütüphane</b></span><div class="header-actions"><div id="auth-slot"></div><div class="wallet"><span>◉</span> <b id="balance">0</b> jeton</div></div></header>
     <section id="content" aria-label="Kütüphane"></section>
   </main>
   <p id="notice" role="status"></p>
-  <dialog id="verify-dialog" aria-labelledby="verify-title"><h2 id="verify-title" data-text="verify">Hâlâ masada mısın?</h2>
-    <p><span data-text="verifyRemaining">Çalışma periyodunu doğrulamak için kalan süre</span> <b id="verify-time"></b>.</p>
-    <div class="dialog-actions"><button class="primary" data-action="verify" data-text="here">Buradayım</button><button class="secondary" data-action="status" data-value="break" data-text="pause">Molaya geç</button></div></dialog>
-  <dialog id="reaction-dialog">
-    <h2>Masa tepkisi</h2>
-    <div class="dialog-actions"><button class="primary" data-action="react" data-value="coffee" data-text="coffeeReaction">☕ Kahve gönder</button>
-      <button class="secondary" data-action="react" data-value="clap" data-text="clapReaction">👏 Alkışla</button>
-      <form method="dialog"><button class="secondary" data-text="close">Kapat</button></form></div>
-  </dialog>
-  <dialog id="study-invite-dialog" aria-labelledby="study-invite-title">
-    <h2 id="study-invite-title" data-text="friendInvite">Arkadaşını çalışmaya davet et</h2>
-    <div class="study-invite-options"></div>
-    <form method="dialog"><button class="secondary" data-text="close">Kapat</button></form>
-  </dialog>
-  <dialog id="coin-help-dialog" aria-labelledby="coin-help-title">
-    <h2 id="coin-help-title" data-text="coinHelp">Jeton nasıl kazanılır?</h2>
-    <ul class="coin-help-list">
-      <li data-text="coinWelcome"></li><li data-text="coinFocus"></li><li data-text="coinQuests"></li>
-      <li data-text="referralInfo"></li><li data-text="coinAds"></li><li data-text="chestGoalInfo"></li><li data-text="coinChest"></li>
-    </ul>
-    <form method="dialog"><button class="secondary" data-text="close">Kapat</button></form>
-  </dialog>
-  <dialog id="share-code-dialog" aria-labelledby="share-code-title">
-    <h2 id="share-code-title" data-text="shareCodeTitle">Kodu paylaş</h2>
-    <label class="field"><span data-text="shareCodeText">Paylaşım metni</span><textarea id="share-code-text" rows="2" readonly></textarea></label>
-    <div class="dialog-actions">
-      <button class="primary" data-action="copy-share-text" data-text="copyCode">Kopyala</button>
-      <a class="secondary" data-text="shareCodeEmail">E-postayla paylaş</a>
-      <form method="dialog"><button class="secondary" data-text="close">Kapat</button></form>
-    </div>
-    <small role="status" id="share-code-status"></small>
-  </dialog>
+  <dialog id="verify-dialog"><h2>Hâlâ masada mısın?</h2><p>Çalışma periyodunu doğrulamak için kalan süre <b id="verify-time"></b>.</p><div class="dialog-actions"><button class="primary" data-action="verify">Buradayım</button><button class="secondary" data-action="status" data-value="break">Molaya geç</button></div></dialog>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

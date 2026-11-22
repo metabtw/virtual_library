@@ -1,0 +1,30 @@
+{
+  "entities": {
+    "UserAuthProfile": {
+      "title": "User Auth Profile",
+      "description": "Authenticated user identity linked via Google Sign-In for Sanal Kütüphane.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth user UID",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified Google account email address",
+          "maxLength": 254
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Optional Google display name",
+          "maxLength": 64
+        }
+      },
+      "required": ["uid"]
+    }
+  },
+  "firestore": {}
+}
