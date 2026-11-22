@@ -106,7 +106,7 @@ function initialLanguage() {
 
 function translateChrome() {
   document.documentElement.lang = locale;
-  document.title = t('app');
+  document.title = deletionPage ? t('deleteAccount') + ' | Virtual Study Crew' : t('siteTitle');
   document.querySelector('nav').setAttribute('aria-label', t('menu'));
   content.setAttribute('aria-label', t('library'));
   for (const element of document.querySelectorAll('[data-text]')) element.textContent = t(element.dataset.text);
@@ -279,7 +279,8 @@ function signInView() {
   if (!client) return `<section class="card account-card">${deletionPage ? backToProfile() : ''}
     <h1>${t('app')}</h1><p>${t('missingConfig')}</p><a href="${privacyHref()}">${t('readPrivacy')}</a></section>`;
   return `<section class="card account-card auth-card">
-    <div class="auth-heading"><span class="auth-emblem" aria-hidden="true">◫</span><h1>${t(deletionPage ? 'deleteAccount' : 'signInTitle')}</h1></div>
+    <div class="auth-heading"><img class="auth-emblem" src="/favicon.png" width="45" height="45" alt=""><h1>${t(deletionPage ? 'deleteAccount' : 'signInTitle')}</h1></div>
+    ${deletionPage ? '' : `<p>${t('siteIntro')}</p>`}
     ${config.google || config.apple ? `<div class="auth-providers">
       ${config.google ? `<button class="secondary" data-action="oauth" data-value="google">${t('google')}</button>` : ''}
       ${config.apple ? `<button class="secondary" data-action="oauth" data-value="apple">${t('apple')}</button>` : ''}
@@ -976,7 +977,9 @@ document.addEventListener('click', async event => {
     } catch (error) {
       const code = error?.code;
       if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
-        toast(t(code === 'auth/popup-blocked' ? 'googlePopupBlocked' : 'authError'));
+        const message = code === 'auth/unauthorized-domain' ? 'googleDomainUnauthorized'
+          : code === 'auth/popup-blocked' ? 'googlePopupBlocked' : 'authError';
+        toast(t(message));
       }
     } finally {
       busy = button.disabled = false;
