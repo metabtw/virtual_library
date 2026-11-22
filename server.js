@@ -18,6 +18,11 @@ export const webFiles = new Map([
   ['/', ['public/index.html', html]],
   ['/account-deletion', ['public/index.html', html]],
   ['/styles.css', ['public/styles.css', css]],
+  ['/favicon.png', ['public/favicon.png', 'image/png']],
+  ['/apple-touch-icon.png', ['public/apple-touch-icon.png', 'image/png']],
+  ['/study-room-preview.jpg', ['public/study-room-preview.jpg', 'image/jpeg']],
+  ['/robots.txt', ['public/robots.txt', 'text/plain; charset=utf-8']],
+  ['/sitemap.xml', ['public/sitemap.xml', 'application/xml; charset=utf-8']],
   ['/room-preferences.css', ['public/room-preferences.css', css]],
   ['/app.js', ['public/app.js', script]],
   ['/google-sign-in.js', ['public/google-sign-in.js', script]],
@@ -118,6 +123,7 @@ export function createWebServer({ config = getWebConfig(), bundle = new Uint8Arr
       'Cache-Control': 'no-cache',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'no-referrer',
+      ...(pathname === '/account-deletion' ? { 'X-Robots-Tag': 'noindex' } : {}),
       ...extraHeaders,
     }).end(request.method === 'HEAD' ? undefined : content);
     if (request.method === 'GET' || request.method === 'HEAD') {

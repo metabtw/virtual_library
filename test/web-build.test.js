@@ -32,6 +32,14 @@ test('builds the static Vercel site and keeps browser configuration public', asy
   assert.ok((await stat(file('firebase-google-sdk.js'))).size > 1000);
   assert.ok((await stat(file('room-ambience/rain.m4a'))).size > 1000);
   assert.match(await read('index.html'), /src="\/app\.js"/);
+  assert.match(await read('index.html'), /rel="canonical" href="https:\/\/virtualstudycrew\.com\/"/);
+  assert.match(await read('robots.txt'), /Sitemap: https:\/\/virtualstudycrew\.com\/sitemap\.xml/);
+  assert.match(await read('sitemap.xml'), /<loc>https:\/\/virtualstudycrew\.com\/<\/loc>/);
+  for (const name of ['favicon.png', 'apple-touch-icon.png', 'study-room-preview.jpg']) {
+    assert.ok((await stat(file(name))).size > 0);
+  }
+  assert.ok(vercel.headers.some(rule => rule.source === '/account-deletion' &&
+    rule.headers.some(header => header.key === 'X-Robots-Tag' && header.value === 'noindex')));
   assert.match(await read('privacy.html'), /<html lang="tr">/);
   assert.match(await read('privacy-en.html'), /Retention &lt; 30 days/);
   assert.deepEqual(JSON.parse(await read('healthz.json')), { ok: true });

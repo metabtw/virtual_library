@@ -1,6 +1,11 @@
 import { words } from './strings.js';
 
 const webWords = {
+  siteTitle: ['Virtual Study Crew | Sanal Kütüphane ve Odak Odaları', 'Virtual Study Crew | Virtual Library and Focus Rooms'],
+  siteIntro: ['Arkadaşlarınla sanal çalışma odalarına katıl, odak sayacını ayarla ve kendi piksel avatarınla birlikte ders çalış.',
+    'Join virtual study rooms with friends, set a focus timer, and study together with your own pixel avatar.'],
+  googleDomainUnauthorized: ['Bu alan adı için Google girişi henüz etkinleştirilmedi.',
+    'Google sign-in has not been enabled for this domain yet.'],
   menu: ['Ana menü', 'Main menu'],
   library: ['Kütüphane', 'Library'],
   libraryOpen: ['Kütüphane açık', 'Library open'],
