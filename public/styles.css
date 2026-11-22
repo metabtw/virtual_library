@@ -573,7 +573,7 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
 .auth-heading {display:flex;align-items:center;gap:12px}
 .auth-emblem {display:grid;place-items:center;flex:none;width:45px;height:45px;background:#f3a35e20;color:var(--accent);border-radius:12px;font:32px Georgia,serif}
 .auth-address {display:block;margin-top:3px;color:var(--ink);overflow-wrap:anywhere}
-.auth-card .primary {min-height:44px}
+.auth-card .primary,.auth-card [data-action="oauth"] {min-height:44px}
 #email-code {text-align:center;font:700 22px ui-monospace,Consolas,monospace;letter-spacing:.2em;color:#ffcf9a}
 .auth-code-tools {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .auth-code-tools .secondary {width:100%;min-height:44px;padding:7px 5px;white-space:normal}

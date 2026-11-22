@@ -36,6 +36,14 @@ Web ve mobil aynı Supabase Auth ve Edge Function kurulumunu kullanır. **Authen
 
 ## Google ile giriş
 
+### Bağlı projede web girişi
+
+Web, `cqvrxlttlyjjlibitrvh` projesiyle kullanıldığında `google-auth` dalındaki Firebase hesabı seçme penceresini açar. Supabase Google kimlik belirtecini doğrular ve uygulama oturumunu açar. Oda, envanter ve jetonlar aynı Supabase hesabına bağlı kalır. Firebase web yapılandırmasını ve Google Client ID'yi [google-web-config.json](../google-web-config.json) dosyasında görebilirsin.
+
+Supabase Dashboard'da **Authentication → Sign In / Providers → Google** bölümünde bu Google Client ID kayıtlı olmalı. Firebase Authentication **Authorized domains** listesinde web uygulamasını açtığın adresin alan adı bulunmalı. `localhost` ve `127.0.0.1` yerel test içindir. Google girişini gizlemek için `EXPO_PUBLIC_AUTH_GOOGLE=false` ayarlayabilirsin.
+
+### Expo ve ayrı Supabase projeleri
+
 1. Google Cloud Console'da OAuth izin ekranını yapılandır. Uygulama test modundaysa test kullanıcılarını ekle.
 2. **Web application** tipinde bir OAuth istemcisi oluştur. **Authorized redirect URIs** alanına şu adresi ekle.
 
@@ -45,6 +53,8 @@ Web ve mobil aynı Supabase Auth ve Edge Function kurulumunu kullanır. **Authen
 
 3. Supabase **Authentication → Sign In / Providers → Google** bölümünde Google Client ID ve Client Secret değerlerini girip sağlayıcıyı etkinleştir. Supabase **Authentication → URL Configuration** yönlendirme listesine `sanalkutuphane://auth` ekle.
 4. `mobile/.env.local` dosyasında `EXPO_PUBLIC_AUTH_GOOGLE=true` ayarla ve Expo'yu yeniden başlat. Android ve iOS development build üzerinde Google hesabıyla giriş yap.
+
+Bağlı projeye Expo için ayrı bir OAuth istemcisi ekliyorsan, **Client IDs** alanına yeni web istemcisini ilk sırada, Firebase istemcisini virgülle ikinci sırada yaz. **Client Secret** alanına ilk istemcinin sırrını gir.
 
 [Supabase Google kurulum rehberi](https://supabase.com/docs/guides/auth/social-login/auth-google)
 

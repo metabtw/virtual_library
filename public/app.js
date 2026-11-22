@@ -16,6 +16,7 @@ import { inviteWait, splitProfileCode } from './room-social.js';
 const client = config && createClient(config.url, config.key, {
   auth: { flowType: 'pkce', detectSessionInUrl: false },
 });
+if (config?.firebaseGoogle) void import('./google-sign-in.js').catch(() => {});
 const deletionPage = location.pathname === '/account-deletion';
 const content = document.querySelector('#content');
 const notice = document.querySelector('#notice');
@@ -941,8 +942,23 @@ document.addEventListener('click', async event => {
     return;
   }
   if (action === 'oauth' && client) {
-    const { error } = await client.auth.signInWithOAuth({ provider: value, options: { redirectTo: redirectTo() } });
-    if (error) toast(t('authError'));
+    busy = button.disabled = true;
+    try {
+      if (value === 'google' && config.firebaseGoogle) {
+        const { signInWithFirebaseGoogle } = await import('./google-sign-in.js');
+        await signInWithFirebaseGoogle(client.auth, config.firebaseGoogle, locale);
+      } else {
+        const { error } = await client.auth.signInWithOAuth({ provider: value, options: { redirectTo: redirectTo() } });
+        if (error) throw error;
+      }
+    } catch (error) {
+      const code = error?.code;
+      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
+        toast(t(code === 'auth/popup-blocked' ? 'googlePopupBlocked' : 'authError'));
+      }
+    } finally {
+      busy = button.disabled = false;
+    }
     return;
   }
   if (!userId) return;

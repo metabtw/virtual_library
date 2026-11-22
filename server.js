@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadEnvFile } from 'node:process';
 import { build } from 'esbuild';
+import googleWeb from './google-web-config.json' with { type: 'json' };
 import { privacyPage } from './privacy-page.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -19,6 +20,7 @@ const files = new Map([
   ['/styles.css', ['public/styles.css', css]],
   ['/room-preferences.css', ['public/room-preferences.css', css]],
   ['/app.js', ['public/app.js', script]],
+  ['/google-sign-in.js', ['public/google-sign-in.js', script]],
   ['/avatar-art.js', ['public/avatar-art.js', script]],
   ['/prop-art.js', ['public/prop-art.js', script]],
   ['/sprites.js', ['public/sprites.js', script]],
@@ -79,19 +81,28 @@ export function getWebConfig(env = process.env) {
     || (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))) {
     return null;
   }
-  return { url: url.origin, key, google: env.EXPO_PUBLIC_AUTH_GOOGLE === 'true',
+  const firebaseGoogle = url.origin === googleWeb.supabaseOrigin && env.EXPO_PUBLIC_AUTH_GOOGLE !== 'false';
+  return { url: url.origin, key, google: firebaseGoogle || env.EXPO_PUBLIC_AUTH_GOOGLE === 'true',
+    ...(firebaseGoogle ? { firebaseGoogle: googleWeb.firebase } : {}),
     apple: env.EXPO_PUBLIC_AUTH_APPLE === 'true' };
 }
 
-export async function bundleSupabase() {
+async function bundleBrowserClient(contents) {
   const { outputFiles } = await build({
-    stdin: { contents: 'export { createClient } from "@supabase/supabase-js";', resolveDir: root },
+    stdin: { contents, resolveDir: root },
     bundle: true, write: false, platform: 'browser', format: 'esm', minify: true,
   });
   return outputFiles[0].contents;
 }
 
-export function createWebServer({ config = getWebConfig(), bundle = new Uint8Array(), env = process.env } = {}) {
+export const bundleSupabase = () => bundleBrowserClient('export { createClient } from "@supabase/supabase-js";');
+export const bundleFirebaseGoogle = () => bundleBrowserClient(`
+  export { getApps, initializeApp } from 'firebase/app';
+  export { browserPopupRedirectResolver, GoogleAuthProvider, initializeAuth, inMemoryPersistence,
+    signInWithPopup, signOut } from 'firebase/auth';
+`);
+
+export function createWebServer({ config = getWebConfig(), bundle = new Uint8Array(), firebaseBundle, env = process.env } = {}) {
   return createServer(async (request, response) => {
     const { pathname, searchParams } = new URL(request.url, 'http://localhost');
     const write = (type, content, status = 200, extraHeaders) => response.writeHead(status, {
@@ -106,6 +117,7 @@ export function createWebServer({ config = getWebConfig(), bundle = new Uint8Arr
       if (pathname === '/privacy') return write(html, privacyPage(searchParams.get('lang'), env));
       if (pathname === '/config.js') return write(script, `export const config = ${JSON.stringify(config)};`);
       if (pathname === '/supabase-web.js') return write(script, bundle);
+      if (pathname === '/firebase-google-sdk.js' && config?.firebaseGoogle && firebaseBundle) return write(script, firebaseBundle);
       const file = files.get(pathname);
       if (file) {
         try {
@@ -132,5 +144,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     if (existsSync(file)) loadEnvFile(file);
   }
   const port = Number(process.env.PORT || 3000);
-  createWebServer({ bundle: await bundleSupabase() }).listen(port, '0.0.0.0', () => console.log(`Sanal Kütüphane :${port}`));
+  const config = getWebConfig();
+  const [bundle, firebaseBundle] = await Promise.all([bundleSupabase(), config?.firebaseGoogle ? bundleFirebaseGoogle() : undefined]);
+  createWebServer({ config, bundle, firebaseBundle }).listen(port, '0.0.0.0', () => console.log(`Sanal Kütüphane :${port}`));
 }

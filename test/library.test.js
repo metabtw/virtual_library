@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import { bundleSupabase, createWebServer, getWebConfig } from '../server.js';
+import { bundleFirebaseGoogle, bundleSupabase, createWebServer, getWebConfig } from '../server.js';
+import googleWeb from '../google-web-config.json' with { type: 'json' };
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../public/focus-clock.js';
 import { displayDeskStatuses, recordDeskStatus } from '../public/desk-status.js';
 import { invokeLibrary } from '../public/library-client.js';
@@ -100,6 +101,27 @@ test('browser runtime refuses Supabase service keys and unsafe project origins',
   assert.equal(config(publishable, 'https://user:pass@project.supabase.co'), null);
   assert.equal(config(publishable, 'http://project.supabase.co'), null);
   assert.equal(config(token('anon')).key, token('anon'));
+});
+
+test('enables Firebase Google sign-in for the paired Supabase project', async t => {
+  const env = { EXPO_PUBLIC_SUPABASE_URL: googleWeb.supabaseOrigin, EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: publishable };
+  const config = getWebConfig(env);
+  assert.equal(config.google, true);
+  assert.deepEqual(Object.keys(config.firebaseGoogle).sort(), ['apiKey', 'appId', 'authDomain', 'projectId']);
+  assert.equal(getWebConfig({ ...env, EXPO_PUBLIC_AUTH_GOOGLE: 'false' }).google, false);
+
+  const directOAuth = getWebConfig({ ...env, EXPO_PUBLIC_SUPABASE_URL: publicUrl, EXPO_PUBLIC_AUTH_GOOGLE: 'true' });
+  assert.equal(directOAuth.google, true);
+  assert.equal(directOAuth.firebaseGoogle, undefined);
+
+  const firebaseBundle = await bundleFirebaseGoogle();
+  assert.ok(firebaseBundle.byteLength > 1000);
+  const address = await fixture(t, { config, firebaseBundle });
+  const response = await fetch(address + '/firebase-google-sdk.js');
+  assert.equal(response.status, 200);
+  assert.equal((await response.arrayBuffer()).byteLength, firebaseBundle.byteLength);
+  const alternate = await fixture(t, { config: directOAuth });
+  assert.equal((await fetch(alternate + '/firebase-google-sdk.js')).status, 404);
 });
 
 test('signup and sign-in email templates both deliver a one-time code', async () => {
