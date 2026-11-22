@@ -147,6 +147,7 @@ try {
   assert.equal((await action(first, 'verify')).error, 'verificationClosed');
   const invalid = await action(first, 'state');
   assert.equal(invalid.session.state, 'invalid');
+  assert.equal(invalid.members.find(member => member.own).activity, 'missedCheck');
   assert.equal(invalid.profile.coins, 10);
 
   await db.query("insert into public.push_devices values ('ExpoPushToken[example_first]', $1, 'tr')", [second]);
@@ -199,14 +200,18 @@ try {
   assert.equal((await db.query('select 1 from public.coin_ledger where user_id = $1', [second])).rows.length, 0);
   assert.equal((await db.query('select 1 from public.reward_delivery')).rows.length, 1);
   const outsider = users[9];
+  assert.equal((await action(first, 'createRoom', { name: 'Başka Oda' })).error, 'leaveRoomFirst');
+  await action(first, 'leave');
   const room = await action(first, 'createRoom', { name: 'Akşam Grubu' });
   const privateRoom = room.rooms.find(entry => entry.private);
   assert.equal(room.profile.coins, 0);
   assert.match(privateRoom.invite, /^\d{6}$/);
-  assert.equal((await action(first, 'createRoom', { name: 'Yedek' })).error, 'insufficientCoins');
+  assert.equal((await action(first, 'createRoom', { name: 'Yedek' })).error, 'privateRoomOwned');
   assert.equal((await action(outsider, 'state')).rooms.some(entry => entry.private), false);
   assert.equal((await action(outsider, 'join', { room: privateRoom.id })).error, 'inviteRequired');
 
+  assert.equal((await action(third, 'joinCode', { code: privateRoom.invite })).error, 'leaveRoomFirst');
+  await action(third, 'leave');
   const joined = await action(third, 'joinCode', { code: privateRoom.invite });
   assert.equal(joined.profile.room, privateRoom.id);
   assert.equal(joined.rooms.find(entry => entry.id === privateRoom.id).invite, null);
@@ -232,6 +237,7 @@ try {
   assert.deepEqual((await action(third, 'state')).pet, { xp: 0, upset: true });
   assert.equal((await action(third, 'state')).rooms.find(entry => entry.id === privateRoom.id).minutes, 0);
   const departed = users[4];
+  await action(departed, 'leave');
   assert.equal((await action(departed, 'joinCode', { code: privateRoom.invite })).profile.room, privateRoom.id);
   await action(departed, 'leave');
   await db.query('insert into public.room_progress (room_id, minutes) values ($1,50)', [privateRoom.id]);
@@ -341,6 +347,8 @@ try {
   assert.deepEqual((await action(outsider, 'state')).reactions, []);
   await db.query('update public.desk_reactions set created_ms=created_ms-13000 where from_user=$1', [first]);
   assert.deepEqual((await action(third, 'state')).reactions, []);
+  assert.equal((await action(third, 'join', { room: 'archive' })).error, 'leaveRoomFirst');
+  await action(third, 'leave');
   const moved = await action(third, 'join', { room: 'archive' });
   assert.notEqual(moved.members.find(member => member.own).desk_ref, recipientDesk);
   assert.equal((await action(first, 'react', { desk: recipientDesk, kind: 'clap' })).error, 'reactionUnavailable');
@@ -410,15 +418,20 @@ try {
   assert.equal((await action(outsider, 'answerFriend', { id: relation, answer: 'accept' })).error, 'friendMissing');
   assert.equal((await action(first, 'state')).friends[0].status, 'incoming');
   assert.equal((await action(first, 'answerFriend', { id: relation, answer: 'accept' })).friends[0].status, 'accepted');
-  assert.ok(!(await action(first, 'inviteFriend', { id: relation })).error);
+  const invitationSent = await action(first, 'inviteFriend', { id: relation });
+  assert.ok(invitationSent.friends[0].inviteRetryAt >= invitationSent.now + 59900);
+  assert.equal((await action(first, 'inviteFriend', { id: relation })).error, 'studyInviteCooldown');
   const study = (await action(invitee, 'state')).studyInvites[0];
   assert.equal(study.private, true);
+  assert.ok(study.expiresAt > invitationSent.friends[0].inviteRetryAt);
   assert.equal((await action(outsider, 'answerStudyInvite', { id: study.id, answer: 'accept' })).error, 'studyInviteMissing');
   assert.equal((await action(invitee, 'join', { room: privateRoom.id })).error, 'inviteRequired');
   const accepted = await action(invitee, 'answerStudyInvite', { id: study.id, answer: 'accept' });
   assert.equal(accepted.joinedInvite, true);
   assert.equal(accepted.profile.room, privateRoom.id);
   assert.equal(accepted.studyInvites.length, 0);
+  assert.equal(accepted.friends[0].inRoom, true);
+  assert.equal((await action(first, 'inviteFriend', { id: relation })).error, 'friendInRoom');
   assert.equal((await action(invitee, 'answerStudyInvite', { id: study.id, answer: 'accept' })).error, 'studyInviteMissing');
 
   for (const [minutes, expectedCoins] of [[30, 46], [60, 62]]) {
@@ -455,7 +468,60 @@ try {
     await db.query("update public.rewarded_ad_attempts set retry_at = clock_timestamp() - interval '1 second' where id = $1", [attempt]);
   }
   assert.equal(new Set(attempts).size, 4);
+  await action(invitee, 'leave');
+  assert.equal((await action(first, 'inviteFriend', { id: relation })).error, 'studyInviteCooldown');
+  await db.query('update public.study_invite_limits set retry_ms = public.library_time_ms() - 1 where sender = $1', [first]);
+  assert.ok(!(await action(first, 'inviteFriend', { id: relation })).error);
   assert.equal((await action(invitee, 'removeFriend', { id: relation })).friends.length, 0);
+
+  const phone = { clientId: 'mobile-fixture', generation: 0 };
+  const tab = { clientId: 'browser-fixture', generation: 0 };
+  const lifecycleActor = referredByLegacyCode;
+  await action(lifecycleActor, 'join', { ...phone, room: 'garden' });
+  assert.deepEqual(await action(lifecycleActor, 'roomPresence', { ...phone, generation: 1, room: 'garden', mode: 'background' }), { ok: true });
+  const away = () => action(legacy, 'state').then(result => result.members.find(member => !member.own && member.name === basic.name)?.activity);
+  assert.match(await away(), /^away(Reels|Sleep|Busy)$/);
+  await action(lifecycleActor, 'state', phone);
+  assert.match(await away(), /^away(Reels|Sleep|Busy)$/, 'an older heartbeat may not erase the away tag');
+  await action(lifecycleActor, 'state', tab);
+  assert.equal(await away(), 'desk');
+  await action(lifecycleActor, 'roomPresence', { ...tab, generation: 1, room: 'garden', mode: 'disconnect' });
+  assert.match(await away(), /^away(Reels|Sleep|Busy)$/, 'closing one tab leaves the other connection');
+  await action(lifecycleActor, 'state', { ...phone, generation: 2 });
+  await action(lifecycleActor, 'roomPresence', { ...phone, generation: 1, room: 'garden', mode: 'background' });
+  assert.equal(await away(), 'desk', 'an older background signal may not hide a resumed connection');
+  await action(lifecycleActor, 'start', { ...phone, generation: 2, duration: 50 });
+  await action(lifecycleActor, 'roomPresence', { ...phone, generation: 3, room: 'garden', mode: 'disconnect' });
+  const disconnected = await action(lifecycleActor, 'state', phone);
+  assert.equal(disconnected.profile.room, null);
+  assert.equal(disconnected.session.state, 'invalid');
+
+  await action(privateReader, 'leave');
+  const opened = await action(privateReader, 'createRoom', { name: 'Geçici Oda' });
+  const temporary = opened.rooms.find(entry => entry.owned);
+  await action(lifecycleActor, 'joinCode', { ...phone, code: temporary.invite });
+  assert.equal((await action(privateReader, 'leave')).privateRoomClosing, false);
+  assert.equal((await db.query('select empty_since_ms from public.rooms where id = $1', [temporary.id])).rows[0].empty_since_ms, null);
+  await action(lifecycleActor, 'roomPresence', { ...phone, generation: 1, room: temporary.id, mode: 'background' });
+  await db.query('update public.room_connections set expires_ms = public.library_time_ms() - 1000 where user_id = $1', [lifecycleActor]);
+  await db.query('update public.room_members set seen = public.library_time_ms() - 16000 where user_id = $1', [lifecycleActor]);
+  await settle();
+  assert.equal((await action(lifecycleActor, 'state', phone)).profile.room, null);
+  assert.ok((await db.query('select empty_since_ms from public.rooms where id = $1', [temporary.id])).rows[0].empty_since_ms);
+  assert.equal((await action(privateReader, 'createRoom', { name: 'İkinci Oda' })).error, 'privateRoomOwned');
+  await db.query('update public.rooms set empty_since_ms = public.library_time_ms() - 43199000 where id = $1', [temporary.id]);
+  assert.equal((await action(privateReader, 'join', { room: temporary.id })).profile.room, temporary.id);
+  assert.equal((await db.query('select empty_since_ms from public.rooms where id = $1', [temporary.id])).rows[0].empty_since_ms, null);
+  assert.equal((await action(privateReader, 'leave')).privateRoomClosing, true);
+  await db.query('update public.rooms set empty_since_ms = public.library_time_ms() - 43201000 where id = $1', [temporary.id]);
+  assert.equal((await action(privateReader, 'join', { room: temporary.id })).error, 'inviteRequired');
+  assert.equal((await action(privateReader, 'state')).profile.ownsPrivateRoom, false);
+  assert.equal((await action(lifecycleActor, 'joinCode', { code: temporary.invite })).error, 'invalidInvite');
+  const replacement = (await action(privateReader, 'createRoom', { name: 'Yeni Oda' })).rooms.find(entry => entry.owned);
+  await action(privateReader, 'leave');
+  await db.query('update public.rooms set empty_since_ms = public.library_time_ms() - 43201000 where id = $1', [replacement.id]);
+  await settle();
+  assert.equal((await action(privateReader, 'state')).profile.ownsPrivateRoom, false);
 
   await db.exec('set role authenticated');
   await db.query("select set_config('request.jwt.claim.sub', $1, false)", [ranker]);
@@ -469,6 +535,8 @@ try {
     'select * from public.profile_share_codes',
     'select * from public.reader_friendships',
     'select * from public.study_invites',
+    'select * from public.study_invite_limits',
+    'select * from public.room_connections',
     'select * from public.rewarded_ad_attempts',
     "select public.open_rewarded_ad(null,'web','web')",
     "select public.credit_rewarded_ad(null,'web','web','fake',now())",
@@ -478,6 +546,7 @@ try {
   await db.query('delete from auth.users where id = $1', [first]);
   assert.equal((await db.query('select count(*)::int as count from public.profile_share_codes where profile_id = $1', [first])).rows[0].count, 0);
   assert.equal((await action(third, 'state')).rooms.some(entry => entry.private), false);
+  await action(third, 'leave');
   assert.equal((await action(third, 'join', { room: privateRoom.id })).error, 'inviteRequired');
   const closedRoom = (await db.query('select owner_id, name, name_en from public.rooms where id = $1', [privateRoom.id])).rows[0];
   assert.deepEqual(closedRoom, { owner_id: null, name: 'Kapalı özel oda', name_en: 'Closed private room' });

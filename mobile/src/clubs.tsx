@@ -6,11 +6,11 @@ import type { Locale, Translation } from './strings';
 import { Button, Field, ui } from './ui';
 
 type DirectoryProps = {
-  rooms: Room[]; current: string | null; pending: boolean; coins: number; locale: Locale;
+  rooms: Room[]; current: string | null; pending: boolean; ownsPrivateRoom: boolean; coins: number; locale: Locale;
   t: Translation; join: (room: string) => void; enter: (code: string) => void; create: (name: string) => void;
 };
 
-export function Directory({ rooms, current, pending, coins, locale, t, join, enter, create }: DirectoryProps) {
+export function Directory({ rooms, current, pending, ownsPrivateRoom, coins, locale, t, join, enter, create }: DirectoryProps) {
   const [search, searchFor] = useState('');
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -35,8 +35,10 @@ export function Directory({ rooms, current, pending, coins, locale, t, join, ent
       <Text style={ui.heading}>{t.privateRoom}</Text>
       <View style={styles.roomGrid}>
         <View style={[styles.roomForm, fontScale >= 1.55 && styles.full]}>
-          <Field label={t.roomName} value={name} onChangeText={setName} maxLength={32} />
-          <Button disabled={pending || coins < 10 || name.trim().length < 2} onPress={() => create(name.trim())}>{t.createRoom}</Button>
+          {ownsPrivateRoom ? <Text style={ui.small}>{t.privateRoomOwned}</Text> : <>
+            <Field label={t.roomName} value={name} onChangeText={setName} maxLength={32} />
+            <Button disabled={pending || coins < 10 || name.trim().length < 2} onPress={() => create(name.trim())}>{t.createRoom}</Button>
+          </>}
         </View>
         <View style={[styles.roomForm, fontScale >= 1.55 && styles.full]}>
           <Field label={t.inviteCode} value={code} onChangeText={value => setCode(value.replace(/\D/g, ''))}

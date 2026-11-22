@@ -1,5 +1,5 @@
 type Status = 'desk' | 'break';
-export type DeskActivity = Status | 'working';
+export type DeskActivity = Status | 'working' | 'awayReels' | 'awaySleep' | 'awayBusy' | 'missedCheck';
 type DeskPeer = { desk_ref?: string; status: Status; activity?: DeskActivity };
 export type DeskUpdates = Map<string, { status: DeskActivity; at: number }>;
 export function recordDeskStatus(updates: DeskUpdates, message: unknown): DeskUpdates;

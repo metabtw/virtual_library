@@ -257,6 +257,8 @@ function Desk({ member, width, peerWidth, artHeight, writingClock, itemClock, pe
   const dimensions = deskDimensions(own ? width : peerWidth, own);
   const avatar = member && dressedAvatar(member.avatar, member.placed);
   const activity = member?.activity ?? member?.status;
+  const atDesk = activity === 'desk' || activity === 'working';
+  const seated = atDesk || activity === 'missedCheck';
   const statusLabel = activity ? t[activity === 'working' ? 'studyWorking' : activity] : '';
   const description = member && [member.name, member.target, statusLabel].filter(Boolean).join(', ');
   const interactive = member?.desk_ref && !member.own && Boolean(onDeskPress);
@@ -265,16 +267,16 @@ function Desk({ member, width, peerWidth, artHeight, writingClock, itemClock, pe
     accessibilityRole={interactive ? 'button' : undefined}
     onPress={interactive ? () => onDeskPress?.(member) : undefined}>
     <View style={[styles.seatArt, { minHeight: artHeight }]}>
-      {activity && <Text numberOfLines={1} style={[styles.status, activity === 'break' && styles.break,
-        activity === 'working' && styles.working]}>{statusLabel}</Text>}
-      {avatar && member?.status === 'desk' && <Sprite avatar={avatar} width={dimensions.avatar} pose="seated" />}
+      {activity && <Text numberOfLines={2} style={[styles.status, activity === 'break' && styles.break,
+        activity !== 'break' && activity !== 'desk' && styles.working]}>{statusLabel}</Text>}
+      {avatar && seated && <Sprite avatar={avatar} width={dimensions.avatar} pose="seated" />}
       <View testID="desk-surface" style={[styles.desk, {
         width: dimensions.surface, height: dimensions.tabletop,
-        marginTop: member?.status === 'desk' ? -3 : 0,
+        marginTop: seated ? -3 : 0,
         backgroundColor: palette.desk, borderBottomColor: palette.shadow,
         borderTopColor: own ? palette.accent : palette.border,
       }, own && styles.ownDesk]}>
-        {member?.status === 'desk' && <WritingHands width={dimensions.writing} clock={writingClock}
+        {member && atDesk && <WritingHands width={dimensions.writing} clock={writingClock}
           phase={index % writingSize.frames} tone={member.avatar.skin_tone ?? 0} />}
       </View>
     </View>

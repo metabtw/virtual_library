@@ -1,6 +1,6 @@
 import { createClient } from './supabase-web.js';
 import { config } from './config.js';
-import { invokeLibrary } from './library-client.js';
+import { createRoomConnection, invokeLibrary } from './library-client.js';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from './focus-clock.js';
 import { displayDeskStatuses, recordDeskStatus } from './desk-status.js';
 import { portrait, propImage, writingFrames } from './sprites.js';
@@ -10,7 +10,8 @@ import { createRoomPreferences } from './room-preferences.js';
 import { downloadStudyCard, messageFor, reactionArt } from './web-social.js';
 import { webText } from './web-strings.js';
 import { adCooldownSeconds, roomGoalMinutes } from './study-rewards.js';
-import { dailyQuests, friendsPanel, studyInvitations } from './community.js';
+import { dailyQuests, friendsPanel, studyInviteButton, studyInvitations } from './community.js';
+import { inviteWait, splitProfileCode } from './room-social.js';
 
 const client = config && createClient(config.url, config.key, {
   auth: { flowType: 'pkce', detectSessionInUrl: false },
@@ -35,11 +36,13 @@ const categories = {
 };
 const draft = { email: '', avatarName: null, target: null, roomName: '', invite: '', referral: '', friendCode: '' };
 const seenReactions = new Set();
+const roomConnection = createRoomConnection();
 let locale = initialLanguage();
 const t = key => webText(locale, key);
 const roomPreferences = createRoomPreferences({ translate: t });
 
 let userId;
+let accessToken;
 let data;
 let clock;
 let revision = 0;
@@ -62,10 +65,12 @@ let durationChoice = '50';
 let customDuration = '35';
 let emailSentTo = '';
 let selectedDesk;
+let lastInviteOptions;
 let ranking;
 let rankingRequest;
 let roomSearch = '';
 let openingAd = false;
+let referralPrefix = 'DV';
 const catalogCategory = { shop: 'all', inventory: 'all' };
 
 const escape = (value) => String(value ?? '').replace(/[&<>"']/g, character => ({
@@ -158,6 +163,16 @@ function trackPresence(channel, time) {
   });
 }
 
+function sendRoomPresence(mode) {
+  const room = data?.profile?.room;
+  if (!room || !accessToken) return Promise.resolve();
+  return fetch(`${config.url}/functions/v1/library`, {
+    method: 'POST', keepalive: true,
+    headers: { Authorization: `Bearer ${accessToken}`, apikey: config.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'roomPresence', payload: { ...roomConnection.payload(), room, mode } }),
+  }).catch(() => {});
+}
+
 function syncPresence() {
   const room = data?.profile?.room;
   if (room === presenceRoom) return;
@@ -170,6 +185,7 @@ function syncPresence() {
   const channel = client.channel('room:' + room, { config: { private: true, presence: { key: userId } } });
   presence = channel;
   channel.on('presence', { event: 'sync' }, refreshState)
+    .on('broadcast', { event: 'room_membership' }, refreshState)
     .on('broadcast', { event: 'desk_activity' }, ({ payload }) => {
       if (presence !== channel) return;
       const next = recordDeskStatus(deskUpdates, payload);
@@ -196,7 +212,7 @@ async function request(action, payload) {
   if (!mutation) { stateRequest = read; lastRead = performance.now(); refreshRequested = false; }
   const version = revision;
   try {
-    const result = await invokeLibrary(client, action, payload);
+    const result = await invokeLibrary(client, action, { ...payload, ...roomConnection.payload(), foreground: !document.hidden });
     if (version !== revision || (data && result.now < data.now)) return false;
     if (data?.session?.state !== result.session?.state && result.session?.state === 'completed') toast(t('reward'));
     if (data?.session?.state !== result.session?.state && result.session?.state === 'invalid') toast(t('invalid'));
@@ -204,6 +220,7 @@ async function request(action, payload) {
     clock = markServerTime(result.now);
     refreshing = false;
     syncPresence();
+    if (document.hidden && result.profile?.room) void sendRoomPresence('background');
     const incoming = (result.reactions ?? []).filter(event => !seenReactions.has(event.id));
     for (const event of incoming) seenReactions.add(event.id);
     if (seenReactions.size > 128) for (const id of [...seenReactions].slice(0, 64)) seenReactions.delete(id);
@@ -229,6 +246,7 @@ async function request(action, payload) {
 }
 
 function reflectSession(next) {
+  accessToken = next?.access_token;
   const id = next?.user?.id;
   if (id === userId && lastView !== undefined) return;
   revision++;
@@ -238,6 +256,7 @@ function reflectSession(next) {
   avatar = { ...defaultAvatar };
   draft.avatarName = draft.target = null;
   draft.roomName = draft.invite = draft.referral = draft.friendCode = '';
+  referralPrefix = 'DV';
   stateRequest = undefined;
   refreshRequested = false;
   roomSearch = '';
@@ -332,13 +351,14 @@ function deskPropImage(item) {
 
 function seat(member, index, [column, row]) {
   const activity = member?.activity ?? member?.status;
-  const atDesk = member && activity !== 'break';
+  const atDesk = activity === 'desk' || activity === 'working';
+  const seated = atDesk || activity === 'missedCheck';
   const name = member ? escape(member.name) + (member.own ? ' · ' + t('you') : '') : t('empty') + ' ' + (index + 1);
   const canReact = member?.desk_ref && !member.own && !running();
   return `<div class="seat ${member?.own ? 'own' : member ? '' : 'empty'}${column === 2 ? ' center-column' : ''}" style="grid-column:${column};grid-row:${row}">
     ${member ? `<span class="seat-status ${activity}"><span class="dot"></span> ${t(activity === 'working' ? 'studyWorking' : activity)}</span>` : ''}
     <div class="chair"></div>
-    ${member && atDesk ? sprite(dressedAvatar(member.avatar, member.placed), true) : ''}
+    ${member && seated ? sprite(dressedAvatar(member.avatar, member.placed), true) : ''}
     <div class="desktop" aria-hidden="true">
       ${atDesk ? `<span class="desk-writing" style="--writing-frames:${writingSize.frames}"><img src="${writingFrames(member.avatar.skin_tone)}" alt=""></span>` : '<span class="book"></span>'}
     </div>
@@ -395,7 +415,7 @@ function roomView(room) {
         <div class="timer"><div class="timer-ring" id="timer-ring"><b id="timer">50:00</b></div>
           <div class="timer-copy"><h2 id="focus-title">${t('focus')}</h2><p>${t(running() ? 'focusing' : paused ? 'paused' : 'every20')}</p></div>
         </div>
-        <div class="control-actions">${controls}</div>
+        <div class="control-actions">${controls}${room && !running() ? `<button class="secondary" data-action="leave">${t('leave')}</button>` : ''}</div>
       </section>
       ${room && !running() ? `<section class="room-settings" aria-labelledby="room-settings-title">
         <h2 id="room-settings-title">${t('roomSettings')}</h2>
@@ -419,7 +439,7 @@ function roomsView() {
   </article>`).join('')}</div>
   <p id="room-search-empty" role="status" hidden>${t('noRooms')}</p>
   <div class="room-grid room-actions private-actions">
-    <form class="card stacked" id="create-room-form"><label class="field">${t('roomName')} <input name="roomName" value="${escape(draft.roomName)}" required minlength="2" maxlength="32"></label><button class="primary">${t('createRoom')}</button></form>
+    ${data.profile.ownsPrivateRoom ? `<p class="card room-owned" role="status">${t('privateRoomOwned')}</p>` : `<form class="card stacked" id="create-room-form"><label class="field">${t('roomName')} <input name="roomName" value="${escape(draft.roomName)}" required minlength="2" maxlength="32"></label><button class="primary">${t('createRoom')}</button></form>`}
     <form class="card stacked" id="join-room-form"><label class="field">${t('inviteCode')} <input name="invite" value="${escape(draft.invite)}" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6"></label><button class="secondary">${t('joinCode')}</button></form>
   </div>`;
 }
@@ -471,6 +491,7 @@ function catalog(inventoryOnly) {
 
 function profileCode(label, code, shareable = true) {
   const title = t(label);
+  if (shareable) code = splitProfileCode(code).suffix;
   return `<div><dt>${title}</dt><dd><code>${escape(code)}</code>
     <div class="profile-code-actions">
       <button class="secondary" data-action="copy-profile-code" data-value="${escape(code)}" aria-label="${t('copyCode')} · ${title}">${t('copyCode')}</button>
@@ -488,7 +509,9 @@ function profileView() {
   return `<div class="heading"><h1>${t(profile ? 'profileInventory' : 'newAvatar')}</h1></div>
   <section class="profile-card">${sprite(editing || !profile ? avatar : dressedAvatar(profile.avatar, placed()))}
   ${editing || !profile ? `<form id="avatar-form"><label>${t('name')}<input name="name" value="${escape(draft.avatarName ?? profile?.name)}" minlength="2" maxlength="24" required></label>
-  ${!profile ? `<label>${t('referralField')}<input name="referral" value="${escape(draft.referral)}" maxlength="15" autocapitalize="characters" autocomplete="off"></label>` : ''}
+  ${!profile ? `<div class="field"><label for="registration-code">${t('referralField')}</label>
+    <div class="code-field"><button type="button" class="secondary" data-referral-prefix aria-label="${t('switchCodePrefix')} · ${referralPrefix}-">${referralPrefix}-</button>
+    <input id="registration-code" name="referral" value="${escape(draft.referral)}" maxlength="15" autocapitalize="characters" autocomplete="off"></div></div>` : ''}
   ${avatarPresetPicker()}<div class="form-options">${avatarFields()}</div><button class="primary">${t('saveAvatar')}</button></form>` : `<div><h2>${name}</h2>
     ${profile.target ? `<p>${escape(profile.target)}</p>` : ''}
     <dl class="profile-codes">
@@ -595,8 +618,10 @@ function render() {
       signIn ? signInView : deletionPage ? deletionView : () => `<p>${t('loading')}</p>`);
     return;
   }
-  const view = !data.profile ? 'profile' : lock ? 'room' : Object.hasOwn(labels, page) ? page : 'room';
-  if (lock && page !== 'room') history.replaceState(null, '', '#room');
+  const inRoom = Boolean(data.profile?.room);
+  const roomLocked = lock || (page === 'rooms' && inRoom);
+  const view = !data.profile ? 'profile' : roomLocked ? 'room' : Object.hasOwn(labels, page) ? page : 'room';
+  if (roomLocked && page !== 'room') history.replaceState(null, '', '#room');
   document.querySelector('#location').textContent = t(labels[view]);
   document.querySelectorAll('nav a').forEach(link => {
     if (link.hash === '#' + view) link.setAttribute('aria-current', 'page');
@@ -607,7 +632,7 @@ function render() {
   const signature = JSON.stringify([view, view === 'room'
     ? [room?.id, room?.minutes, room?.invite, data.profile?.status, data.session, durationChoice, data.inventory,
       data.friends?.some(friend => friend.status === 'accepted')]
-    : view === 'rooms' ? [data.rooms, data.studyInvites] : view === 'ranking' ? ranking
+    : view === 'rooms' ? [data.rooms, data.studyInvites, data.profile.ownsPrivateRoom] : view === 'ranking' ? ranking
       : [data.profile, data.inventory, data.items, data.dailyQuests,
         view === 'shop' ? [data.chests, data.adPlatforms?.web, openingAd] : [data.friends, data.studyInvites]], editing, locale,
   catalogCategory[view === 'profile' ? 'inventory' : view]]);
@@ -626,7 +651,17 @@ function render() {
       lastScene = sceneSignature;
     }
   }
+  if (inviteDialog.open && view !== 'room') inviteDialog.close();
+  if (inviteDialog.open) renderInviteOptions();
   updateClock();
+}
+
+function renderInviteOptions() {
+  const friends = (data.friends ?? []).filter(friend => friend.status === 'accepted');
+  const signature = JSON.stringify([friends, locale]);
+  if (signature === lastInviteOptions) return;
+  lastInviteOptions = signature;
+  inviteDialog.querySelector('.study-invite-options').innerHTML = friends.map(friend => studyInviteButton(friend, t, escape, friend.name)).join('');
 }
 
 const format = seconds => [Math.floor(seconds / 60), seconds % 60].map(part => String(part).padStart(2, '0')).join(':');
@@ -653,6 +688,30 @@ function updateClock() {
     const help = document.querySelector('#ad-cooldown');
     const label = seconds ? `${t('adCooldown')} · ${format(seconds)}` : !data?.adPlatforms?.web ? t('adUnavailable') : '';
     if (help.textContent !== label) help.textContent = label;
+  }
+  for (const button of document.querySelectorAll('[data-invite-retry]')) {
+    const seconds = inviteWait(Number(button.dataset.inviteRetry), observed);
+    button.disabled = seconds > 0;
+    const label = seconds ? ` · ${seconds} ${t('secondsShort')}` : '';
+    const timer = button.querySelector('small');
+    if (timer.textContent !== label) timer.textContent = label;
+  }
+  for (const row of content.querySelectorAll('[data-invite-expires]')) {
+    const seconds = inviteWait(Number(row.dataset.inviteExpires), observed);
+    row.hidden = seconds === 0;
+    const timer = row.querySelector('small b');
+    if (timer.textContent !== format(seconds)) timer.textContent = format(seconds);
+  }
+}
+
+async function leaveRoom() {
+  if (busy || !data?.profile?.room || running()) return;
+  const room = data.rooms.find(item => item.id === data.profile.room);
+  const warning = room?.owned && room.count <= 1 ? `\n\n${t('privateRoomClosing')}` : '';
+  if (!confirm(t('leaveConfirm') + warning)) return;
+  if (await request('leave')) {
+    location.hash = 'rooms';
+    if (data.privateRoomClosing) toast(t('privateRoomClosing'));
   }
 }
 
@@ -701,6 +760,12 @@ languageToggle.addEventListener('click', () => {
 });
 document.addEventListener('input', event => {
   const field = event.target;
+  if (field.name === 'friendCode' || field.name === 'referral') {
+    const isReferral = field.name === 'referral';
+    const { prefix, suffix } = splitProfileCode(field.value, isReferral ? referralPrefix : 'SK');
+    field.value = isReferral || prefix === 'SK' ? suffix : '';
+    if (isReferral) updateReferralPrefix(prefix);
+  }
   if (field.id === 'custom-duration') {
     customDuration = field.value;
     document.querySelector('[data-action="start"]').disabled = !validDuration();
@@ -714,7 +779,25 @@ document.addEventListener('input', event => {
   if (Object.hasOwn(draft, field.name)) draft[field.name] = field.value;
 });
 
+function updateReferralPrefix(prefix) {
+  referralPrefix = prefix;
+  const button = content.querySelector('[data-referral-prefix]');
+  if (!button) return;
+  button.textContent = prefix + '-';
+  button.setAttribute('aria-label', `${t('switchCodePrefix')} · ${prefix}-`);
+}
+
 document.addEventListener('click', event => {
+  const roomsLink = event.target.closest('nav a[href="#rooms"]');
+  if (roomsLink && data?.profile?.room && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    void leaveRoom();
+    return;
+  }
+  if (event.target.closest('[data-referral-prefix]') && !busy) {
+    updateReferralPrefix(referralPrefix === 'DV' ? 'SK' : 'DV');
+    return;
+  }
   const option = event.target.closest('[data-choice]');
   const picker = event.target.closest('.picker');
   document.querySelectorAll('.picker[open]').forEach(open => { if (open !== picker) open.open = false; });
@@ -788,10 +871,12 @@ document.addEventListener('submit', async event => {
   }
   if (form.id === 'avatar-form') {
     const wasEditing = editing;
-    if (await request('profile', { ...avatar, name: fields.get('name'), referral: fields.get('referral') })) {
+    const { prefix, suffix } = splitProfileCode(fields.get('referral') ?? '', referralPrefix);
+    if (await request('profile', { ...avatar, name: fields.get('name'), referral: suffix ? `${prefix}-${suffix}` : undefined })) {
       editing = false;
       draft.avatarName = null;
       draft.referral = '';
+      referralPrefix = 'DV';
       lastView = undefined;
       if (!wasEditing) location.hash = 'rooms';
       render();
@@ -799,7 +884,8 @@ document.addEventListener('submit', async event => {
   } else if (form.id === 'target-form') {
     if (await request('target', { target: fields.get('target') })) draft.target = null;
   } else if (form.id === 'friend-form') {
-    if (await request('addFriend', { code: fields.get('friendCode') })) {
+    const { prefix, suffix } = splitProfileCode(fields.get('friendCode'));
+    if (prefix === 'SK' && suffix && await request('addFriend', { code: `${prefix}-${suffix}` })) {
       draft.friendCode = '';
       const field = document.querySelector('#friend-form input');
       if (field) field.value = '';
@@ -828,6 +914,7 @@ document.addEventListener('click', async event => {
     busy = button.disabled = true;
     try {
       if (action === 'delete-account') await invokeLibrary(client, 'deleteAccount');
+      else await invokeLibrary(client, 'roomPresence', { ...roomConnection.payload(), mode: 'disconnect', room: data?.profile?.room }).catch(() => {});
       const { error } = await client.auth.signOut({ scope: 'local' });
       if (error && action !== 'delete-account') throw error;
       reflectSession(null);
@@ -837,6 +924,7 @@ document.addEventListener('click', async event => {
     return;
   }
   if (!data?.profile || (running() && action !== 'verify' && !(action === 'status' && value === 'break'))) return;
+  if (action === 'leave') { await leaveRoom(); return; }
   if (action === 'copy-profile-code') { toast(t(await copyText(value) ? 'codeCopied' : 'codeCopyError')); return; }
   if (action === 'share-profile-code') { await shareProfileCode(value, button.dataset.label); return; }
   if (action === 'copy-share-text') {
@@ -846,9 +934,8 @@ document.addEventListener('click', async event => {
   if (action === 'coin-help') { coinHelp.showModal(); return; }
   if (action === 'reward-ad') { await watchRewardAd(); return; }
   if (action === 'invite-dialog') {
-    const friends = (data.friends ?? []).filter(friend => friend.status === 'accepted');
-    inviteDialog.querySelector('.study-invite-options').innerHTML = friends.map(friend =>
-      `<button class="secondary" data-action="inviteFriend" data-value="${escape(friend.id)}">${escape(friend.name)}</button>`).join('');
+    renderInviteOptions();
+    updateClock();
     inviteDialog.showModal();
     return;
   }
@@ -892,11 +979,9 @@ document.addEventListener('click', async event => {
   if (pausing) { pendingPauseAt = undefined; updateClock(); }
   if (success) {
     if (action === 'join' || (action === 'answerStudyInvite' && data.joinedInvite)) location.hash = 'room';
-    if (action === 'leave') location.hash = 'rooms';
     if (action === 'buy') toast(t('buySuccess'));
     if (action === 'react') { reactionDialog.close(); toast(t('reactionSent')); }
     if (action === 'inviteFriend') {
-      if (inviteDialog.open) inviteDialog.close();
       toast(t('studyInviteSent'));
     }
     if (action === 'rankingVisibility') { ranking = undefined; render(); }
@@ -907,7 +992,16 @@ roomPreferences.attach(document, () => busy || running());
 translateChrome();
 window.addEventListener('hashchange', render);
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && userId) { refreshing = true; updateClock(); refreshState(); }
+  roomConnection.advance();
+  if (document.hidden) void sendRoomPresence('background');
+  else if (userId) { refreshing = true; updateClock(); refreshState(); }
+});
+window.addEventListener('pagehide', event => {
+  roomConnection.advance();
+  void sendRoomPresence(event.persisted ? 'background' : 'disconnect');
+});
+window.addEventListener('pageshow', event => {
+  if (event.persisted && !document.hidden) { roomConnection.advance(); refreshState(); }
 });
 if (client) {
   const url = new URL(location.href);

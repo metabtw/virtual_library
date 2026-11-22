@@ -11,3 +11,12 @@ export async function invokeLibrary(client, action, payload) {
   if (!data || typeof data !== 'object') throw new Error('server');
   return data;
 }
+
+export function createRoomConnection() {
+  const clientId = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  let generation = 0;
+  return {
+    advance() { generation++; },
+    payload() { return { clientId, generation }; },
+  };
+}

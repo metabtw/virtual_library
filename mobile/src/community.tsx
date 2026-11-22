@@ -1,9 +1,30 @@
 import { setStringAsync } from 'expo-clipboard';
 import { useState } from 'react';
-import { Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { inviteWait, splitProfileCode, type ProfileCodePrefix } from '../../public/room-social';
 import type { Answer, DailyQuests as Quests, Friend, Profile, StudyInvite } from './model';
 import type { Locale, Translation } from './strings';
-import { Button, Field, ui } from './ui';
+import { Button, ui } from './ui';
+
+export function ProfileCodeField({ label, prefix, value, onChange, onPrefixChange, t }: {
+  label: string; prefix: ProfileCodePrefix; value: string; onChange: (value: string) => void;
+  onPrefixChange?: (prefix: ProfileCodePrefix) => void; t: Translation;
+}) {
+  return <View style={ui.field}>
+    <Text style={ui.small}>{label}</Text>
+    <View style={styles.codeField}>
+      {onPrefixChange ? <Pressable style={styles.prefix} accessibilityRole="button"
+        accessibilityLabel={`${t.switchCodePrefix} · ${prefix}-`} onPress={() => onPrefixChange(prefix === 'DV' ? 'SK' : 'DV')}>
+        <Text style={ui.accent}>{prefix}-</Text></Pressable> : <View style={styles.prefix}><Text style={ui.accent}>{prefix}-</Text></View>}
+      <TextInput style={[ui.input, styles.codeInput]} value={value} accessibilityLabel={label} maxLength={15}
+        autoCapitalize="characters" autoCorrect={false} onChangeText={input => {
+          const parsed = splitProfileCode(input, prefix);
+          if (onPrefixChange) onPrefixChange(parsed.prefix);
+          onChange(onPrefixChange || parsed.prefix === prefix ? parsed.suffix : '');
+        }} />
+    </View>
+  </View>;
+}
 
 function ProfileCode({ label, code, t, shareable = true }: {
   label: string; code: string; t: Translation; shareable?: boolean;
@@ -37,8 +58,8 @@ export function ProfileCodes({ profile, accountId, t }: { profile: Profile; acco
   const reader = profile.shortReaderCode || profile.readerCode;
   const referral = profile.shortReferralCode || profile.referralCode;
   return <View style={styles.codes}>
-    <ProfileCode key={reader || accountId} label={reader ? t.readerCode : t.accountId} code={reader || accountId} shareable={!!reader} t={t} />
-    {referral && <ProfileCode key={referral} label={t.referralCode} code={referral} t={t} />}
+    <ProfileCode key={reader || accountId} label={reader ? t.readerCode : t.accountId} code={reader ? splitProfileCode(reader).suffix : accountId} shareable={!!reader} t={t} />
+    {referral && <ProfileCode key={referral} label={t.referralCode} code={splitProfileCode(referral).suffix} t={t} />}
   </View>;
 }
 
@@ -61,15 +82,17 @@ export function DailyQuests({ quests, t }: { quests?: Quests; t: Translation }) 
   </View>;
 }
 
-export function StudyInvitations({ invites, locale, pending, t, answer }: {
-  invites?: StudyInvite[]; locale: Locale; pending: boolean; t: Translation; answer: (id: string, answer: Answer) => void;
+export function StudyInvitations({ invites, locale, pending, now, t, answer }: {
+  invites?: StudyInvite[]; locale: Locale; pending: boolean; now: number; t: Translation; answer: (id: string, answer: Answer) => void;
 }) {
-  if (!invites?.length) return null;
+  const active = invites?.filter(invite => !invite.expiresAt || invite.expiresAt > now);
+  if (!active?.length) return null;
   return <View style={ui.card}>
     <Text style={ui.heading}>{t.studyInvites}</Text>
-    {invites.map(invite => <View key={invite.id} style={styles.entry}>
+    {active.map(invite => <View key={invite.id} style={styles.entry}>
       <Text style={ui.heading}>{invite.name}</Text>
       <Text style={ui.small}>{locale === 'en' ? invite.room_en : invite.room}{invite.private ? ' · ' + t.privateBadge : ''}</Text>
+      {!!invite.expiresAt && <Text style={ui.small}>{t.inviteExpires} · {inviteWait(invite.expiresAt, now)} {t.secondsShort}</Text>}
       <View style={styles.actions}>
         <Button disabled={pending} onPress={() => answer(invite.id, 'accept')}>{t.join}</Button>
         <Button muted disabled={pending} onPress={() => answer(invite.id, 'reject')}>{t.reject}</Button>
@@ -78,8 +101,18 @@ export function StudyInvitations({ invites, locale, pending, t, answer }: {
   </View>;
 }
 
-export function FriendsPanel({ profile, friends = [], pending, t, add, answer, remove, invite }: {
-  profile: Profile; friends?: Friend[]; pending: boolean; t: Translation;
+export function FriendInviteButton({ friend, label, pending, now, t, onPress }: {
+  friend: Friend; label?: string; pending: boolean; now: number; t: Translation; onPress: () => void;
+}) {
+  if (friend.inRoom) return <Text style={ui.accent}>{label ? label + ' · ' : ''}{t.friendInRoom}</Text>;
+  const seconds = inviteWait(friend.inviteRetryAt, now);
+  return <Button muted disabled={pending || seconds > 0} onPress={onPress}>
+    {label ?? t.studyInvite}{seconds ? ` · ${seconds} ${t.secondsShort}` : ''}
+  </Button>;
+}
+
+export function FriendsPanel({ profile, friends = [], pending, now, t, add, answer, remove, invite }: {
+  profile: Profile; friends?: Friend[]; pending: boolean; now: number; t: Translation;
   add: (code: string) => void; answer: (id: string, answer: Answer) => void;
   remove: (id: string) => void; invite: (id: string) => void;
 }) {
@@ -88,12 +121,12 @@ export function FriendsPanel({ profile, friends = [], pending, t, add, answer, r
   return <View style={ui.card}>
     <Text style={ui.heading}>{t.friends}</Text>
     {!!profile.referralCode && <Text style={ui.small}>{t.referralInfo}</Text>}
-    <Field label={t.friendId} value={code} onChangeText={setCode} maxLength={15} autoCapitalize="characters" autoCorrect={false} />
-    <Button disabled={pending || code.trim().length < 8} onPress={() => add(code.trim())}>{t.addFriend}</Button>
+    <ProfileCodeField label={t.friendId} prefix="SK" value={code} onChange={setCode} t={t} />
+    <Button disabled={pending || code.length < 5} onPress={() => add(`SK-${code}`)}>{t.addFriend}</Button>
     {!friends.length && <Text style={ui.small}>{t.noFriends}</Text>}
     {friends.map(friend => <View style={styles.entry} key={friend.id}>
       <Text style={ui.heading}>{friend.name}</Text>
-      <Text style={ui.small}>{friend.shortCode || friend.code}{friend.status === 'sent' ? ' · ' + t.friendSent
+      <Text style={ui.small}>{splitProfileCode(friend.shortCode || friend.code).suffix}{friend.status === 'sent' ? ' · ' + t.friendSent
         : friend.status === 'incoming' ? ' · ' + t.friendIncoming : ''}</Text>
       <View style={styles.actions}>
         {friend.status === 'incoming' ? <>
@@ -101,7 +134,7 @@ export function FriendsPanel({ profile, friends = [], pending, t, add, answer, r
           <Button muted disabled={pending} onPress={() => answer(friend.id, 'reject')}>{t.reject}</Button>
         </> : <>
           {friend.status === 'accepted' && profile.room &&
-            <Button disabled={pending} onPress={() => invite(friend.id)}>{t.studyInvite}</Button>}
+            <FriendInviteButton friend={friend} pending={pending} now={now} t={t} onPress={() => invite(friend.id)} />}
           <Button muted disabled={pending} onPress={() => remove(friend.id)}>
             {friend.status === 'sent' ? t.friendCancel : t.friendRemove}
           </Button>
@@ -118,5 +151,9 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   codes: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 8 },
   code: { maxWidth: '100%', padding: 8, gap: 5, backgroundColor: '#251d2a', borderRadius: 9, borderColor: '#76545b', borderWidth: 1 },
+  codeField: { flexDirection: 'row' },
+  prefix: { justifyContent: 'center', paddingHorizontal: 9, borderWidth: 1, borderColor: '#76545b',
+    borderTopLeftRadius: 10, borderBottomLeftRadius: 10, backgroundColor: '#251d2a' },
+  codeInput: { flex: 1, minWidth: 0, borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeftWidth: 0 },
   entry: { borderTopWidth: 1, borderTopColor: '#76545b', paddingTop: 9, gap: 5 },
 });

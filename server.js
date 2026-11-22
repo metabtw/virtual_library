@@ -31,6 +31,7 @@ const files = new Map([
   ['/desk-status.js', ['public/desk-status.js', script]],
   ['/study-rewards.js', ['public/study-rewards.js', script]],
   ['/community.js', ['public/community.js', script]],
+  ['/room-social.js', ['public/room-social.js', script]],
   ['/library.webp', ['public/library.webp', image]],
   ['/aurora.webp', ['mobile/assets/aurora.webp', image]],
   ...['rain', 'garden', 'stars'].map(theme => [`/room-themes/${theme}.webp`, [`mobile/assets/themes/${theme}.webp`, image]]),

@@ -7,3 +7,4 @@ type LibraryClient = {
   };
 };
 export function invokeLibrary<T>(client: LibraryClient | null, action: string, payload?: object): Promise<T>;
+export function createRoomConnection(): { advance(): void; payload(): { clientId: string; generation: number } };

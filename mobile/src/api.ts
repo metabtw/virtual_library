@@ -1,7 +1,8 @@
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
-import { invokeLibrary } from '../../public/library-client';
+import { AppState } from 'react-native';
+import { createRoomConnection, invokeLibrary } from '../../public/library-client';
 import type { Leaderboard, Snapshot, StudySummary } from './model';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -36,7 +37,12 @@ export function completeAuthCode(code: string): Promise<void> {
 }
 
 const invoke = <T>(action: string, payload?: object) => invokeLibrary<T>(supabase, action, payload);
-export const library = (action: string, payload?: object) => invoke<Snapshot>(action, payload);
+export const roomConnection = createRoomConnection();
+export const library = (action: string, payload?: object) => invoke<Snapshot>(action, {
+  ...payload, ...roomConnection.payload(), foreground: AppState.currentState !== 'background',
+});
+export const notifyRoomPresence = (room: string, mode: 'background' | 'disconnect') =>
+  invoke<{ ok: boolean }>('roomPresence', { ...roomConnection.payload(), room, mode }).catch(() => {});
 export const deleteAccount = () => invoke<{ deleted: boolean }>('deleteAccount');
 export const studySummary = () => invoke<StudySummary>('studySummary');
 export const leaderboard = () => invoke<Leaderboard>('leaderboard');

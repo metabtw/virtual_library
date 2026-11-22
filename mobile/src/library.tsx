@@ -1,13 +1,13 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, AppState, Image, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, AppState, BackHandler, Image, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { avatarOptions, avatarPresets, defaultAvatar, hairStyles, pickAvatarStyle } from '../../public/avatar-art';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../../public/focus-clock';
 import { displayDeskStatuses, recordDeskStatus, type DeskUpdates } from '../../public/desk-status';
 import { roomGoalMinutes } from '../../public/study-rewards';
-import { deleteAccount, library, supabase } from './api';
+import { deleteAccount, library, notifyRoomPresence, roomConnection, supabase } from './api';
 import type { Avatar, Command, Drop, Focus, Member, Profile, Snapshot } from './model';
 import { RoomScene, Sprite } from './scene';
 import { allowReminders, hasExactReminderSettings, openExactReminderSettings, syncRemoteReminders,
@@ -24,7 +24,8 @@ import { LeaderboardModal, StudyCardModal } from './study';
 import { presetAssets } from './asset-art';
 import { PrivacyLink } from './auth';
 import { AdRewards } from './ads';
-import { DailyQuests, FriendsPanel, ProfileCodes, StudyInvitations } from './community';
+import { DailyQuests, FriendInviteButton, FriendsPanel, ProfileCodeField, ProfileCodes, StudyInvitations } from './community';
+import type { ProfileCodePrefix } from '../../public/room-social';
 
 type Action = { [K in keyof Command]: { name: K; payload?: Command[K] } }[keyof Command];
 
@@ -37,6 +38,7 @@ function AvatarEditor({ profile, onSave, pending, t, locale }: {
 }) {
   const [name, setName] = useState(profile?.name ?? '');
   const [referral, setReferral] = useState('');
+  const [prefix, setPrefix] = useState<ProfileCodePrefix>('DV');
   const [avatar, setAvatar] = useState<Avatar>(() => ({ ...defaultAvatar, ...profile?.avatar }));
   const [openStyle, setOpenStyle] = useState<typeof styleFields[number]>();
   const options = { hair: hairStyles[avatar.gender], ...avatarOptions };
@@ -47,8 +49,8 @@ function AvatarEditor({ profile, onSave, pending, t, locale }: {
     <Text style={ui.heading}>{profile ? t.editAvatar : t.newAvatar}</Text>
     <View style={{ alignSelf: 'center' }}><Sprite avatar={avatar} width={90} /></View>
     <Field label={t.name} value={name} onChangeText={setName} maxLength={24} />
-    {!profile && <Field label={t.referralField} value={referral} onChangeText={setReferral} maxLength={15}
-      autoCapitalize="characters" autoCorrect={false} />}
+    {!profile && <ProfileCodeField label={t.referralField} value={referral} prefix={prefix}
+      onChange={setReferral} onPrefixChange={setPrefix} t={t} />}
     <View style={ui.field}>
       <Text style={ui.small}>{t.characterPresets}</Text>
       <View style={ui.options}>
@@ -88,7 +90,7 @@ function AvatarEditor({ profile, onSave, pending, t, locale }: {
       values={[['#bd7050', t.cinnamon], ['#789078', t.sage], ['#7988ab', t.midnight], ['#ad7963', t.coffee]]}
       onChange={color => setAvatar({ ...avatar, color })} />
     <Button disabled={pending || name.trim().length < 2}
-      onPress={() => onSave({ ...avatar, name, referral: referral.trim() || undefined })}>{t.save}</Button>
+      onPress={() => onSave({ ...avatar, name, referral: referral ? `${prefix}-${referral}` : undefined })}>{t.save}</Button>
   </View>;
 }
 
@@ -182,22 +184,40 @@ export function Library({ id }: { id: string }) {
   const localRoom = snapshot?.profile?.room;
   const focus = snapshot?.session?.state === 'active' ? snapshot.session : null;
   const running = focus?.paused_at === null;
-  const effectivePage = running || (page === 'room' && localRoom) ? 'room' : page === 'room' ? 'rooms' : page;
+  const effectivePage = running || ((page === 'room' || page === 'rooms') && localRoom) ? 'room' : page === 'room' ? 'rooms' : page;
   const observed = clock ? serverTimeAt(clock, moment) : 0;
   const remainingCheck = foreground && (serverSample ?? 0) > refreshAfter ? verificationRemaining(focus, observed) : 0;
   const verify = remainingCheck > 0;
   useReminder(alerts, focus?.next_check_at ?? null, clock, t, reminderRevision);
   useEffect(() => {
+    if (localRoom && AppState.currentState === 'background') void notifyRoomPresence(localRoom, 'background');
     const subscription = AppState.addEventListener('change', status => {
       setForeground(status === 'active');
+      if (status === 'background' && localRoom) {
+        roomConnection.advance();
+        void notifyRoomPresence(localRoom, 'background');
+      }
       if (status === 'active') {
+        roomConnection.advance();
         setRefreshAfter(lastServerTime.current);
         setMoment(performance.now());
         void queryClient.invalidateQueries({ queryKey: ['library', id] }, { cancelRefetch: false });
       }
     });
     return () => subscription.remove();
-  }, [id, queryClient]);
+  }, [id, localRoom, queryClient]);
+  useEffect(() => {
+    if (!localRoom) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      roomConnection.advance();
+      void Promise.race([
+        notifyRoomPresence(localRoom, 'disconnect'),
+        new Promise(resolve => setTimeout(resolve, 600)),
+      ]).then(() => BackHandler.exitApp());
+      return true;
+    });
+    return () => subscription.remove();
+  }, [localRoom]);
   useEffect(() => {
     const incoming = (snapshot?.reactions ?? []).filter(event => !seenReactions.current.has(event.id));
     if (!incoming.length) return;
@@ -233,7 +253,7 @@ export function Library({ id }: { id: string }) {
       if (action.name === 'answerStudyInvite' && data.joinedInvite) { setPage('room'); trackUsage('room_joined'); }
       if (action.name === 'start') trackUsage('focus_started');
       if (action.name === 'verify') trackUsage('focus_confirmed');
-      if (action.name === 'leave') setPage('rooms');
+      if (action.name === 'leave') { setInviteOpen(false); setPage('rooms'); }
       if (data.drop) setPrize(data.drop);
       if (action.name === 'react') {
         setPeer(undefined);
@@ -241,9 +261,8 @@ export function Library({ id }: { id: string }) {
         clearTimeout(reactionTimeout.current);
         reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
       }
-      if (action.name === 'inviteFriend') {
-        setInviteOpen(false);
-        setReactionMessage(t.studyInviteSent);
+      if (action.name === 'inviteFriend' || (action.name === 'leave' && data.privateRoomClosing)) {
+        setReactionMessage(action.name === 'leave' ? t.privateRoomClosing : t.studyInviteSent);
         clearTimeout(reactionTimeout.current);
         reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
       }
@@ -261,7 +280,9 @@ export function Library({ id }: { id: string }) {
     onSettled: () => setPendingPauseAt(undefined),
   });
 
-  const clockInterval = focus ? 200 : effectivePage === 'shop' && (snapshot?.adRetryAt ?? 0) > observed ? 1000 : 0;
+  const inviteClock = snapshot?.studyInvites?.some(invite => (invite.expiresAt ?? 0) > observed)
+    || snapshot?.friends?.some(friend => (friend.inviteRetryAt ?? 0) > observed);
+  const clockInterval = focus ? 200 : inviteClock || (effectivePage === 'shop' && (snapshot?.adRetryAt ?? 0) > observed) ? 1000 : 0;
   useEffect(() => {
     if (!clockInterval) return;
     const timer = setInterval(() => setMoment(performance.now()), clockInterval);
@@ -277,6 +298,8 @@ export function Library({ id }: { id: string }) {
     presence.current = channel;
     channel.on('presence', { event: 'sync' }, () => {
       void queryClient.invalidateQueries({ queryKey: ['library', id] });
+    }).on('broadcast', { event: 'room_membership' }, () => {
+      void queryClient.invalidateQueries({ queryKey: ['library', id] }, { cancelRefetch: false });
     }).on('broadcast', { event: 'desk_activity' }, ({ payload }) => {
       if (presence.current !== channel) return;
       setDeskUpdates(previous => recordDeskStatus(previous, payload));
@@ -296,6 +319,7 @@ export function Library({ id }: { id: string }) {
   }, [id, localRoom, queryClient]);
 
   async function signOut(accountDeleted = false) {
+    if (!accountDeleted && localRoom) await notifyRoomPresence(localRoom, 'disconnect');
     await removeRemoteReminders(accountDeleted).catch(() => {});
     setAlerts(false);
     setUsage(false);
@@ -339,7 +363,15 @@ export function Library({ id }: { id: string }) {
     if (running && action.name === 'status' && action.payload?.status === 'break') setPendingPauseAt(observed);
     mutation.mutate(action);
   }
-  const invitations = <StudyInvitations invites={snapshot.studyInvites} locale={locale} pending={pending} t={t}
+  function requestLeave() {
+    if (!localRoom || pending || running) return;
+    const warning = room?.owned && room.count <= 1 ? `\n\n${t.privateRoomClosing}` : '';
+    Alert.alert(t.leave, t.leaveConfirm + warning, [
+      { text: t.cancel, style: 'cancel' },
+      { text: t.leave, style: 'destructive', onPress: () => act({ name: 'leave' }) },
+    ]);
+  }
+  const invitations = <StudyInvitations invites={snapshot.studyInvites} locale={locale} pending={pending} now={observed} t={t}
     answer={(id, answer) => act({ name: 'answerStudyInvite', payload: { id, answer } })} />;
 
   return <>
@@ -355,7 +387,7 @@ export function Library({ id }: { id: string }) {
           <View style={ui.row}><Text style={ui.heading}>{t.rooms}</Text>
             <View style={{ flexShrink: 1 }}><Button muted onPress={() => setRankingOpen(true)}>{t.leaderboard}</Button></View></View>
           {invitations}
-          <Directory rooms={snapshot.rooms} current={profile.room} pending={pending}
+          <Directory rooms={snapshot.rooms} current={profile.room} pending={pending} ownsPrivateRoom={!!profile.ownsPrivateRoom}
           coins={profile.coins} locale={locale} t={t}
           join={room => room === localRoom ? setPage('room') : act({ name: 'join', payload: { room } })}
           enter={code => act({ name: 'joinCode', payload: { code } })}
@@ -383,8 +415,8 @@ export function Library({ id }: { id: string }) {
           {!focus && room && <View style={ui.card}>
             <Options label={label(room)} values={([['desk', t.desk], ['break', t.break]] as const)}
               value={profile.status ?? 'desk'} onChange={status => act({ name: 'status', payload: { status } })} />
-            <Button muted disabled={pending} onPress={() => act({ name: 'leave' })}>{t.leave}</Button>
           </View>}
+          {!running && room && <Button muted disabled={pending} onPress={requestLeave}>{t.leave}</Button>}
           {room && <Ambience locked={running} inventory={snapshot.inventory} t={t} />}
         </> : effectivePage === 'shop' ? <>
           <AdRewards snapshot={snapshot} serverNow={observed} pending={pending} t={t} refresh={() => void query.refetch()} />
@@ -406,7 +438,7 @@ export function Library({ id }: { id: string }) {
             <Button muted onPress={() => setCardOpen(true)}>{t.studyCard}</Button>
             <DailyQuests quests={snapshot.dailyQuests} t={t} />
             {invitations}
-            <FriendsPanel profile={profile} friends={friends} pending={pending} t={t}
+            <FriendsPanel profile={profile} friends={friends} pending={pending} now={observed} t={t}
               add={code => act({ name: 'addFriend', payload: { code } })}
               answer={(id, answer) => act({ name: 'answerFriend', payload: { id, answer } })}
               remove={id => act({ name: 'removeFriend', payload: { id } })}
@@ -439,7 +471,7 @@ export function Library({ id }: { id: string }) {
     </ScrollView>
     {profile && <View style={ui.nav}>
       {(['rooms', 'room', 'shop', 'profile'] as const).map(tab =>
-        <Pressable key={tab} accessibilityRole="tab" disabled={running} onPress={() => setPage(tab)}
+        <Pressable key={tab} accessibilityRole="tab" disabled={running} onPress={() => tab === 'rooms' && localRoom ? requestLeave() : setPage(tab)}
           accessibilityState={{ selected: tab === effectivePage, disabled: running }} style={[ui.navTab, tab === effectivePage && ui.navActive, running && { opacity: .46 }]}>
           <Text style={[ui.navText, tab === effectivePage && ui.accent]}>{t[tab]}{tab === 'profile' && unread > 0 ? ` · ${unread}` : ''}</Text>
         </Pressable>)}
@@ -467,8 +499,8 @@ export function Library({ id }: { id: string }) {
       <View style={ui.modal}><View style={[ui.card, { width: '100%', maxWidth: 450, maxHeight: '80%' }]}>
         <Text style={ui.heading}>{t.friendInvite}</Text>
         <ScrollView contentContainerStyle={{ gap: 7 }}>
-          {accepted.map(friend => <Button key={friend.id} muted disabled={pending}
-            onPress={() => act({ name: 'inviteFriend', payload: { id: friend.id } })}>{friend.name}</Button>)}
+          {accepted.map(friend => <FriendInviteButton key={friend.id} friend={friend} label={friend.name} pending={pending} now={observed} t={t}
+            onPress={() => act({ name: 'inviteFriend', payload: { id: friend.id } })} />)}
         </ScrollView>
         {actionError !== '' && <Text style={ui.warning}>{actionError}</Text>}
         <Button muted onPress={() => setInviteOpen(false)}>{t.done}</Button>

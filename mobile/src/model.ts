@@ -21,14 +21,14 @@ export type ReactionKind = 'coffee' | 'clap';
 export type DeskReaction = { id: string; kind: ReactionKind; name: string };
 export type Member = { own: boolean; desk_ref?: string; name: string; status: DeskStatus; activity?: DeskActivity; avatar: Avatar; placed: ItemId[]; target?: string; pet?: Pet | null };
 export type Profile = { name: string; coins: number; room: string | null; status: DeskStatus | null; avatar: Avatar; target?: string;
-  readerCode?: string; referralCode?: string; shortReaderCode?: string; shortReferralCode?: string };
-export type Room = { id: string; name: string; name_en: string; count: number; capacity: number; private?: boolean; invite?: string | null; targets?: string[]; minutes?: number };
+  readerCode?: string; referralCode?: string; shortReaderCode?: string; shortReferralCode?: string; ownsPrivateRoom?: boolean };
+export type Room = { id: string; name: string; name_en: string; count: number; capacity: number; private?: boolean; owned?: boolean; invite?: string | null; targets?: string[]; minutes?: number };
 export type Focus = {
   start: number; end: number; checks: number; state: 'active' | 'completed' | 'invalid';
   paused_at: number | null; next_check_at?: number | null; check_until?: number | null;
 };
-export type Friend = { id: string; name: string; code: string; shortCode?: string; status: 'accepted' | 'sent' | 'incoming' };
-export type StudyInvite = { id: string; name: string; room: string; room_en: string; private: boolean };
+export type Friend = { id: string; name: string; code: string; shortCode?: string; status: 'accepted' | 'sent' | 'incoming'; inRoom?: boolean; inviteRetryAt?: number | null };
+export type StudyInvite = { id: string; name: string; room: string; room_en: string; private: boolean; expiresAt?: number };
 export type DailyQuests = { date: string; minutes: number; goals: { minutes: number; coins: number; completed: boolean }[] };
 export type Answer = 'accept' | 'reject';
 
@@ -48,6 +48,7 @@ export type Snapshot = {
   friends?: Friend[];
   studyInvites?: StudyInvite[];
   joinedInvite?: boolean;
+  privateRoomClosing?: boolean;
   adRetryAt?: number;
   adPlatforms?: Partial<Record<'web' | 'android' | 'ios', boolean>>;
 };
