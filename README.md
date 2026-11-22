@@ -30,6 +30,8 @@ npm start
 
 `PORT` ile web portu değiştirilebilir. Varsayılan dışındaki port veya alan adı için gerçek giriş adresini ve `/account-deletion` yolunu Supabase Auth yönlendirme listesine ekle.
 
+`npm run build:web` Vercel'de yayınlanacak statik dosyaları `dist/web` dizinine çıkarır. Git dalı, özel alan adı ve giriş yönlendirmelerinin ayarları yayın rehberinde yer alır. [Vercel yayın kurulumu](docs/yayin-kurulumu.md#vercel-yayını)
+
 ## Expo mobil uygulamasını çalıştır ve test et
 
 Mobil istemci Expo Router, React Native, TypeScript ve Skia kullanır. Sunucu verileri TanStack Query, görünüm tercihleri Zustand ile yönetilir. Expo geliştirme derlemesi, Skia, ses, bildirim ve paylaşım modüllerini içerir. Android için Android Studio ve çalışan bir emülatör veya bağlı cihaz, iOS için macOS ve Xcode gerekir.

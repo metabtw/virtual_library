@@ -2,13 +2,24 @@
 
 ## Web ve Supabase
 
-1. Web uygulamasını Node.js 24 çalıştıran bir hizmete bağla. Depo kökünde kurulum komutu `npm ci --omit=dev`, başlatma komutu `npm start`. Hizmetin atadığı `PORT` otomatik okunur. Supabase proje adresini ve publishable key'i [web ortam ayarlarına](../.env.example) gir.
-2. HTTPS web adresi hazır olduğunda Supabase **Authentication → URL Configuration → Site URL** alanına kaydet. Yönlendirme listesine HTTPS kök adresini, aynı adresteki `/account-deletion` yolunu ve mobil için `sanalkutuphane://auth` değerini ekle. [Supabase yönlendirmeleri](https://supabase.com/docs/guides/auth/redirect-urls)
-3. Supabase'de genel e-posta teslimi için doğrulanmış gönderici adresiyle SMTP kur. **Confirm signup** ve **Magic Link** şablonlarını giriş kodu şablonuyla güncelle. Bir deneme hesabıyla kayıt, tekrar giriş ve hesap silme ekranında kod girişini doğrula. [Giriş ve sağlayıcı kurulumu](supabase-kurulum.md#e-postayla-giriş)
-4. Bağlı projede web Google girişi için yayın adresini Firebase Authentication'ın yetkili alan adlarına ekle. Expo ve ayrı Supabase projelerindeki Google girişiyle Apple girişi için ilgili sağlayıcı kurulumunu uygula. [Google](supabase-kurulum.md#google-ile-giriş) · [Apple](supabase-kurulum.md#apple-ile-giriş)
-5. Web ortamında veri sorumlusu ve TR/EN aydınlatma bilgilerini doldur. Her iki dilde gizlilik adresini ve hesap silme akışını aç. Mağaza formlarında gizlilik URL'si olarak `/privacy`, web hesabı silme URL'si olarak `/account-deletion` yolunu kullan. [Aydınlatma metni alanları](kvkk-yayin-notlari.md)
+### Vercel yayını
 
-Web hizmetinin `/healthz` yanıtı Supabase URL'si ve açık anahtar yapılandırıldığında **200** döner. Supabase erişimini HTTPS uygulamasından gerçek bir hesapla giriş ve oda işlemi yaparak doğrula. Özel odadaki masa durumu için son migration ve güncel istemciler kullanılır.
+Vercel Hobby kişisel veya ticari olmayan kullanım içindir. Reklam geliri olan bir yayında ticari kullanıma izin veren bir plan seç. [Vercel kullanım koşulları](https://vercel.com/legal/terms)
+
+1. Vercel'de **Add New → Project** ile GitHub'daki `metabtw/virtual_library` deposunu içe aktar. Kök dizin `.`, Framework Preset **Other** ve Node.js **24.x** kullan. Derleme komutunu `vercel.json` belirler ve web çıktısı `dist/web` altında oluşturulur. [Vercel yapılandırması](../vercel.json)
+2. Vercel **Settings → Environment Variables** bölümünde Production için `EXPO_PUBLIC_SUPABASE_URL` ve `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` değerlerini gir. Veri sorumlusu ve TR/EN aydınlatma bilgilerini de ortam değişkenlerine ekle. Ortam değişkenleri değiştiğinde yeniden dağıt. [Web ortam değişkenleri](../.env.example) · [Aydınlatma metni](kvkk-yayin-notlari.md)
+3. **Settings → Environments → Production → Branch Tracking** bölümünde `sanal-kutuphane-sosyal-oduller` dalını seç. **Deployments → Create Deployment** ile bu daldan bir dağıtım oluştur. Alan adını bağlamadan önce `.vercel.app` adresinde ana sayfayı, `/privacy`, `/privacy?lang=en` ve `/account-deletion` yollarını aç. [Vercel Git dağıtımları](https://vercel.com/docs/git#production-branch)
+4. **Settings → Domains** bölümünde alan adını ekle. Vercel'in gösterdiği kök alan adı için A ve `www` için CNAME değerlerini DNS paneline gir. `www` kullanıyorsan Vercel'de ana adrese yönlendir. Mevcut posta MX, SPF ve DKIM kayıtlarını koru. HTTPS etkinleşince siteyi ana adresten aç. [Vercel alan adı kurulumu](https://vercel.com/docs/domains/working-with-domains/add-a-domain)
+
+### Giriş ve e-posta
+
+1. HTTPS adresini Supabase **Authentication → URL Configuration → Site URL** alanına kaydet. **Redirect URLs** listesine HTTPS kök adresini ve aynı adresteki `/account-deletion` yolunu ekle. Mobil bağlantı için `sanalkutuphane://auth` kaydını kullan. [Supabase yönlendirmeleri](https://supabase.com/docs/guides/auth/redirect-urls)
+2. Firebase **Authentication → Settings → Authorized domains** listesine web alan adını ekle. Firebase alan adı alanına yalnızca ana makine adını yaz. Expo ve ayrı Supabase projelerindeki Google girişiyle Apple girişi için ilgili sağlayıcı kurulumunu uygula. [Google](supabase-kurulum.md#google-ile-giriş) · [Apple](supabase-kurulum.md#apple-ile-giriş)
+3. E-posta sağlayıcında gönderen alan adını DNS üzerinden doğrula. Gönderen adresini ve SMTP bilgilerini Supabase **Authentication → Emails → SMTP Settings** bölümüne gir. **Confirm signup** ve **Magic link or OTP** şablonlarına giriş kodu şablonunu kaydet. Bir deneme hesabıyla kayıt, tekrar giriş ve hesap silme ekranında kod girişini doğrula. [Giriş ve SMTP kurulumu](supabase-kurulum.md#e-postayla-giriş)
+
+Web hizmetinin `/healthz` yanıtı Supabase URL'si ve açık anahtar yapılandırıldığında **200** döner. Supabase erişimini HTTPS uygulamasından gerçek bir hesapla giriş ve oda işlemi yaparak doğrula.
+
+Node.js 24 çalıştıran bir web hizmetinde depo kökünde `npm ci --omit=dev` ile kurulum yapıp `npm start` ile başlatabilirsin. Hizmetin atadığı `PORT` okunur.
 
 ## EAS, imzalama ve bildirimler
 

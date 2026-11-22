@@ -14,7 +14,7 @@ const html = 'text/html; charset=utf-8';
 const css = 'text/css; charset=utf-8';
 const image = 'image/webp';
 const audio = 'audio/mp4';
-const files = new Map([
+export const webFiles = new Map([
   ['/', ['public/index.html', html]],
   ['/account-deletion', ['public/index.html', html]],
   ['/styles.css', ['public/styles.css', css]],
@@ -40,6 +40,13 @@ const files = new Map([
   ...['rain', 'fire', 'cafe', 'lofi', 'space', 'forest'].map(track =>
     [`/room-ambience/${track}.m4a`, [`mobile/assets/ambience/${track}.m4a`, audio]]),
 ]);
+
+export function loadWebEnvironment() {
+  for (const path of ['.env.local', 'mobile/.env.local']) {
+    const file = resolve(root, path);
+    if (existsSync(file)) loadEnvFile(file);
+  }
+}
 
 function audioResponse(content, range) {
   const headers = { 'Accept-Ranges': 'bytes', 'Content-Length': content.length };
@@ -119,7 +126,7 @@ export function createWebServer({ config = getWebConfig(), bundle = new Uint8Arr
       if (pathname === '/config.js') return write(script, `export const config = ${JSON.stringify(config)};`);
       if (pathname === '/supabase-web.js') return write(script, bundle);
       if (pathname === '/firebase-google-sdk.js' && config?.firebaseGoogle && firebaseBundle) return write(script, firebaseBundle);
-      const file = files.get(pathname);
+      const file = webFiles.get(pathname);
       if (file) {
         try {
           const [path, type] = file;
@@ -140,10 +147,7 @@ export function createWebServer({ config = getWebConfig(), bundle = new Uint8Arr
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
-  for (const path of ['.env.local', 'mobile/.env.local']) {
-    const file = resolve(root, path);
-    if (existsSync(file)) loadEnvFile(file);
-  }
+  loadWebEnvironment();
   const port = Number(process.env.PORT || 3000);
   const config = getWebConfig();
   const [bundle, firebaseBundle] = await Promise.all([bundleSupabase(), config?.firebaseGoogle ? bundleFirebaseGoogle() : undefined]);
