@@ -1,0 +1,28 @@
+project_id = "virtual-library"
+
+[auth]
+site_url = "sanalkutuphane://auth"
+additional_redirect_urls = [
+  "sanalkutuphane://auth",
+  "http://localhost:3000/",
+  "http://localhost:3000/account-deletion",
+  "http://127.0.0.1:3000/",
+  "http://127.0.0.1:3000/account-deletion"
+]
+
+[auth.email.template.confirmation]
+subject = "Sanal Kütüphane · Giriş kodun"
+content_path = "./supabase/templates/sign-in-code.html"
+
+[auth.email.template.magic_link]
+subject = "Sanal Kütüphane · Giriş kodun"
+content_path = "./supabase/templates/sign-in-code.html"
+
+[functions.library]
+verify_jwt = false
+
+[functions.reward-worker]
+verify_jwt = false
+
+[functions.ad-reward]
+verify_jwt = false

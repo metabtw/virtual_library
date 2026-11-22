@@ -1,2 +1,10 @@
 node_modules/
 .data/
+/dist/web/
+mobile/.expo/
+mobile/dist/
+mobile/.env*
+!mobile/.env.example
+supabase/.temp/
+/.env*
+!/.env.example

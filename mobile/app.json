@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "Sanal Kütüphane",
+    "slug": "sanal-kutuphane",
+    "scheme": "sanalkutuphane",
+    "plugins": [
+      "expo-router",
+      "expo-notifications",
+      "expo-secure-store",
+      "expo-web-browser",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 192,
+          "backgroundColor": "#211625"
+        }
+      ]
+    ],
+    "userInterfaceStyle": "dark",
+    "orientation": "portrait",
+    "ios": {
+      "bundleIdentifier": "com.metabtw.sanalkutuphane",
+      "buildNumber": "1"
+    },
+    "android": {
+      "package": "com.metabtw.sanalkutuphane",
+      "permissions": ["android.permission.SCHEDULE_EXACT_ALARM"],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#211625"
+      }
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "version": "0.1.0",
+    "icon": "./assets/icon.png"
+  }
+}

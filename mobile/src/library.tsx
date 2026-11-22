@@ -1,0 +1,575 @@
+import type { RealtimeChannel } from '@supabase/supabase-js';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, AppState, BackHandler, Image, ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text,
+  useWindowDimensions, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { avatarOptions, avatarPresets, defaultAvatar, hairStyles, pickAvatarStyle } from '../../public/avatar-art';
+import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../../public/focus-clock';
+import { displayDeskStatuses, recordDeskStatus, type DeskUpdates } from '../../public/desk-status';
+import { roomGoalMinutes } from '../../public/study-rewards';
+import { deleteAccount, library, notifyRoomPresence, roomConnection, supabase } from './api';
+import type { Avatar, Command, Drop, Focus, ItemId, Member, Profile, Snapshot } from './model';
+import { RoomScene, Sprite } from './scene';
+import { allowReminders, hasExactReminderSettings, openExactReminderSettings, syncRemoteReminders,
+  removeRemoteReminders, useReminder } from './reminders';
+import { hasAnalytics, setUsageMeasurement, trackUsage } from './telemetry';
+import { message, usePreferences, words, type Locale, type Translation } from './strings';
+import { Button, Field, Options, ui } from './ui';
+import { Directory, Invite, PrivateBadge, RoomGoal, TargetEditor } from './clubs';
+import { Ambience } from './ambience';
+import { Catalog, ItemIllustration } from './catalog';
+import { dressedAvatar } from './cosmetics';
+import { roomThemes, ThemePicker } from './themes';
+import { LeaderboardModal, StudyCardModal } from './study';
+import { presetAssets } from './asset-art';
+import { PrivacyLink } from './auth';
+import { ShopRewards } from './ads';
+import { DailyQuests, FriendInviteButton, FriendsPanel, ProfileCodeField, ProfileCodes, StudyInvitations } from './community';
+import type { ProfileCodePrefix } from '../../public/room-social';
+
+type Action = { [K in keyof Command]: { name: K; payload?: Command[K] } }[keyof Command];
+
+const styleFields = ['hair', 'hair_color', 'skin_tone', 'beard', 'outfit'] as const;
+const minute = 60000;
+
+function AvatarEditor({ profile, onSave, pending, t, locale }: {
+  profile: Profile | null; onSave: (data: Command['profile']) => void;
+  pending: boolean; t: Translation; locale: Locale;
+}) {
+  const [name, setName] = useState(profile?.name ?? '');
+  const [referral, setReferral] = useState('');
+  const [prefix, setPrefix] = useState<ProfileCodePrefix>('DV');
+  const [avatar, setAvatar] = useState<Avatar>(() => ({ ...defaultAvatar, ...profile?.avatar }));
+  const [openStyle, setOpenStyle] = useState<typeof styleFields[number]>();
+  const options = { hair: hairStyles[avatar.gender], ...avatarOptions };
+  const labels = { hair: t.hair, hair_color: t.hairColor, skin_tone: t.skinTone, beard: t.beard, outfit: t.outfit };
+  const values = { hair: avatar.hair_style ?? avatar.hair, hair_color: avatar.hair_color ?? 0,
+    skin_tone: avatar.skin_tone ?? 0, beard: avatar.beard ?? 0, outfit: avatar.outfit_style ?? avatar.outfit };
+  return <View style={ui.card}>
+    <Text style={ui.heading}>{profile ? t.editAvatar : t.newAvatar}</Text>
+    <View style={{ alignSelf: 'center' }}><Sprite avatar={avatar} width={90} /></View>
+    <Field label={t.name} value={name} onChangeText={setName} maxLength={24} />
+    {!profile && <ProfileCodeField label={t.referralField} value={referral} prefix={prefix}
+      onChange={setReferral} onPrefixChange={setPrefix} t={t} />}
+    <View style={ui.field}>
+      <Text style={ui.small}>{t.characterPresets}</Text>
+      <View style={ui.options}>
+        {avatarPresets.map(preset => <Pressable key={preset.id} accessibilityRole="button" accessibilityLabel={preset[locale]}
+          style={[ui.chip, avatarEditorStyles.preset]} onPress={() => {
+            setAvatar({ ...defaultAvatar, ...preset.look });
+            setOpenStyle(undefined);
+          }}>
+          <Image source={presetAssets[preset.id]} resizeMode="contain" accessible={false} style={avatarEditorStyles.preview} />
+          <Text style={[ui.ink, avatarEditorStyles.name]}>{preset[locale]}</Text>
+        </Pressable>)}
+      </View>
+    </View>
+    <Options label={t.gender} value={avatar.gender}
+      values={(['unspecified', 'female', 'male'] as const).map(value => [value, t[value]])}
+      onChange={gender => setAvatar({ ...avatar, gender })} />
+    {styleFields.map(field => {
+      const expanded = openStyle === field;
+      const label = labels[field];
+      const choices = options[field][locale];
+      const selected = values[field];
+      return <View key={field} style={ui.field}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${label} · ${choices[selected]}`} accessibilityState={{ expanded }}
+          onPress={() => setOpenStyle(expanded ? undefined : field)} style={[ui.chip, ui.row, expanded && ui.selected]}>
+          <Text style={[ui.small, avatarEditorStyles.option]}>{label}</Text>
+          <Text style={[ui.ink, avatarEditorStyles.option]}>{choices[selected]} {expanded ? '⌃' : '⌄'}</Text>
+        </Pressable>
+        {expanded && <Options value={selected} values={choices.map((text, index) => [index, text])}
+          onChange={value => {
+            setAvatar(current => field === 'hair' || field === 'outfit'
+              ? pickAvatarStyle(current, field, value) : { ...current, [field]: value });
+            setOpenStyle(undefined);
+          }} />}
+      </View>;
+    })}
+    <Options label={t.color} value={avatar.color}
+      values={[['#bd7050', t.cinnamon], ['#789078', t.sage], ['#7988ab', t.midnight], ['#ad7963', t.coffee]]}
+      onChange={color => setAvatar({ ...avatar, color })} />
+    <Button disabled={pending || name.trim().length < 2}
+      onPress={() => onSave({ ...avatar, name, referral: referral ? `${prefix}-${referral}` : undefined })}>{t.save}</Button>
+  </View>;
+}
+
+const avatarEditorStyles = StyleSheet.create({
+  preset: { minWidth: 72, flexBasis: '29%', flexGrow: 1, alignItems: 'center', justifyContent: 'flex-start', gap: 4 },
+  preview: { width: 35, height: 68 },
+  name: { textAlign: 'center', fontSize: 12 },
+  option: { flexShrink: 1 },
+});
+
+function ProfileOverview({ profile, accountId, equipment, pending, t, onEdit, onLeave }: {
+  profile: Profile; accountId: string; equipment: ItemId[]; pending: boolean;
+  t: Translation; onEdit: () => void; onLeave: () => void;
+}) {
+  const { width } = useWindowDimensions();
+  const avatarWidth = Math.round(Math.min(113, Math.max(57, width * 0.18)));
+  return <ImageBackground source={roomThemes.classic.image} style={profileStyles.hero} resizeMode="cover">
+    <View style={profileStyles.heroContent}>
+      <Sprite avatar={dressedAvatar(profile.avatar, equipment)} width={avatarWidth} pose="standing" />
+      <View style={profileStyles.details}>
+        <Text style={ui.heading}>{profile.name}</Text>
+        {!!profile.target && <Text numberOfLines={2} style={ui.small}>{profile.target}</Text>}
+        <ProfileCodes profile={profile} accountId={accountId} t={t} />
+        <View style={profileStyles.heroActions}>
+          <View style={profileStyles.heroAction}><Button compact muted disabled={pending} onPress={onEdit}>{t.editAvatar}</Button></View>
+          {profile.room && <View style={profileStyles.heroAction}><Button compact muted disabled={pending} onPress={onLeave}>{t.leave}</Button></View>}
+        </View>
+      </View>
+    </View>
+  </ImageBackground>;
+}
+
+const profileStyles = StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  title: { flex: 1, color: '#fff0dc', fontSize: 24, fontWeight: '700', fontFamily: Platform.select({ ios: 'Georgia', default: 'serif' }) },
+  shortcuts: { flex: 1.55, flexDirection: 'row', gap: 5 },
+  shortcut: { flex: 1, justifyContent: 'center', minWidth: 0 },
+  hero: { borderRadius: 19, borderWidth: 1, borderColor: '#986c5e', overflow: 'hidden', backgroundColor: '#352331' },
+  heroContent: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 11, backgroundColor: '#211526b8' },
+  details: { flex: 1, minWidth: 0, gap: 8 },
+  heroActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  heroAction: { flexGrow: 1 },
+});
+
+function Period({ focus, remaining, pending, onAction, t, canStart }: {
+  focus: Focus | null; remaining: number; pending: boolean; onAction: (action: Action) => void;
+  t: Translation; canStart: boolean;
+}) {
+  const preferred = usePreferences(s => s.duration);
+  const remember = usePreferences(s => s.setDuration);
+  const [duration, setDuration] = useState(preferred);
+  const chooseDuration = (value: string) => {
+    setDuration(value);
+    if (/^\d{1,3}$/.test(value) && Number(value) >= 5 && Number(value) <= 180) remember(value);
+  };
+  const value = Number(duration);
+  const valid = /^\d{1,3}$/.test(duration) && value >= 5 && value <= 180;
+  const seconds = focus ? Math.max(0, Math.ceil(remaining / 1000)) : valid ? value * 60 : 0;
+  const time = [Math.floor(seconds / 60), seconds % 60].map(part => String(part).padStart(2, '0')).join(':');
+  const paused = focus?.paused_at != null;
+  return <View style={ui.card}>
+    <View style={ui.row}>
+      <Text style={ui.heading}>{t.focus}</Text>
+      <Text style={ui.timer}>{time}</Text>
+    </View>
+    {focus ? <Button disabled={pending || (paused && !canStart)} onPress={() =>
+      onAction({ name: 'status', payload: { status: paused ? 'desk' : 'break' } })}>
+      {paused ? t.resume : t.pause}
+    </Button> : <>
+      <Options label={t.focus} value={duration} values={['25', '50', '90'].map(value => [value, value])} onChange={chooseDuration} />
+      <Field label={t.duration} keyboardType="number-pad" value={duration} onChangeText={chooseDuration} maxLength={3} />
+      <Button disabled={pending || !valid || !canStart} onPress={() => onAction({ name: 'start', payload: { duration: value } })}>
+        {t.start}
+      </Button>
+    </>}
+    {paused && <Button muted disabled={pending} onPress={() => Alert.alert(t.abandon, t.abandonConfirm, [
+      { text: t.cancel, style: 'cancel' },
+      { text: t.abandon, style: 'destructive', onPress: () => onAction({ name: 'abandon' }) },
+    ])}>{t.abandon}</Button>}
+  </View>;
+}
+
+export function Library({ id }: { id: string }) {
+  const { locale, setLocale, page, setPage, alerts, setAlerts, usage, setUsage, theme, setTheme } = usePreferences();
+  const t = words[locale];
+  const [prize, setPrize] = useState<Drop | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [moment, setMoment] = useState(() => performance.now());
+  const [foreground, setForeground] = useState((AppState.currentState ?? 'active') === 'active');
+  const [refreshAfter, setRefreshAfter] = useState(0);
+  const lastServerTime = useRef(0);
+  const [pendingPauseAt, setPendingPauseAt] = useState<number>();
+  const [peer, setPeer] = useState<Member>();
+  const [rankingOpen, setRankingOpen] = useState(false);
+  const [cardOpen, setCardOpen] = useState(false);
+  const [dataOpen, setDataOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [reactionMessage, setReactionMessage] = useState('');
+  const reactionTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const seenReactions = useRef(new Set<string>());
+  const [actionError, setActionError] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [reminderRevision, setReminderRevision] = useState(0);
+  const [presenceReadyRoom, setPresenceReadyRoom] = useState<string | null>(null);
+  const [deskUpdates, setDeskUpdates] = useState<DeskUpdates>(() => new Map());
+  const presence = useRef<RealtimeChannel | null>(null);
+  const queryClient = useQueryClient();
+  const key = ['library', id] as const;
+  const query = useQuery({
+    queryKey: key, queryFn: () => library('state'),
+    refetchInterval: query => {
+      const room = query.state.data?.profile?.room;
+      return room && room !== presenceReadyRoom ? 1000 : 5000;
+    },
+  });
+  const snapshot = query.data;
+  const roomMembers = useMemo(() => displayDeskStatuses(snapshot?.members ?? [], snapshot?.now ?? 0, deskUpdates),
+    [snapshot?.members, snapshot?.now, deskUpdates]);
+  const inventory = snapshot?.inventory;
+  const equipped = useMemo(() => inventory?.filter(item => item.placed).map(item => item.item) ?? [], [inventory]);
+  const serverSample = snapshot?.now;
+  const clock = useMemo(() => serverSample === undefined ? undefined : markServerTime(serverSample, query.dataUpdatedAt),
+    [serverSample, query.dataUpdatedAt]);
+  useEffect(() => { lastServerTime.current = serverSample ?? 0; }, [serverSample]);
+  const localRoom = snapshot?.profile?.room;
+  const focus = snapshot?.session?.state === 'active' ? snapshot.session : null;
+  const running = focus?.paused_at === null;
+  const effectivePage = running || ((page === 'room' || page === 'rooms') && localRoom) ? 'room' : page === 'room' ? 'rooms' : page;
+  const observed = clock ? serverTimeAt(clock, moment) : 0;
+  const remainingCheck = foreground && (serverSample ?? 0) > refreshAfter ? verificationRemaining(focus, observed) : 0;
+  const verify = remainingCheck > 0;
+  useReminder(alerts, focus?.next_check_at ?? null, clock, t, reminderRevision);
+  useEffect(() => {
+    if (localRoom && AppState.currentState === 'background') void notifyRoomPresence(localRoom, 'background');
+    const subscription = AppState.addEventListener('change', status => {
+      setForeground(status === 'active');
+      if (status === 'background' && localRoom) {
+        roomConnection.advance();
+        void notifyRoomPresence(localRoom, 'background');
+      }
+      if (status === 'active') {
+        roomConnection.advance();
+        setRefreshAfter(lastServerTime.current);
+        setMoment(performance.now());
+        void queryClient.invalidateQueries({ queryKey: ['library', id] }, { cancelRefetch: false });
+      }
+    });
+    return () => subscription.remove();
+  }, [id, localRoom, queryClient]);
+  useEffect(() => {
+    if (!localRoom) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      roomConnection.advance();
+      void Promise.race([
+        notifyRoomPresence(localRoom, 'disconnect'),
+        new Promise(resolve => setTimeout(resolve, 600)),
+      ]).then(() => BackHandler.exitApp());
+      return true;
+    });
+    return () => subscription.remove();
+  }, [localRoom]);
+  useEffect(() => {
+    const incoming = (snapshot?.reactions ?? []).filter(event => !seenReactions.current.has(event.id));
+    if (!incoming.length) return;
+    for (const event of incoming) seenReactions.current.add(event.id);
+    if (seenReactions.current.size > 128) {
+      for (const key of [...seenReactions.current].slice(0, 64)) seenReactions.current.delete(key);
+    }
+    setReactionMessage(incoming.map(event =>
+      `${event.kind === 'coffee' ? '☕' : '👏'} ${event.name} ${event.kind === 'coffee' ? t.coffeeReceived : t.clapReceived}`).join(' · '));
+    clearTimeout(reactionTimeout.current);
+    reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
+  }, [snapshot?.reactions, t]);
+  useEffect(() => () => clearTimeout(reactionTimeout.current), []);
+  useEffect(() => {
+    setUsageMeasurement(usage);
+    return () => setUsageMeasurement(false);
+  }, [usage]);
+  useEffect(() => {
+    if (alerts) void syncRemoteReminders(locale).catch(() => {});
+  }, [alerts, locale]);
+
+  const mutation = useMutation({
+    onMutate: async () => {
+      setActionError('');
+      await queryClient.cancelQueries({ queryKey: key });
+    },
+    mutationFn: ({ name, payload }: Action) => library(name, payload),
+    onSuccess: (data, action) => {
+      queryClient.setQueryData(key, data);
+      setMoment(performance.now());
+      if (action.name === 'profile') setEditing(false);
+      if (['join', 'joinCode', 'createRoom'].includes(action.name)) { setPage('room'); trackUsage('room_joined'); }
+      if (action.name === 'answerStudyInvite' && data.joinedInvite) { setPage('room'); trackUsage('room_joined'); }
+      if (action.name === 'start') trackUsage('focus_started');
+      if (action.name === 'verify') trackUsage('focus_confirmed');
+      if (action.name === 'leave') { setInviteOpen(false); setPage('rooms'); }
+      if (data.drop) setPrize(data.drop);
+      if (action.name === 'react') {
+        setPeer(undefined);
+        setReactionMessage(t.reactionSent);
+        clearTimeout(reactionTimeout.current);
+        reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
+      }
+      if (action.name === 'inviteFriend' || (action.name === 'leave' && data.privateRoomClosing)) {
+        setReactionMessage(action.name === 'leave' ? t.privateRoomClosing : t.studyInviteSent);
+        clearTimeout(reactionTimeout.current);
+        reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
+      }
+      if (action.name === 'rankingVisibility') void queryClient.invalidateQueries({ queryKey: ['leaderboard', id] });
+      if (['place', 'target', 'profile', 'react'].includes(action.name)) {
+        const channel = presence.current;
+        void channel?.track({ changed: data.now }).then(result => {
+          if (presence.current === channel) {
+            setPresenceReadyRoom(result === 'ok' && channel.state === 'joined' ? localRoom ?? null : null);
+          }
+        });
+      }
+    },
+    onError: error => setActionError(message(t, error)),
+    onSettled: () => setPendingPauseAt(undefined),
+  });
+
+  const inviteClock = snapshot?.studyInvites?.some(invite => (invite.expiresAt ?? 0) > observed)
+    || snapshot?.friends?.some(friend => (friend.inviteRetryAt ?? 0) > observed);
+  const clockInterval = focus ? 200 : inviteClock || (effectivePage === 'shop' && (snapshot?.adRetryAt ?? 0) > observed) ? 1000 : 0;
+  useEffect(() => {
+    if (!clockInterval) return;
+    const timer = setInterval(() => setMoment(performance.now()), clockInterval);
+    setMoment(performance.now());
+    return () => clearInterval(timer);
+  }, [clockInterval]);
+  useEffect(() => {
+    setPresenceReadyRoom(null);
+    setDeskUpdates(new Map());
+    if (!localRoom) return;
+    const client = supabase!;
+    const channel = client.channel(`room:${localRoom}`, { config: { private: true, presence: { key: id } } });
+    presence.current = channel;
+    channel.on('presence', { event: 'sync' }, () => {
+      void queryClient.invalidateQueries({ queryKey: ['library', id] });
+    }).on('broadcast', { event: 'room_membership' }, () => {
+      void queryClient.invalidateQueries({ queryKey: ['library', id] }, { cancelRefetch: false });
+    }).on('broadcast', { event: 'desk_activity' }, ({ payload }) => {
+      if (presence.current !== channel) return;
+      setDeskUpdates(previous => recordDeskStatus(previous, payload));
+      const current = queryClient.getQueryData<Snapshot>(['library', id]);
+      if (current?.members.some(member => member.own && member.desk_ref === payload?.desk
+        && (member.activity ?? member.status) !== payload?.status)) {
+        void queryClient.invalidateQueries({ queryKey: ['library', id] });
+      }
+    }).subscribe(status => {
+      if (presence.current !== channel) return;
+      setPresenceReadyRoom(null);
+      if (status === 'SUBSCRIBED') void channel.track({ changed: Date.now() }).then(result => {
+        if (presence.current === channel && result === 'ok' && channel.state === 'joined') setPresenceReadyRoom(localRoom);
+      });
+    });
+    return () => { presence.current = null; void client.removeChannel(channel); };
+  }, [id, localRoom, queryClient]);
+
+  async function signOut(accountDeleted = false) {
+    if (!accountDeleted && localRoom) await notifyRoomPresence(localRoom, 'disconnect');
+    await removeRemoteReminders(accountDeleted).catch(() => {});
+    setAlerts(false);
+    setUsage(false);
+    setUsageMeasurement(false);
+    await supabase!.auth.signOut({ scope: 'local' });
+    queryClient.removeQueries({ queryKey: key });
+    queryClient.removeQueries({ queryKey: ['studySummary', id] });
+    queryClient.removeQueries({ queryKey: ['leaderboard', id] });
+    setPage('rooms');
+  }
+
+  function requestDeletion() {
+    Alert.alert(t.deleteAccount, t.confirmDelete, [
+      { text: t.cancel, style: 'cancel' },
+      { text: t.deleteAccount, style: 'destructive', onPress: () => {
+        setActionError('');
+        setDeleting(true);
+        void deleteAccount().then(() => signOut(true)).catch(error => setActionError(message(t, error)))
+          .finally(() => setDeleting(false));
+      } },
+    ]);
+  }
+
+  if (!snapshot) return <View style={ui.content}>
+    <Text style={ui.title}>{t.app}</Text>
+    <Text style={ui.small}>{query.isError ? message(t, query.error) : t.loading}</Text>
+    {query.isError && <Button onPress={() => void query.refetch()}>{t.retry}</Button>}
+  </View>;
+
+  const profile = snapshot.profile;
+  const room = snapshot.rooms.find(room => room.id === localRoom);
+  const aurora = (room?.minutes ?? 0) >= roomGoalMinutes;
+  const friends = snapshot.friends ?? [];
+  const accepted = friends.filter(friend => friend.status === 'accepted');
+  const unread = friends.filter(friend => friend.status === 'incoming').length + (snapshot.studyInvites?.length ?? 0);
+  const prizeItem = prize && 'item' in prize ? snapshot.items.find(item => item.id === prize.item) : undefined;
+  const label = (item: { name: string; name_en: string }) => locale === 'tr' ? item.name : item.name_en;
+  const pending = mutation.isPending || deleting;
+  function act(action: Action) {
+    if (pending) return;
+    if (running && action.name === 'status' && action.payload?.status === 'break') setPendingPauseAt(observed);
+    mutation.mutate(action);
+  }
+  function requestLeave() {
+    if (!localRoom || pending || running) return;
+    const warning = room?.owned && room.count <= 1 ? `\n\n${t.privateRoomClosing}` : '';
+    Alert.alert(t.leave, t.leaveConfirm + warning, [
+      { text: t.cancel, style: 'cancel' },
+      { text: t.leave, style: 'destructive', onPress: () => act({ name: 'leave' }) },
+    ]);
+  }
+  const invitations = <StudyInvitations invites={snapshot.studyInvites} locale={locale} pending={pending} now={observed} t={t}
+    answer={(id, answer) => act({ name: 'answerStudyInvite', payload: { id, answer } })} />;
+
+  return <>
+    <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
+      <View style={ui.row}>
+        <Text style={[profile && effectivePage === 'profile' ? ui.small : ui.title, { flexShrink: 1 }]}>{t.app}</Text>
+        {profile && <Text style={ui.balance}>{profile.coins} {t.coins}</Text>}
+      </View>
+      {reactionMessage !== '' && <Text accessibilityLiveRegion="polite" style={ui.accent}>{reactionMessage}</Text>}
+      {actionError !== '' && <Text accessibilityLiveRegion="polite" style={ui.warning}>{actionError}</Text>}
+      {!profile ? <AvatarEditor profile={null} onSave={payload => act({ name: 'profile', payload })} pending={pending} t={t} locale={locale} /> :
+        effectivePage === 'rooms' ? <>
+          <View style={ui.row}><Text style={ui.heading}>{t.rooms}</Text>
+            <View style={{ flexShrink: 1 }}><Button muted onPress={() => setRankingOpen(true)}>{t.leaderboard}</Button></View></View>
+          {invitations}
+          <Directory rooms={snapshot.rooms} current={profile.room} pending={pending} ownsPrivateRoom={!!profile.ownsPrivateRoom}
+          coins={profile.coins} locale={locale} t={t}
+          join={room => room === localRoom ? setPage('room') : act({ name: 'join', payload: { room } })}
+          enter={code => act({ name: 'joinCode', payload: { code } })}
+          create={name => act({ name: 'createRoom', payload: { name } })} />
+        </> : effectivePage === 'room' ? <>
+          {room && <View style={ui.row}>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 }}>
+              <Text style={ui.heading}>{label(room)}</Text>{room.private && <PrivateBadge t={t} />}
+            </View>
+            <Text style={ui.small}>{room.count}/{room.capacity}</Text>
+            {!running && !!accepted.length && <Button muted accessibilityLabel={t.friendInvite} onPress={() => setInviteOpen(true)}>♙+</Button>}
+          </View>}
+          {room && <RoomGoal minutes={room.minutes ?? 0} t={t} />}
+          <RoomScene room={localRoom ?? null} members={roomMembers}
+            aurora={aurora} theme={theme} t={t} onDeskPress={running ? undefined : setPeer} />
+          {room && !running && <ThemePicker value={theme} room={room.id} aurora={aurora} onChange={setTheme} t={t} />}
+          {room && !running && <Invite room={room} t={t} />}
+          {snapshot.session?.state === 'completed' && <>
+            <Text style={ui.accent}>{t.reward}</Text>
+            <Button muted onPress={() => setCardOpen(true)}>{t.studyCard}</Button>
+          </>}
+          {snapshot.session?.state === 'invalid' && <Text style={ui.warning}>{t.invalid}</Text>}
+          <Period focus={focus} remaining={focus ? focusRemaining(focus, pendingPauseAt ?? observed) : 0}
+            t={t} pending={pending} canStart={Boolean(room)} onAction={act} />
+          {!focus && room && <View style={ui.card}>
+            <Options label={label(room)} values={([['desk', t.desk], ['break', t.break]] as const)}
+              value={profile.status ?? 'desk'} onChange={status => act({ name: 'status', payload: { status } })} />
+          </View>}
+          {!running && room && <Button muted disabled={pending} onPress={requestLeave}>{t.leave}</Button>}
+          {room && <Ambience locked={running} inventory={snapshot.inventory} t={t} />}
+        </> : effectivePage === 'shop' ? <>
+          <ShopRewards snapshot={snapshot} serverNow={observed} pending={pending} t={t}
+            refresh={() => void query.refetch()} openChest={() => act({ name: 'openChest' })} />
+          <DailyQuests quests={snapshot.dailyQuests} t={t} />
+          <Catalog snapshot={snapshot} t={t} locale={locale} pending={pending}
+            action={item => act({ name: 'buy', payload: { item } })}
+            openBox={() => act({ name: 'openBox' })} /></> :
+          <>
+            <View style={profileStyles.header}>
+              <Text accessibilityRole="header" style={profileStyles.title}>{t.profileInventory}</Text>
+              <View style={profileStyles.shortcuts}>
+                <View style={profileStyles.shortcut}><Button compact muted onPress={() => setCardOpen(true)}>{t.studyCardAction}</Button></View>
+                <View style={profileStyles.shortcut}><Button compact muted onPress={() => setRankingOpen(true)}>{t.leaderboard}</Button></View>
+              </View>
+            </View>
+            {editing ? <AvatarEditor profile={profile} onSave={payload => act({ name: 'profile', payload })} pending={pending} t={t} locale={locale} /> :
+              <ProfileOverview profile={profile} accountId={id} equipment={equipped} pending={pending} t={t}
+                onEdit={() => setEditing(true)} onLeave={requestLeave} />}
+            <TargetEditor initial={profile.target ?? ''} pending={pending} t={t} save={target => act({ name: 'target', payload: { target } })} />
+            <DailyQuests quests={snapshot.dailyQuests} t={t} />
+            {invitations}
+            <FriendsPanel profile={profile} friends={friends} pending={pending} now={observed} t={t}
+              add={code => act({ name: 'addFriend', payload: { code } })}
+              answer={(id, answer) => act({ name: 'answerFriend', payload: { id, answer } })}
+              remove={id => act({ name: 'removeFriend', payload: { id } })}
+              invite={id => act({ name: 'inviteFriend', payload: { id } })} />
+            <Catalog snapshot={snapshot} inventory t={t} locale={locale} pending={pending}
+              action={item => act({ name: 'place', payload: { item } })} />
+          </>}
+      {(!profile || effectivePage === 'profile') && <>
+        <View style={ui.card}>
+          <Options label="TR / EN" values={([['tr', 'Türkçe'], ['en', 'English']] as const)} value={locale} onChange={setLocale} />
+          <View style={ui.row}><Text style={ui.heading}>{t.alerts}</Text><Switch accessibilityLabel={t.alerts} value={alerts}
+            onValueChange={value => {
+              if (value) void allowReminders().then(setAlerts).catch(() => setAlerts(false));
+              else { setAlerts(false); void removeRemoteReminders().catch(error => setActionError(message(t, error))); }
+            }} /></View>
+          {alerts && hasExactReminderSettings && <Button muted onPress={() => void openExactReminderSettings()
+            .then(() => setReminderRevision(current => current + 1), () => setActionError(t.exactReminderError))}>
+            {t.exactReminderSettings}
+          </Button>}
+          {hasAnalytics && <View style={ui.row}><Text style={ui.heading}>{t.usage}</Text><Switch accessibilityLabel={t.usage}
+            value={usage} onValueChange={setUsage} /></View>}
+        </View>
+        <View style={ui.card}>
+          <Text style={ui.heading}>{t.myAccount}</Text>
+          <Button tone="data" disabled={pending} onPress={() => { setActionError(''); setDataOpen(true); }}>{t.myData}</Button>
+          <Button tone="signOut" disabled={pending} onPress={() => void signOut()}>{t.signOut}</Button>
+          <Button tone="danger" disabled={pending} onPress={requestDeletion}>{t.deleteAccount}</Button>
+        </View>
+      </>}
+    </ScrollView>
+    {profile && <View style={ui.nav}>
+      {(['rooms', 'room', 'shop', 'profile'] as const).map(tab =>
+        <Pressable key={tab} accessibilityRole="tab" disabled={running} onPress={() => tab === 'rooms' && localRoom ? requestLeave() : setPage(tab)}
+          accessibilityState={{ selected: tab === effectivePage, disabled: running }} style={[ui.navTab, tab === effectivePage && ui.navActive, running && { opacity: .46 }]}>
+          <Text style={[ui.navText, tab === effectivePage && ui.accent]}>{t[tab]}{tab === 'profile' && unread > 0 ? ` · ${unread}` : ''}</Text>
+        </Pressable>)}
+    </View>}
+    {rankingOpen && !running && !verify && <LeaderboardModal user={id} t={t} close={() => setRankingOpen(false)}
+      pending={pending} changeVisibility={visible => act({ name: 'rankingVisibility', payload: { visible } })} />}
+    {cardOpen && profile && !running && !verify && <StudyCardModal user={id} profile={profile}
+      equipment={equipped} close={() => setCardOpen(false)} t={t} />}
+    <Modal visible={dataOpen && !running} animationType="slide" onRequestClose={() => setDataOpen(false)}>
+      <SafeAreaView style={ui.screen}>
+        <ScrollView contentContainerStyle={ui.content}>
+          <View style={{ alignSelf: 'flex-start' }}><Button muted onPress={() => setDataOpen(false)}>{t.goBack}</Button></View>
+          <Text accessibilityRole="header" style={ui.title}>{t.myData}</Text>
+          <View style={ui.card}>
+            <Text style={ui.heading}>{t.privacy}</Text>
+            <Text style={[ui.small, { lineHeight: 21 }]}>{t.privacyBody}</Text>
+            <PrivacyLink locale={locale} t={t} />
+          </View>
+          {actionError !== '' && <Text accessibilityLiveRegion="polite" style={ui.warning}>{actionError}</Text>}
+          <Button tone="danger" disabled={pending} onPress={requestDeletion}>{t.deleteAccount}</Button>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+    <Modal visible={inviteOpen && !!room && !running && !verify} transparent onRequestClose={() => setInviteOpen(false)} accessibilityViewIsModal>
+      <View style={ui.modal}><View style={[ui.card, { width: '100%', maxWidth: 450, maxHeight: '80%' }]}>
+        <Text style={ui.heading}>{t.friendInvite}</Text>
+        <ScrollView contentContainerStyle={{ gap: 7 }}>
+          {accepted.map(friend => <FriendInviteButton key={friend.id} friend={friend} label={friend.name} pending={pending} now={observed} t={t}
+            onPress={() => act({ name: 'inviteFriend', payload: { id: friend.id } })} />)}
+        </ScrollView>
+        {actionError !== '' && <Text style={ui.warning}>{actionError}</Text>}
+        <Button muted onPress={() => setInviteOpen(false)}>{t.done}</Button>
+      </View></View>
+    </Modal>
+    <Modal visible={Boolean(peer?.desk_ref && !running && !verify)} transparent onRequestClose={() => setPeer(undefined)} accessibilityViewIsModal>
+      <View style={ui.modal}><View style={ui.card}>
+        <Text style={ui.heading}>{peer?.name}</Text>
+        {(['coffee', 'clap'] as const).map(kind => <Button key={kind} disabled={pending} onPress={() => {
+          if (peer?.desk_ref) act({ name: 'react', payload: { desk: peer.desk_ref, kind } });
+        }}>{kind === 'coffee' ? t.coffeeReaction : t.clapReaction}</Button>)}
+        {actionError !== '' && <Text style={ui.warning}>{actionError}</Text>}
+        <Button muted onPress={() => setPeer(undefined)}>{t.done}</Button>
+      </View></View>
+    </Modal>
+    <Modal visible={prize !== null && !verify} transparent onRequestClose={() => setPrize(null)} accessibilityViewIsModal>
+      <View style={ui.modal}><View style={ui.card}>
+        <Text style={ui.heading}>✨ {t.prize}</Text>
+        {prizeItem && <ItemIllustration item={prizeItem} />}
+        {prize && <Text style={ui.accent}>{'item' in prize
+          ? label(prizeItem ?? { name: prize.item, name_en: prize.item })
+          : `${prize.coins} ${t.coins}`}</Text>}
+        <Button onPress={() => setPrize(null)}>{t.done}</Button>
+      </View></View>
+    </Modal>
+    <Modal visible={verify} transparent onRequestClose={() => {}} accessibilityViewIsModal>
+      <View style={ui.modal}><View style={ui.card}>
+        <Text style={ui.heading}>{t.verify}</Text>
+        <Text style={ui.timer}>{Math.ceil(remainingCheck / 1000)}</Text>
+        <Button disabled={pending} onPress={() => act({ name: 'verify' })}>{t.here}</Button>
+        {running && <Button muted disabled={pending} onPress={() => act({ name: 'status', payload: { status: 'break' } })}>{t.pause}</Button>}
+        {actionError !== '' && <Text style={ui.warning}>{actionError}</Text>}
+      </View></View>
+    </Modal>
+  </>;
+}
