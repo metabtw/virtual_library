@@ -96,7 +96,11 @@ export function getWebConfig(env = process.env) {
   const paired = url.origin === googleWeb.supabaseOrigin;
   const google = env.WEB_AUTH_GOOGLE !== 'false' && (paired || env.WEB_AUTH_GOOGLE === 'true' || env.EXPO_PUBLIC_AUTH_GOOGLE === 'true');
   return { url: url.origin, key, google,
-    ...(google && paired ? { firebaseGoogle: googleWeb.firebase } : {}),
+    ...(google && paired ? {
+      firebaseGoogle: googleWeb.firebase,
+      ...(env.WEB_FIREBASE_AUTH_DOMAIN === 'virtualstudycrew.com'
+        ? { firebaseGoogleDomain: env.WEB_FIREBASE_AUTH_DOMAIN } : {}),
+    } : {}),
     apple: env.EXPO_PUBLIC_AUTH_APPLE === 'true' };
 }
 

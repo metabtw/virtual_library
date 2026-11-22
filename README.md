@@ -5,7 +5,7 @@ Sanal Kütüphane, avatarla katılınan ortak odalarda odaklanmak için bir web 
 ## Önkoşullar ve Supabase
 
 - Node.js 24 veya üzeri, npm ve çalışır durumda bir Supabase projesi gerekir.
-- Depoyu ilk kez indiriyorsan `git clone --branch sanal-kutuphane-sosyal-oduller https://github.com/metabtw/virtual_library.git` komutunu kullan. Depo zaten bilgisayarındaysa `git fetch origin`, `git switch sanal-kutuphane-sosyal-oduller` ve `git pull --ff-only` komutları güncel sürümü getirir.
+- Depoyu ilk kez indiriyorsan `git clone https://github.com/metabtw/virtual_library.git` komutunu kullan. Depo zaten bilgisayarındaysa `git fetch origin`, `git switch main` ve `git pull --ff-only` komutları güncel sürümü getirir.
 - Depodaki migration'lar ile `library`, `reward-worker` ve `ad-reward` Edge Function'larını ayrı bir Supabase test projesinde kur. E-posta girişi, yönlendirmeler, ödül zamanlayıcısı ve reklam ayarları için kurulum rehberlerini kullan. [Supabase kurulumu](docs/supabase-kurulum.md) · [Ödüllü reklam kurulumu](docs/odullu-reklam.md)
 - Web için kökteki `.env.example`, mobil için `mobile/.env.example` dosyasını kendi klasöründe `.env.local` olarak kopyala. Windows PowerShell’de `Copy-Item .env.example .env.local` kullanabilirsin. İki dosyada da aynı projenin `EXPO_PUBLIC_SUPABASE_URL` ve `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` değerlerini kullan. Bu dosyalara yalnızca istemciye açık değerler girilir.
 - **Giriş e-postası gönder** düğmesine bas. Varsayılan bağlantıyı isteği yaptığın tarayıcıda aç veya kod şablonu etkinse tek kullanımlık kodu uygulamada doğrula. Genel kullanıcılara e-posta teslim etmek ve kod şablonunu etkinleştirmek için Supabase'de özel SMTP gerekir. [E-posta şablonu ve SMTP kurulumu](docs/supabase-kurulum.md#e-postayla-giriş)

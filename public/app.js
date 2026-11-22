@@ -969,7 +969,10 @@ document.addEventListener('click', async event => {
     try {
       if (value === 'google' && config.firebaseGoogle) {
         const { signInWithFirebaseGoogle } = await import('./google-sign-in.js');
-        await signInWithFirebaseGoogle(client.auth, config.firebaseGoogle, locale);
+        const firebaseConfig = location.protocol === 'https:' && location.hostname === config.firebaseGoogleDomain
+          ? { ...config.firebaseGoogle, authDomain: config.firebaseGoogleDomain }
+          : config.firebaseGoogle;
+        await signInWithFirebaseGoogle(client.auth, firebaseConfig, locale);
       } else {
         const { error } = await client.auth.signInWithOAuth({ provider: value, options: { redirectTo: redirectTo() } });
         if (error) throw error;

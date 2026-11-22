@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { buildWeb } from '../scripts/build-web.mjs';
+import { getWebConfig } from '../server.js';
 import googleWeb from '../google-web-config.json' with { type: 'json' };
 import vercel from '../vercel.json' with { type: 'json' };
 
@@ -44,8 +45,15 @@ test('builds the static Vercel site and keeps browser configuration public', asy
   assert.match(await read('privacy-en.html'), /Retention &lt; 30 days/);
   assert.deepEqual(JSON.parse(await read('healthz.json')), { ok: true });
   for (const { destination } of vercel.rewrites) {
+    if (destination.startsWith('https://')) continue;
     assert.ok((await stat(file(destination.slice(1)))).isFile());
   }
+  assert.ok(vercel.rewrites.some(rule => rule.source === '/__/auth/:path*' &&
+    rule.destination === `https://${googleWeb.firebase.authDomain}/__/auth/:path*`));
+  assert.equal(getWebConfig({ ...env, WEB_FIREBASE_AUTH_DOMAIN: 'virtualstudycrew.com' }).firebaseGoogleDomain,
+    'virtualstudycrew.com');
+  assert.equal(getWebConfig({ ...env, WEB_FIREBASE_AUTH_DOMAIN: 'www.virtualstudycrew.com' }).firebaseGoogleDomain,
+    undefined);
 
   await buildWeb(output, { ...env, WEB_AUTH_GOOGLE: 'false' });
   await assert.rejects(stat(file('firebase-google-sdk.js')), { code: 'ENOENT' });

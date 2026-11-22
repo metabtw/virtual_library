@@ -44,6 +44,15 @@ Web, `cqvrxlttlyjjlibitrvh` projesiyle kullanıldığında `google-auth` dalınd
 
 Supabase Dashboard'da **Authentication → Sign In / Providers → Google** bölümünde bu Google Client ID kayıtlı olmalı. Firebase Authentication **Authorized domains** listesinde web uygulamasını açtığın adresin alan adı bulunmalı. `localhost` ve `127.0.0.1` yerel test içindir. Webde Google girişini gizlemek için kök `.env.local` dosyasında `WEB_AUTH_GOOGLE=false` kullan.
 
+### Google hesap seçicisinde yayın alan adı
+
+1. Firebase **Authentication → Settings → Authorized domains** bölümünde `virtualstudycrew.com` kayıtlı olmalı.
+2. Firebase **Authentication → Sign-in method → Google** bölümündeki web istemci kimliğini bul. Aynı istemciyi Google Cloud **Google Auth Platform → Clients** bölümünde açıp **Authorized redirect URIs** listesine `https://virtualstudycrew.com/__/auth/handler` ekle. Google izin ekranındaki uygulama adını **Branding** üzerinden düzenleyebilirsin.
+3. Vercel Production ortamına `WEB_FIREBASE_AUTH_DOMAIN=virtualstudycrew.com` ekle ve `main` dalını yeniden dağıt. Vercel, `/__/auth/` altındaki Firebase giriş isteklerini proje sunucusuna iletir.
+4. Canlı sitede Google hesabıyla giriş yap ve Supabase profilinin açıldığını doğrula.
+
+[Firebase özel alan adı kuralları](https://firebase.google.com/docs/auth/web/redirect-best-practices)
+
 ### Expo ve ayrı Supabase projeleri
 
 1. Google Cloud Console'da OAuth izin ekranını yapılandır. Uygulama test modundaysa test kullanıcılarını ekle.
