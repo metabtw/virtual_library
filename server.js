@@ -162,5 +162,5 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   const port = Number(process.env.PORT || 3000);
   const config = getWebConfig();
   const [bundle, firebaseBundle] = await Promise.all([bundleSupabase(), config?.firebaseGoogle ? bundleFirebaseGoogle() : undefined]);
-  createWebServer({ config, bundle, firebaseBundle }).listen(port, '0.0.0.0', () => console.log(`Sanal Kütüphane :${port}`));
+  createWebServer({ config, bundle, firebaseBundle }).listen(port, '0.0.0.0', () => console.log(`Virtual Study Crew :${port}`));
 }

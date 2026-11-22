@@ -36,7 +36,7 @@ async function sendRewards(admin: SupabaseClient, accessToken: string) {
   const active = deliveries.filter(delivery => delivery.locale !== null && delivery.attempts <= maxAttempts);
   const tickets = active.length ? await expoRequest<PushResult[]>('send', accessToken, active.map(delivery => ({
     to: delivery.token, sound: 'default', channelId: 'focus',
-    title: delivery.locale === 'en' ? 'Virtual Library' : 'Sanal Kütüphane',
+    title: 'Virtual Study Crew',
     body: delivery.locale === 'en'
       ? `Study completed. You earned ${delivery.amount} coins.`
       : `Çalışma tamamlandı. ${delivery.amount} jeton kazandın.`,

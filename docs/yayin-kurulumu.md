@@ -1,4 +1,4 @@
-# Sanal Kütüphane yayın kurulumu
+# Virtual Study Crew yayın kurulumu
 
 ## Web ve Supabase
 

@@ -15,11 +15,11 @@ otp_length = 6
 otp_expiry = 120
 
 [auth.email.template.confirmation]
-subject = "Sanal Kütüphane · Giriş kodun"
+subject = "Virtual Study Crew · Giriş kodun"
 content_path = "./supabase/templates/sign-in-code.html"
 
 [auth.email.template.magic_link]
-subject = "Sanal Kütüphane · Giriş kodun"
+subject = "Virtual Study Crew · Giriş kodun"
 content_path = "./supabase/templates/sign-in-code.html"
 
 [functions.library]

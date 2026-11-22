@@ -1,6 +1,6 @@
-# Sanal Kütüphane
+# Virtual Study Crew
 
-Sanal Kütüphane, avatarla katılınan ortak odalarda odaklanmak için bir web ve Expo mobil uygulamasıdır. İki istemci aynı Supabase hesabını, odaları, envanteri ve jeton bakiyesini paylaşır.
+Virtual Study Crew, avatarla katılınan ortak odalarda odaklanmak için bir web ve Expo mobil uygulamasıdır. İki istemci aynı Supabase hesabını, odaları, envanteri ve jeton bakiyesini paylaşır.
 
 ## Önkoşullar ve Supabase
 

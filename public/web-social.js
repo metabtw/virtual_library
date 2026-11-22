@@ -20,7 +20,7 @@ export async function downloadStudyCard(summary, profile, locale) {
     await image.decode();
     return image;
   };
-  const [scene, avatar] = await Promise.all([load('/library.webp'), load(portrait(profile.avatar))]);
+  const [scene, avatar, logo] = await Promise.all([load('/library.webp'), load(portrait(profile.avatar)), load('/app-logo.png')]);
   const width = 1280 * scene.naturalWidth / scene.naturalHeight;
   ctx.drawImage(scene, (720 - width) / 2, 0, width, 1280);
   ctx.fillStyle = '#201524c7';
@@ -30,12 +30,13 @@ export async function downloadStudyCard(summary, profile, locale) {
   ctx.strokeStyle = '#a9745e';
   ctx.lineWidth = 2;
   ctx.strokeRect(68, 166, 584, 948);
+  ctx.drawImage(logo, 336, 184, 48, 48);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(avatar, 296, 282, 128, 128 * avatar.naturalHeight / avatar.naturalWidth);
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffeece';
   ctx.font = '700 34px system-ui';
-  ctx.fillText(t('app').toLocaleUpperCase(locale), 360, 240, 500);
+  ctx.fillText(t('app'), 360, 266, 500);
   ctx.font = '700 42px system-ui';
   ctx.fillText(profile.name, 360, 573, 500);
   ctx.font = 'bold 100px system-ui';
@@ -53,7 +54,7 @@ export async function downloadStudyCard(summary, profile, locale) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'sanal-kutuphane-' + summary.date + '.png';
+  link.download = 'virtual-study-crew-' + summary.date + '.png';
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

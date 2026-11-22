@@ -1,6 +1,6 @@
 # Supabase ve mobil giriş kurulumu
 
-Sanal Kütüphane e-postaya gönderilen bağlantı veya tek kullanımlık kodla açılır. Google ve Apple girişleri kendi sağlayıcı ayarları hazır olduğunda etkinleştirilir.
+Virtual Study Crew e-postaya gönderilen bağlantı veya tek kullanımlık kodla açılır. Google ve Apple girişleri kendi sağlayıcı ayarları hazır olduğunda etkinleştirilir.
 
 ## Supabase projesini bağla
 
@@ -27,7 +27,7 @@ Varsayılan Supabase göndericisi giriş bağlantısı yollar. Bağlantıyı web
 
 1. Supabase Dashboard'da **Authentication → Sign In / Providers → Email** bölümünü aç ve e-posta sağlayıcısını etkinleştir. **Authentication → URL Configuration** yönlendirme listesine `sanalkutuphane://auth` ekle.
 2. **Authentication → SMTP Settings** bölümünde özel SMTP’yi etkinleştir. Doğrulanmış gönderen adresini ve sağlayıcının sunucu, port, kullanıcı adı ve parola bilgilerini gir. Ücretsiz planda varsayılan gönderici organizasyon ekibiyle sınırlıdır ve Supabase bu ayarla özel şablon kaydına izin vermez.
-3. **Authentication → Email Templates** bölümünde **Confirm signup** ve **Magic Link** için konuyu `Sanal Kütüphane · Giriş kodun` olarak ayarla ve HTML şablonunu içerik olarak kaydet. Supabase `{{ .Token }}` yer tutucusunu tek kullanımlık kodla doldurur. [Giriş kodu şablonu](../supabase/templates/sign-in-code.html)
+3. **Authentication → Email Templates** bölümünde **Confirm signup** ve **Magic Link** için konuyu `Virtual Study Crew · Giriş kodun` olarak ayarla ve HTML şablonunu içerik olarak kaydet. Supabase `{{ .Token }}` yer tutucusunu tek kullanımlık kodla doldurur. [Giriş kodu şablonu](../supabase/templates/sign-in-code.html)
 4. **Authentication → Sign In / Providers → Email** bölümünde **Email OTP Length** değerini `6`, **Email OTP Expiration** değerini `120` saniye olarak kaydet. Uygulamada **Giriş e-postası gönder** düğmesini kullan. Gelen kodu girip **Kodu doğrula** ile oturum aç. Yeni bir e-posta adresinde kayıt şablonu, var olan bir hesapta giriş şablonu kullanılır.
 
 [Supabase e-posta OTP](https://supabase.com/docs/guides/auth/auth-email-passwordless) · [SMTP ayarları](https://supabase.com/docs/guides/auth/auth-smtp)

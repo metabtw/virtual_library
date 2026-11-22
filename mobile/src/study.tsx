@@ -53,6 +53,7 @@ export function StudyCardModal({ user, profile, equipment, close, t }: {
   const card = useRef<View>(null);
   const [avatarLoaded, setAvatarLoaded] = useState(false);
   const [backgroundLoaded, setBackgroundLoaded] = useState(false);
+  const [logoLoaded, setLogoLoaded] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState(false);
 
@@ -84,7 +85,11 @@ export function StudyCardModal({ user, profile, equipment, close, t }: {
           <View ref={card} collapsable={false} style={styles.capture}>
             <ImageBackground source={roomThemes.classic.image} onLoadEnd={() => setBackgroundLoaded(true)} style={styles.poster}>
               <View style={styles.frame}>
-                <Text style={styles.brand}>{t.app}</Text>
+                <View style={styles.brandRow}>
+                  <Image source={require('../../public/app-logo.png')} style={styles.logo}
+                    accessible={false} onLoad={() => setLogoLoaded(true)} />
+                  <Text style={styles.brand}>{t.app}</Text>
+                </View>
                 <Image source={avatar ? { uri: avatar } : avatarAssets[profile.avatar.gender]} style={styles.avatar}
                   accessible={false} resizeMode="contain" onLoadEnd={() => setAvatarLoaded(true)} />
                 <Text style={styles.reader} numberOfLines={1}>{profile.name}</Text>
@@ -99,7 +104,7 @@ export function StudyCardModal({ user, profile, equipment, close, t }: {
           </View>
         </ScrollView>}
       {shareError && <Text accessibilityLiveRegion="polite" style={ui.warning}>{t.shareError}</Text>}
-      <Button disabled={!summary.data || !avatarLoaded || !backgroundLoaded || sharing} onPress={() => void share()}>
+      <Button disabled={!summary.data || !avatarLoaded || !backgroundLoaded || !logoLoaded || sharing} onPress={() => void share()}>
         {sharing ? t.loading : t.shareCard}
       </Button>
       <Button muted disabled={sharing} onPress={close}>{t.done}</Button>
@@ -118,7 +123,9 @@ const styles = StyleSheet.create({
   poster: { flex: 1, padding: '7%', justifyContent: 'center' },
   frame: { flex: 1, borderWidth: 1, borderRadius: 14, borderColor: '#d09369', backgroundColor: '#251a2ce8',
     padding: 10, alignItems: 'center', justifyContent: 'space-evenly' },
-  brand: { color: '#ffd9ac', textAlign: 'center', fontSize: 14, fontWeight: '800' },
+  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  logo: { width: 25, height: 25 },
+  brand: { color: '#ffd9ac', textAlign: 'center', fontSize: 14, fontWeight: '800', flexShrink: 1 },
   avatar: { width: '46%', height: '29%' },
   reader: { color: '#fff0dc', fontWeight: '700', textAlign: 'center', fontSize: 18 },
   stat: { alignItems: 'center', justifyContent: 'center' },
