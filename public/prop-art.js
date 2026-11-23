@@ -183,6 +183,15 @@ const detailed = {
     rect('#f8d79a', 20, 4, 5, 1);
     rect('#d7b6ec', 8, 4, 2, 2);
   },
+  coffeeGift({ rect, oval }) {
+    oval('#382830', 3, 23, 26, 6); oval('#c7b5c8', 5, 23, 22, 4); oval('#f4e8df', 7, 23, 17, 2);
+    oval('#412e3a', 20, 11, 10, 12); oval('#e6d6db', 21, 12, 8, 10); oval('#442a36', 22, 14, 5, 6);
+    rect('#3c2a36', 6, 11, 17, 11); oval('#3c2a36', 6, 18, 17, 8);
+    rect('#fffbef', 7, 11, 15, 10); oval('#f4e9e4', 7, 17, 15, 7);
+    rect('#d4c6d1', 19, 14, 2, 7); rect('#fffdf4', 9, 14, 2, 5);
+    oval('#f6eee5', 6, 7, 17, 8); oval('#4a2b25', 8, 9, 13, 5);
+    oval('#986449', 8, 9, 11, 2); rect('#e8bd94', 11, 9, 5, 1);
+  },
   foxMug({ rect, polygon, oval }) {
     oval(border, 19, 12, 12, 13, 3);
     oval('#c77c4b', 20, 13, 10, 11, 2);

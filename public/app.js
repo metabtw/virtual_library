@@ -1,3 +1,4 @@
+import { coinReasonLabels, readCoinReceipts, takeNextCoinAward } from './coin-notices.js';
 import { createAccountDialogs } from './account-dialogs.js';
 import { loadingPixels, tourSteps } from './onboarding.js';
 import { defaultRoomTheme, roomBackdrop } from './room-art.js';
@@ -12,7 +13,7 @@ import { avatarOptions, avatarPresets, defaultAvatar, deskEquipment, dressedAvat
 import { createRoomPreferences } from './room-preferences.js';
 import { downloadStudyCard, messageFor, reactionArt } from './web-social.js';
 import { webText } from './web-strings.js';
-import { adCooldownSeconds, boxArt, boxLabels, boxOdds, canBuyFromShop, earnedQuestCoins, roomGoalMinutes } from './study-rewards.js';
+import { adCooldownSeconds, boxArt, boxLabels, boxOdds, canBuyFromShop, roomGoalMinutes } from './study-rewards.js';
 import { focusQuests, friendsPanel, studyInviteButton, studyInvitations } from './community.js';
 import { inviteWait, splitProfileCode } from './room-social.js';
 
@@ -26,6 +27,10 @@ const deletionPage = location.pathname === '/account-deletion';
 const content = document.querySelector('#content');
 const tourDialog = document.querySelector('#onboarding-dialog');
 const notice = document.querySelector('#notice');
+const coinNotice = document.querySelector('#coin-notice');
+let coinReceipts = new Set();
+let coinNoticeUntil = 0;
+const seenCups = new Set();
 const verification = document.querySelector('#verify-dialog');
 const reactionDialog = document.querySelector('#reaction-dialog');
 const inviteDialog = document.querySelector('#study-invite-dialog');
@@ -106,6 +111,34 @@ const accountDialogs = createAccountDialogs({
   invoke: (action, payload) => invokeLibrary(client, action, payload),
   deleted: () => closeSession(true),
 });
+
+function updateCoinNotice() {
+  const time = performance.now();
+  if (coinNoticeUntil > time) return;
+  if (coinNotice.firstChild) coinNotice.replaceChildren();
+  if (!data || document.hidden || document.querySelector('dialog[open]')) return;
+  const award = takeNextCoinAward(data.coinAwards, coinReceipts);
+  if (!award) return;
+  try { localStorage.setItem('vsc-coin-receipts-' + userId, JSON.stringify([...coinReceipts])); } catch {}
+  const card = document.createElement('div');
+  card.className = 'coin-banner';
+  const icon = document.createElement('span');
+  icon.textContent = '◉';
+  icon.setAttribute('aria-hidden', 'true');
+  const amount = document.createElement('strong');
+  amount.textContent = t('coinEarned').replace('{amount}', new Intl.NumberFormat(locale).format(award.amount));
+  const reason = document.createElement('span');
+  reason.textContent = t(coinReasonLabels[award.reason]);
+  card.append(icon, amount, reason);
+  coinNotice.append(card);
+  coinNoticeUntil = time + 4800;
+}
+
+function quietModeToggle() {
+  return `<div class="quiet-setting"><div><strong>${t('quietMode')}</strong><small>${t('quietModeHelp')}</small></div>
+    <button type="button" class="secondary" role="switch" aria-label="${t('quietMode')}" aria-checked="${Boolean(data.profile.doNotDisturb)}"
+      data-action="setDoNotDisturb">${t(data.profile.doNotDisturb ? 'quietOn' : 'quietOff')}</button></div>`;
+}
 
 function loadingScreen() {
   return `<div class="startup-screen" role="status" aria-label="${t('loading')}">
@@ -220,6 +253,7 @@ function translateChrome() {
 }
 
 function toast(message) {
+  delete notice.dataset.incomingReaction;
   notice.textContent = message;
   clearTimeout(noticeTimeout);
   noticeTimeout = setTimeout(() => { notice.textContent = ''; }, 4500);
@@ -256,6 +290,12 @@ async function shareProfileCode(code, label) {
   shareCodeStatus.textContent = '';
   shareCodeDialog.querySelector('a').href = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(text)}`;
   shareCodeDialog.showModal();
+}
+
+function clearReactionNotice() {
+  if (!notice.dataset.incomingReaction) return;
+  notice.textContent = '';
+  delete notice.dataset.incomingReaction;
 }
 
 function refreshState() {
@@ -321,10 +361,10 @@ async function request(action, payload) {
   try {
     const result = await invokeLibrary(client, action, { ...payload, ...roomConnection.payload(), foreground: !document.hidden });
     if (version !== revision || (data && result.now < data.now)) return false;
-    const earned = data ? earnedQuestCoins(data, result) : 0;
     const completed = data?.session?.state !== result.session?.state && result.session?.state === 'completed';
-    if (earned || completed) toast([completed && t('reward'), earned && `${t('questsReward')} · +${earned} ${t('coins')}`].filter(Boolean).join(' '));
+    if (completed) toast(t('reward'));
     if (data?.session?.state !== result.session?.state && result.session?.state === 'invalid') toast(t('invalid'));
+    if (result.profile?.doNotDisturb && !data?.profile?.doNotDisturb) clearReactionNotice();
     data = result;
     clock = markServerTime(result.now);
     refreshing = false;
@@ -333,13 +373,21 @@ async function request(action, payload) {
     const incoming = (result.reactions ?? []).filter(event => !seenReactions.has(event.id));
     for (const event of incoming) seenReactions.add(event.id);
     if (seenReactions.size > 128) for (const id of [...seenReactions].slice(0, 64)) seenReactions.delete(id);
-    if (incoming.length) toast(incoming.map(event =>
-      `${reactionArt[event.kind]} ${event.name} ${t(event.kind === 'coffee' ? 'coffeeReceived' : 'clapReceived')}`).join(' · '));
+    if (incoming.length && !data.profile?.doNotDisturb) {
+      toast(incoming.map(event =>
+        `${reactionArt[event.kind]} ${event.name} ${t(event.kind === 'coffee' ? 'coffeeReceived' : 'clapReceived')}`).join(' · '));
+      notice.dataset.incomingReaction = 'true';
+    }
     if (result.drop) showBoxReward(result.drop, action === 'openChest' ? 'basic' : payload?.tier);
-    if (['target', 'place', 'profile', 'react'].includes(action)) trackPresence(presence, result.now);
+    if (['target', 'place', 'profile', 'react', 'addDeskFriend', 'setDoNotDisturb'].includes(action)) trackPresence(presence, result.now);
     return true;
   } catch (error) {
-    if (version === revision && (mutation || !data)) toast(messageFor(error.message, t));
+    if (version === revision && (mutation || !data)) {
+      const message = messageFor(error.message, t);
+      if ((action === 'react' || action === 'addDeskFriend') && reactionDialog.open) {
+        reactionDialog.querySelector('[data-desk-feedback]').textContent = message;
+      } else toast(message);
+    }
     if (error.message === 'boxPriceChanged') refreshRequested = true;
     return false;
   } finally {
@@ -377,6 +425,13 @@ function reflectSession(next) {
   lastRead = 0;
   lastView = lastScene = undefined;
   seenReactions.clear();
+  seenCups.clear();
+  coinNoticeUntil = 0;
+  coinNotice.replaceChildren();
+  coinReceipts = new Set();
+  if (id) {
+    try { coinReceipts = readCoinReceipts(localStorage.getItem('vsc-coin-receipts-' + id)); } catch {}
+  }
   emailSentTo = emailFeedback = draft.code = '';
   emailRetryAt = 0;
   syncPresence();
@@ -472,6 +527,32 @@ function deskPropImage(item) {
   return `<img src="${propImage(item)}" alt="">`;
 }
 
+function coffeeOnDesk(cup) {
+  if (!cup || cup.expiresAt <= now()) return '';
+  const arriving = !seenCups.has(cup.id);
+  seenCups.add(cup.id);
+  if (seenCups.size > 96) seenCups.delete(seenCups.values().next().value);
+  return `<span aria-hidden="true" class="desk-coffee${arriving ? ' coffee-arrival' : ''}" data-coffee-until="${cup.expiresAt}">
+    <i></i><i></i><img src="${propImage('coffeeGift')}" alt=""></span>`;
+}
+
+function refreshDeskDialog() {
+  const member = data.members.find(entry => entry.desk_ref === selectedDesk?.desk_ref && !entry.own);
+  if (!member) { reactionDialog.close(); return; }
+  selectedDesk = member;
+  const room = data.rooms.find(entry => entry.id === data.profile?.room);
+  const accepts = member.acceptsInteractions !== false;
+  reactionDialog.querySelector('h2').textContent = member.name;
+  const friend = reactionDialog.querySelector('[data-action="addDeskFriend"]');
+  friend.hidden = !room || !!room.private || Boolean(member.friendStatus);
+  for (const reaction of reactionDialog.querySelectorAll('[data-action="react"]')) reaction.disabled = !accepts;
+  const status = reactionDialog.querySelector('[data-desk-state]');
+  const friendStates = { accepted: 'friendsWithPeer', sent: 'friendSent', incoming: 'friendIncoming' };
+  const label = !accepts ? 'interactionUnavailable' : friendStates[member.friendStatus];
+  status.hidden = !label;
+  status.textContent = label ? t(label) : '';
+}
+
 function seat(member, index, [column, row]) {
   const activity = member?.activity ?? member?.status;
   const atDesk = activity === 'desk' || activity === 'working';
@@ -483,10 +564,13 @@ function seat(member, index, [column, row]) {
     <div class="chair"></div>
     ${member && seated ? sprite(dressedAvatar(member.avatar, member.placed), true) : ''}
     <div class="desktop" aria-hidden="true">
+      ${coffeeOnDesk(member?.coffeeCup)}
       ${atDesk ? `<span class="desk-writing" style="--writing-frames:${writingSize.frames}"><img src="${writingFrames(member.avatar.skin_tone)}" alt=""></span>` : '<span class="book"></span>'}
     </div>
     ${member ? deskItems(member.placed, member.pet) : ''}
-    ${canReact ? `<button class="seat-name" data-action="select-desk" data-value="${escape(member.desk_ref)}" aria-label="${name} · ${t('deskReaction')}">${name}</button>` : `<div class="seat-name">${name}</div>`}
+    <div class="seat-name">${name}</div>
+    ${canReact ? `<button class="desk-select" type="button" data-action="select-desk" data-value="${escape(member.desk_ref)}"
+      aria-label="${name} · ${t('deskReaction')}"></button>` : ''}
     ${member?.target ? `<span class="seat-target">${escape(member.target)}</span>` : ''}
   </div>`;
 }
@@ -541,6 +625,7 @@ function roomView(room) {
         </div>
         <div class="control-actions">${controls}${room && !running() ? `<button class="secondary" data-action="leave">${t('leave')}</button>` : ''}</div>
       </section>
+      ${room ? quietModeToggle() : ''}
       ${room && !running() ? `<section class="room-settings" aria-labelledby="room-settings-title">
         <h2 id="room-settings-title">${t('roomSettings')}</h2>
         ${roomPreferences.markup(room, data.inventory)}
@@ -704,6 +789,7 @@ function profileView() {
         <button class="secondary">${t('saveTarget')}</button>
       </form>
     </details>
+    ${quietModeToggle()}
     ${focusQuests(data.dailyQuests, data.weeklyQuests, t, expandedPanels)}${studyInvitations(data, t, escape, locale)}${friendsPanel(data, draft.friendCode, t, escape)}
     <h2 class="section-title">${t('inventory')}</h2><p class="equipment-note">${t('equipmentLimit')}</p>${catalog(true)}` : ''}
   <section class="card account-section" aria-labelledby="account-title">
@@ -811,7 +897,7 @@ function render() {
   const room = data.rooms.find(item => item.id === data.profile?.room);
   const signature = JSON.stringify([view, view === 'room'
     ? [room?.id, room?.minutes, room?.invite, data.profile?.status, data.session, durationChoice, data.inventory,
-      data.friends?.some(friend => friend.status === 'accepted')]
+      data.friends?.some(friend => friend.status === 'accepted'), data.profile?.doNotDisturb]
     : view === 'rooms' ? [data.rooms, data.studyInvites, data.profile.ownsPrivateRoom] : view === 'ranking' ? ranking
       : [data.profile, data.inventory, data.items, data.dailyQuests, data.weeklyQuests, data.boxes,
         view === 'shop' ? [data.chests, data.adPlatforms?.web, openingAd] : [data.friends, data.studyInvites]], editing, locale,
@@ -834,6 +920,7 @@ function render() {
   }
   if (inviteDialog.open && view !== 'room') inviteDialog.close();
   if (inviteDialog.open) renderInviteOptions();
+  if (reactionDialog.open) refreshDeskDialog();
   updateClock();
 }
 
@@ -860,6 +947,9 @@ function updateClock() {
   updateEmailResend();
   const active = session();
   const observed = now();
+  for (const cup of content.querySelectorAll('[data-coffee-until]')) {
+    if (Number(cup.dataset.coffeeUntil) <= observed) cup.remove();
+  }
   const remain = active ? focusRemaining(active, pendingPauseAt ?? observed) : validDuration() ? duration() * 60000 : null;
   const timer = document.querySelector('#timer');
   if (timer) {
@@ -887,6 +977,7 @@ function updateClock() {
     const timer = button.querySelector('small');
     if (timer.textContent !== label) timer.textContent = label;
   }
+  updateCoinNotice();
   for (const row of content.querySelectorAll('[data-invite-expires]')) {
     const seconds = inviteWait(Number(row.dataset.inviteExpires), observed);
     row.hidden = seconds === 0;
@@ -1157,6 +1248,10 @@ document.addEventListener('click', async event => {
     finally { busy = false; }
     return;
   }
+  if (action === 'setDoNotDisturb' && data?.profile) {
+    await request(action, { enabled: !data.profile.doNotDisturb });
+    return;
+  }
   if (!data?.profile || (running() && action !== 'verify' && !(action === 'status' && value === 'break'))) return;
   if (action === 'leave') { await leaveRoom(); return; }
   if (action === 'copy-profile-code') { toast(t(await copyText(value) ? 'codeCopied' : 'codeCopyError')); return; }
@@ -1193,16 +1288,21 @@ document.addEventListener('click', async event => {
   if (action === 'select-desk') {
     selectedDesk = data.members.find(member => member.desk_ref === value && !member.own);
     if (selectedDesk) {
-      reactionDialog.querySelector('h2').textContent = selectedDesk.name;
+      reactionDialog.querySelector('[data-desk-feedback]').textContent = '';
+      refreshDeskDialog();
       reactionDialog.showModal();
     }
     return;
   }
-  if (action === 'react' && !selectedDesk) return;
+  if (action === 'react' || action === 'addDeskFriend') {
+    if (!selectedDesk || button.disabled) return;
+    reactionDialog.querySelector('[data-desk-feedback]').textContent = '';
+  }
   if (action === 'abandon' && !confirm(t('abandonConfirm'))) return;
   const payload = {
     join: { room: value }, status: { status: value }, start: { duration: duration() },
     openBox: { tier: value, price: Number(button.dataset.price) }, buy: { item: value }, place: { item: value }, react: { desk: selectedDesk?.desk_ref, kind: value },
+    addDeskFriend: { desk: selectedDesk?.desk_ref },
     rankingVisibility: { visible: value === 'true' },
     answerFriend: { id: value, answer: button.dataset.answer }, removeFriend: { id: value },
     inviteFriend: { id: value }, answerStudyInvite: { id: value, answer: button.dataset.answer },
@@ -1215,6 +1315,7 @@ document.addEventListener('click', async event => {
     if (action === 'join' || (action === 'answerStudyInvite' && data.joinedInvite)) location.hash = 'room';
     if (action === 'buy') toast(t('buySuccess'));
     if (action === 'react') { reactionDialog.close(); toast(t('reactionSent')); }
+    if (action === 'addDeskFriend') { reactionDialog.close(); toast(t('friendSent')); }
     if (action === 'inviteFriend') {
       toast(t('studyInviteSent'));
     }

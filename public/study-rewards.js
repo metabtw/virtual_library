@@ -18,19 +18,6 @@ export function boxOdds(rewards, owned) {
   }));
 }
 
-export function earnedQuestCoins(previous, current) {
-  return [
-    [previous.dailyQuests, current.dailyQuests, 'date', 'minutes'],
-    [previous.weeklyQuests, current.weeklyQuests, 'start', 'id'],
-  ].reduce((total, [before, after, period, key]) => {
-    if (!before || !after) return total;
-    const alreadyEarned = new Set(before[period] === after[period]
-      ? before.goals.filter(goal => goal.completed).map(goal => goal[key]) : []);
-    return total + after.goals.reduce((coins, goal) =>
-      goal.completed && !alreadyEarned.has(goal[key]) ? coins + goal.coins : coins, 0);
-  }, 0);
-}
-
 export function adCooldownSeconds(retryAt, serverNow) {
   return Math.max(0, Math.ceil(((retryAt ?? 0) - serverNow) / 1000));
 }

@@ -56,6 +56,7 @@ try {
 
   const migrated = await action(legacy, 'state');
   assert.equal(migrated.profile.tourPending, false);
+  assert.deepEqual(migrated.coinAwards, [], 'the migration must not announce historic awards');
   assert.equal(migrated.profile.avatar.hair, 2);
   assert.equal(migrated.profile.avatar.hair_style, null);
   assert.equal(migrated.profile.avatar.skin_tone, 0);
@@ -437,6 +438,10 @@ try {
   assert.equal((await action(invitee, 'state')).profile, null);
   const registration = await action(invitee, 'profile', { ...basic, name: 'Davetli', referral: ` ${inviter.shortReferralCode.toLowerCase()} ` });
   assert.equal(registration.profile.coins, 35);
+  assert.deepEqual(registration.coinAwards.map(({ amount, reason }) => [amount, reason]).sort((a,b) => b[0] - a[0]), [[30, 'welcome'], [5, 'referred']]);
+  assert.equal(registration.friends[0].status, 'accepted');
+  const referralFriendship = registration.friends[0].id;
+  assert.equal((await action(first, 'state')).friends.find(friend => friend.id === referralFriendship).status, 'accepted');
   assert.match(registration.profile.shortReaderCode, /^SK-[23456789A-HJ-NP-Z]{5}$/);
   assert.notEqual(registration.profile.shortReaderCode, inviter.shortReaderCode);
   assert.equal((await action(referredById, 'profile', { ...basic, referral: inviter.shortReaderCode })).profile.coins, 35);
@@ -445,7 +450,12 @@ try {
   assert.equal(updated.profile.coins, 35);
   assert.equal(updated.profile.shortReaderCode, registration.profile.shortReaderCode);
   assert.equal(updated.profile.shortReferralCode, registration.profile.shortReferralCode);
-  assert.equal((await action(first, 'state')).profile.coins, inviter.coins + 30);
+  const inviterAfterReferrals = await action(first, 'state');
+  assert.equal(inviterAfterReferrals.profile.coins, inviter.coins + 30);
+  assert.equal(inviterAfterReferrals.coinAwards.filter(event => event.reason === 'referral' && event.amount === 10).length, 3);
+  assert.equal((await action(invitee, 'removeFriend', { id: referralFriendship })).friends.length, 0);
+  assert.equal((await action(invitee, 'profile', { ...basic, referral: inviter.referralCode })).friends.length, 0,
+    'editing the profile does not recreate a removed referral friendship');
 
   assert.equal((await action(invitee, 'addFriend', { code: registration.profile.shortReaderCode })).error, 'friendMissing');
   assert.equal((await action(invitee, 'addFriend', { code: inviter.shortReferralCode })).error, 'friendMissing');
@@ -458,14 +468,15 @@ try {
   assert.equal(sent.friends[0].status, 'sent');
   assert.equal((await action(invitee, 'inviteFriend', { id: relation })).error, 'friendMissing');
   assert.equal((await action(outsider, 'answerFriend', { id: relation, answer: 'accept' })).error, 'friendMissing');
-  assert.equal((await action(first, 'state')).friends[0].status, 'incoming');
-  assert.equal((await action(first, 'answerFriend', { id: relation, answer: 'accept' })).friends[0].status, 'accepted');
+  assert.equal((await action(first, 'state')).friends.find(friend => friend.id === relation).status, 'incoming');
+  assert.equal((await action(first, 'answerFriend', { id: relation, answer: 'accept' })).friends.find(friend => friend.id === relation).status, 'accepted');
   const invitationSent = await action(first, 'inviteFriend', { id: relation });
-  assert.ok(invitationSent.friends[0].inviteRetryAt >= invitationSent.now + 59900);
+  const retryAt = invitationSent.friends.find(friend => friend.id === relation).inviteRetryAt;
+  assert.ok(retryAt >= invitationSent.now + 59900);
   assert.equal((await action(first, 'inviteFriend', { id: relation })).error, 'studyInviteCooldown');
   const study = (await action(invitee, 'state')).studyInvites[0];
   assert.equal(study.private, true);
-  assert.ok(study.expiresAt > invitationSent.friends[0].inviteRetryAt);
+  assert.ok(study.expiresAt > retryAt);
   assert.equal((await action(outsider, 'answerStudyInvite', { id: study.id, answer: 'accept' })).error, 'studyInviteMissing');
   assert.equal((await action(invitee, 'join', { room: privateRoom.id })).error, 'inviteRequired');
   const accepted = await action(invitee, 'answerStudyInvite', { id: study.id, answer: 'accept' });
@@ -486,6 +497,7 @@ try {
     assert.equal(complete.dailyQuests.minutes, minutes);
     assert.deepEqual(complete.dailyQuests.goals.map(goal => goal.completed), [minutes >= 60, minutes >= 120]);
     assert.equal(complete.profile.coins, expectedCoins);
+    assert.ok(complete.coinAwards.some(event => event.reason === 'focus' && event.amount === 6));
     assert.equal((await action(invitee, 'state')).profile.coins, expectedCoins);
   }
 
@@ -537,7 +549,9 @@ try {
     if (index) assert.equal(await creditAd(attempt, 'watch-0'), false);
     assert.equal(await creditAd(attempt, 'watch-' + index), true);
     assert.equal(await creditAd(attempt, 'watch-' + index), true, 'duplicate provider callback is acknowledged');
-    assert.equal((await action(invitee, 'state')).profile.coins, 74 + (index + 1) * 5);
+    const creditedAd = await action(invitee, 'state');
+    assert.equal(creditedAd.profile.coins, 74 + (index + 1) * 5);
+    assert.equal(creditedAd.coinAwards.filter(event => event.reason === 'ad' && event.amount === 5).length, index + 1);
     assert.equal((await openAd('admob', '1234567890')).error, 'adCooldown');
     const { rows: [{ wait_minutes }] } = await db.query(
       'select (extract(epoch from retry_at - rewarded_at) / 60)::int as wait_minutes from public.rewarded_ad_attempts where id = $1', [attempt]);
@@ -604,6 +618,45 @@ try {
   await settle();
   assert.equal((await action(privateReader, 'state')).profile.ownsPrivateRoom, false);
 
+  const [hostDeskUser, receiverDeskUser, separateRoomUser] = [921, 922, 923]
+    .map(suffix => '00000000-0000-4000-a000-000000000' + suffix);
+  for (const actor of [hostDeskUser, receiverDeskUser, separateRoomUser]) {
+    await db.query('insert into auth.users values ($1)', [actor]);
+    await action(actor, 'profile', basic);
+  }
+  await action(hostDeskUser, 'join', { room: 'art' });
+  const receiverDesk = (await action(receiverDeskUser, 'join', { room: 'art' })).members.find(member => member.own).desk_ref;
+  await action(separateRoomUser, 'join', { room: 'history' });
+  assert.equal((await action(separateRoomUser, 'addDeskFriend', { desk: receiverDesk })).error, 'deskFriendUnavailable');
+  assert.equal((await action(hostDeskUser, 'setDoNotDisturb', { enabled: 'true' })).error, 'invalidInteractionSetting');
+  assert.equal((await action(receiverDeskUser, 'setDoNotDisturb', { enabled: true })).profile.doNotDisturb, true);
+  const deskRequest = await action(hostDeskUser, 'addDeskFriend', { desk: receiverDesk });
+  assert.equal(deskRequest.friends[0].status, 'sent');
+  assert.equal(deskRequest.members.find(member => member.desk_ref === receiverDesk).friendStatus, 'sent');
+  const quietReceiver = await action(receiverDeskUser, 'state');
+  assert.deepEqual(quietReceiver.friends, []);
+  assert.equal(quietReceiver.members.find(member => !member.own).friendStatus, null);
+  assert.equal((await action(hostDeskUser, 'react', { desk: receiverDesk, kind: 'coffee' })).error, 'interactionUnavailable');
+  const quietDisabled = await action(receiverDeskUser, 'setDoNotDisturb', { enabled: false });
+  assert.equal(quietDisabled.friends[0].status, 'incoming');
+  const coffeeSend = await action(hostDeskUser, 'react', { desk: receiverDesk, kind: 'coffee' });
+  const cupFromSender = coffeeSend.members.find(member => member.desk_ref === receiverDesk).coffeeCup;
+  assert.ok(cupFromSender?.expiresAt > coffeeSend.now);
+  const coffeeReceive = await action(receiverDeskUser, 'state');
+  assert.equal(coffeeReceive.reactions[0].kind, 'coffee');
+  assert.deepEqual(coffeeReceive.members.find(member => member.own).coffeeCup, cupFromSender);
+  const againQuiet = await action(receiverDeskUser, 'setDoNotDisturb', { enabled: true });
+  assert.deepEqual(againQuiet.reactions, []);
+  assert.equal(againQuiet.members.find(member => member.own).coffeeCup, null);
+  await db.query("update public.desk_coffee_cups set arrived_ms = public.library_time_ms() - 12001 where recipient = $1", [receiverDeskUser]);
+  assert.equal((await action(receiverDeskUser, 'setDoNotDisturb', { enabled: false })).members.find(member => member.own).coffeeCup, null);
+
+  await action(hostDeskUser, 'leave');
+  const deskPrivateRoom = (await action(hostDeskUser, 'createRoom', { name: 'Masa Erişimi' })).rooms.find(room => room.owned);
+  await action(receiverDeskUser, 'leave');
+  const privateDesk = (await action(receiverDeskUser, 'joinCode', { code: deskPrivateRoom.invite })).members.find(member => member.own).desk_ref;
+  assert.equal((await action(hostDeskUser, 'addDeskFriend', { desk: privateDesk })).error, 'deskFriendUnavailable');
+
   await db.exec('set role authenticated');
   await db.query("select set_config('request.jwt.claim.sub', $1, false)", [ranker]);
   for (const sql of [
@@ -612,6 +665,7 @@ try {
     'update public.sessions set checks=999',
     'delete from public.coin_ledger',
     'select * from public.desk_reactions',
+    'select * from public.desk_coffee_cups',
     'select * from public.reader_referrals',
     'select * from public.profile_share_codes',
     'select * from public.reader_friendships',

@@ -1,9 +1,9 @@
 import { Canvas, ImageFormat, Rect, Skia } from '@shopify/react-native-skia';
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, AppState, Easing, Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { avatarSize, deskEquipment, drawAvatar, petAppearance, standingAvatarSize, writingSize,
   type AvatarPose, type DeskPropName, type PetItem } from '../../public/avatar-art';
-import type { Member, Pet, ThemeChoice } from './model';
+import type { CoffeeCup, Member, Pet, ThemeChoice } from './model';
 import { itemAssets } from './asset-art';
 import { dressedAvatar, type AvatarLook } from './cosmetics';
 import { resolveTheme, roomThemes } from './themes';
@@ -247,10 +247,35 @@ function deskDimensions(width: number, own: boolean) {
   return { surface, writing, avatar, tabletop };
 }
 
-function Desk({ member, width, peerWidth, artHeight, writingClock, itemClock, petClock, index, palette, t, onDeskPress }: {
+function CoffeeOnDesk({ cup, now, motion }: { cup: CoffeeCup; now: number; motion: boolean }) {
+  const [visible, setVisible] = useState(cup.expiresAt > now);
+  const entry = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const remaining = cup.expiresAt - now;
+    setVisible(remaining > 0);
+    if (remaining <= 0) return;
+    const expiry = setTimeout(() => setVisible(false), remaining);
+    return () => clearTimeout(expiry);
+  }, [cup.expiresAt, now]);
+  useEffect(() => {
+    if (!motion) { entry.setValue(1); return; }
+    const animation = Animated.timing(entry, { toValue: 1, duration: 540,
+      easing: Easing.out(Easing.back(1.2)), useNativeDriver: Platform.OS !== 'web', isInteraction: false });
+    animation.start();
+    return () => animation.stop();
+  }, [entry, motion]);
+  if (!visible) return null;
+  return <Animated.Image testID="desk-coffee" accessible={false} resizeMode="contain"
+    source={require('../assets/animations/coffeeGift.png')}
+    style={[styles.coffee, { opacity: entry.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }), transform: [{ translateY: entry.interpolate({
+      inputRange: [0, 1], outputRange: [-20, 0],
+    }) }] }]} />;
+}
+
+function Desk({ member, width, peerWidth, artHeight, writingClock, itemClock, petClock, index, palette, t, onDeskPress, now, motion }: {
   member?: Member; width: number; peerWidth: number; artHeight: number; writingClock?: Animated.Value;
   itemClock?: Animated.Value; petClock?: Animated.Value;
-  index: number; palette: ThemePalette; t: Translation;
+  index: number; palette: ThemePalette; t: Translation; now: number; motion: boolean;
   onDeskPress?: (member: Member) => void;
 }) {
   const own = member?.own === true;
@@ -278,6 +303,7 @@ function Desk({ member, width, peerWidth, artHeight, writingClock, itemClock, pe
       }, own && styles.ownDesk]}>
         {member && atDesk && <WritingHands width={dimensions.writing} clock={writingClock}
           phase={index % writingSize.frames} tone={member.avatar.skin_tone ?? 0} />}
+        {member?.coffeeCup && <CoffeeOnDesk key={member.coffeeCup.id} cup={member.coffeeCup} now={now} motion={motion} />}
       </View>
     </View>
     {member && <DeskAccessories member={member} width={dimensions.surface} own={own} clock={itemClock} petClock={petClock} palette={palette} />}
@@ -288,8 +314,8 @@ function Desk({ member, width, peerWidth, artHeight, writingClock, itemClock, pe
   </Seat>;
 }
 
-export const RoomScene = memo(function RoomScene({ room, members, aurora, theme, t, onDeskPress }: {
-  room: string | null; members: Member[]; aurora: boolean; theme: ThemeChoice; t: Translation;
+export const RoomScene = memo(function RoomScene({ room, members, aurora, theme, t, onDeskPress, now }: {
+  room: string | null; members: Member[]; aurora: boolean; theme: ThemeChoice; t: Translation; now: number;
   onDeskPress?: (member: Member) => void;
 }) {
   const { width } = useWindowDimensions();
@@ -337,7 +363,7 @@ export const RoomScene = memo(function RoomScene({ room, members, aurora, theme,
         const index = row * 3 + column;
         return <Desk key={column} member={seats[index]} width={size} peerWidth={columnWidth[0]} index={index}
           artHeight={row === 1 ? middleHeight : 62} writingClock={writingClock} itemClock={itemClock}
-          petClock={petClock} palette={selected.palette} t={t} onDeskPress={onDeskPress} />;
+          petClock={petClock} palette={selected.palette} t={t} onDeskPress={onDeskPress} now={now} motion={motion && foreground} />;
       })}
     </View>)}
   </View>;
@@ -351,6 +377,7 @@ const styles = StyleSheet.create({
   seat: { alignItems: 'center', paddingHorizontal: 2, paddingVertical: 4 },
   seatArt: { maxWidth: '100%', justifyContent: 'flex-end', alignItems: 'center' },
   desk: { borderTopWidth: 2, borderBottomWidth: 4, borderRadius: 3 },
+  coffee: { position: 'absolute', right: 2, bottom: -1, width: 29, height: 29, zIndex: 2 },
   ownDesk: { borderTopWidth: 3, borderBottomWidth: 5 },
   writing: { position: 'absolute', left: '50%' },
   frame: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },

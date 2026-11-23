@@ -27,6 +27,7 @@ export const webFiles = new Map([
   ['/robots.txt', ['public/robots.txt', 'text/plain; charset=utf-8']],
   ['/sitemap.xml', ['public/sitemap.xml', 'application/xml; charset=utf-8']],
   ['/room-preferences.css', ['public/room-preferences.css', css]],
+  ['/coin-notices.js', ['public/coin-notices.js', script]],
   ['/account-dialogs.js', ['public/account-dialogs.js', script]],
   ['/onboarding.js', ['public/onboarding.js', script]],
   ['/room-art.js', ['public/room-art.js', script]],

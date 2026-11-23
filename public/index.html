@@ -49,6 +49,7 @@
       </section>
     </section>
   </main>
+  <div id="coin-notice" role="status" aria-live="polite" aria-atomic="true"></div>
   <p id="notice" role="status"></p>
   <dialog class="action-sheet" id="action-confirmation" aria-labelledby="action-confirm-title">
     <h2 id="action-confirm-title"></h2><p></p>
@@ -81,10 +82,13 @@
   <dialog id="verify-dialog" aria-labelledby="verify-title"><h2 id="verify-title" data-text="verify">Hâlâ masada mısın?</h2>
     <p><span data-text="verifyRemaining">Çalışma periyodunu doğrulamak için kalan süre</span> <b id="verify-time"></b>.</p>
     <div class="dialog-actions"><button class="primary" data-action="verify" data-text="here">Buradayım</button><button class="secondary" data-action="status" data-value="break" data-text="pause">Molaya geç</button></div></dialog>
-  <dialog id="reaction-dialog">
-    <h2>Masa tepkisi</h2>
+  <dialog id="reaction-dialog" aria-labelledby="desk-dialog-title">
+    <h2 id="desk-dialog-title">Masa tepkisi</h2>
+    <p data-desk-state hidden></p>
+    <p data-desk-feedback role="status"></p>
     <div class="dialog-actions"><button class="primary" data-action="react" data-value="coffee" data-text="coffeeReaction">☕ Kahve gönder</button>
       <button class="secondary" data-action="react" data-value="clap" data-text="clapReaction">👏 Alkışla</button>
+      <button class="secondary" data-action="addDeskFriend" data-text="addFriend" hidden>Arkadaş ekle</button>
       <form method="dialog"><button class="secondary" data-text="close">Kapat</button></form></div>
   </dialog>
   <dialog id="study-invite-dialog" aria-labelledby="study-invite-title">

@@ -6,9 +6,9 @@ import { Alert, AppState, BackHandler, Image, ImageBackground, Modal, Platform, 
 import { avatarOptions, avatarPresets, defaultAvatar, hairStyles, pickAvatarStyle } from '../../public/avatar-art';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../../public/focus-clock';
 import { displayDeskStatuses, recordDeskStatus, type DeskUpdates } from '../../public/desk-status';
-import { earnedQuestCoins, roomGoalMinutes } from '../../public/study-rewards';
+import { roomGoalMinutes } from '../../public/study-rewards';
 import { library, notifyRoomPresence, roomConnection, supabase } from './api';
-import type { Avatar, BoxTier, Command, Drop, Focus, ItemId, Member, Profile, Snapshot } from './model';
+import type { Avatar, BoxTier, Command, Drop, Focus, ItemId, Profile, Snapshot } from './model';
 import { RoomScene, Sprite } from './scene';
 import { allowReminders, hasExactReminderSettings, openExactReminderSettings, syncRemoteReminders,
   removeRemoteReminders, useReminder } from './reminders';
@@ -18,6 +18,7 @@ import { Button, Field, Options, ui } from './ui';
 import { Directory, Invite, PrivateBadge, RoomGoal, TargetEditor } from './clubs';
 import { Ambience } from './ambience';
 import { Catalog } from './catalog';
+import { CoinNotice } from './coin-notice';
 import { ChestReward } from './chest-reward';
 import { dressedAvatar } from './cosmetics';
 import { roomThemes, ThemePicker } from './themes';
@@ -187,12 +188,13 @@ export function Library({ id }: { id: string }) {
   const [refreshAfter, setRefreshAfter] = useState(0);
   const lastServerTime = useRef(0);
   const [pendingPauseAt, setPendingPauseAt] = useState<number>();
-  const [peer, setPeer] = useState<Member>();
+  const [peer, setPeer] = useState<string>();
   const [rankingOpen, setRankingOpen] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
   const [accountPanel, setAccountPanel] = useState<AccountPanel | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [reactionMessage, setReactionMessage] = useState('');
+  const incomingReaction = useRef(false);
   const reactionTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const seenReactions = useRef(new Set<string>());
   const [actionError, setActionError] = useState('');
@@ -211,19 +213,9 @@ export function Library({ id }: { id: string }) {
     },
   });
   const snapshot = query.data;
-  const previousSnapshot = useRef(snapshot);
-  useEffect(() => {
-    const previous = previousSnapshot.current;
-    previousSnapshot.current = snapshot;
-    const earned = previous && snapshot ? earnedQuestCoins(previous, snapshot) : 0;
-    if (earned) {
-      setReactionMessage(`${t.questsReward} · +${earned} ${t.coins}`);
-      clearTimeout(reactionTimeout.current);
-      reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
-    }
-  }, [snapshot, t]);
   const roomMembers = useMemo(() => displayDeskStatuses(snapshot?.members ?? [], snapshot?.now ?? 0, deskUpdates),
     [snapshot?.members, snapshot?.now, deskUpdates]);
+  const selectedPeer = roomMembers.find(member => peer && member.desk_ref === peer && !member.own);
   const inventory = snapshot?.inventory;
   const equipped = useMemo(() => inventory?.filter(item => item.placed).map(item => item.item) ?? [], [inventory]);
   const serverSample = snapshot?.now;
@@ -268,17 +260,26 @@ export function Library({ id }: { id: string }) {
     return () => subscription.remove();
   }, [localRoom]);
   useEffect(() => {
+    if (snapshot?.profile?.doNotDisturb) {
+      if (incomingReaction.current) {
+        incomingReaction.current = false;
+        clearTimeout(reactionTimeout.current);
+        setReactionMessage('');
+      }
+      return;
+    }
     const incoming = (snapshot?.reactions ?? []).filter(event => !seenReactions.current.has(event.id));
     if (!incoming.length) return;
     for (const event of incoming) seenReactions.current.add(event.id);
     if (seenReactions.current.size > 128) {
       for (const key of [...seenReactions.current].slice(0, 64)) seenReactions.current.delete(key);
     }
+    incomingReaction.current = true;
     setReactionMessage(incoming.map(event =>
       `${event.kind === 'coffee' ? '☕' : '👏'} ${event.name} ${event.kind === 'coffee' ? t.coffeeReceived : t.clapReceived}`).join(' · '));
     clearTimeout(reactionTimeout.current);
     reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
-  }, [snapshot?.reactions, t]);
+  }, [snapshot?.reactions, snapshot?.profile?.doNotDisturb, t]);
   useEffect(() => () => clearTimeout(reactionTimeout.current), []);
   useEffect(() => {
     setUsageMeasurement(usage);
@@ -307,19 +308,21 @@ export function Library({ id }: { id: string }) {
       if (action.name === 'verify') trackUsage('focus_confirmed');
       if (action.name === 'leave') { setInviteOpen(false); setPage('rooms'); }
       if (data.drop) setPrize({ drop: data.drop, tier: action.name === 'openBox' ? action.payload?.tier ?? 'basic' : 'basic' });
-      if (action.name === 'react') {
+      if (action.name === 'react' || action.name === 'addDeskFriend') {
         setPeer(undefined);
-        setReactionMessage(t.reactionSent);
+        incomingReaction.current = false;
+        setReactionMessage(action.name === 'react' ? t.reactionSent : t.friendSent);
         clearTimeout(reactionTimeout.current);
         reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
       }
       if (action.name === 'inviteFriend' || (action.name === 'leave' && data.privateRoomClosing)) {
+        incomingReaction.current = false;
         setReactionMessage(action.name === 'leave' ? t.privateRoomClosing : t.studyInviteSent);
         clearTimeout(reactionTimeout.current);
         reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
       }
       if (action.name === 'rankingVisibility') void queryClient.invalidateQueries({ queryKey: ['leaderboard', id] });
-      if (['place', 'target', 'profile', 'react'].includes(action.name)) {
+      if (['place', 'target', 'profile', 'react', 'addDeskFriend', 'setDoNotDisturb'].includes(action.name)) {
         const channel = presence.current;
         void channel?.track({ changed: data.now }).then(result => {
           if (presence.current === channel) {
@@ -418,6 +421,14 @@ export function Library({ id }: { id: string }) {
       void signOut().catch(error => setActionError(message(t, error))).finally(() => setSigningOut(false));
     }
   }
+  const quietToggle = <View style={[ui.card, ui.row]}>
+    <View style={{ flex: 1, gap: 3 }}>
+      <Text style={ui.heading}>{t.quietMode}</Text>
+      <Text style={ui.small}>{t.quietModeHelp}</Text>
+    </View>
+    <Switch value={!!profile?.doNotDisturb} accessibilityLabel={t.quietMode} disabled={pending}
+      onValueChange={enabled => act({ name: 'setDoNotDisturb', payload: { enabled } })} />
+  </View>;
   const invitations = <StudyInvitations invites={snapshot.studyInvites} locale={locale} pending={pending} now={observed} t={t}
     answer={(id, answer) => act({ name: 'answerStudyInvite', payload: { id, answer } })} />;
 
@@ -451,8 +462,12 @@ export function Library({ id }: { id: string }) {
             {!running && !!accepted.length && <Button muted accessibilityLabel={t.friendInvite} onPress={() => setInviteOpen(true)}>♙+</Button>}
           </View>}
           {room && <RoomGoal minutes={room.minutes ?? 0} t={t} />}
-          <RoomScene room={localRoom ?? null} members={roomMembers}
-            aurora={aurora} theme={theme} t={t} onDeskPress={running ? undefined : setPeer} />
+          <RoomScene room={localRoom ?? null} members={roomMembers} now={snapshot.now}
+            aurora={aurora} theme={theme} t={t} onDeskPress={running ? undefined : member => {
+              setActionError('');
+              setPeer(member.desk_ref);
+            }} />
+          {room && quietToggle}
           {room && !running && <ThemePicker value={theme} room={room.id} aurora={aurora} onChange={setTheme} t={t} />}
           {room && !running && <Invite room={room} t={t} />}
           {snapshot.session?.state === 'completed' && <>
@@ -489,6 +504,7 @@ export function Library({ id }: { id: string }) {
             <TargetEditor initial={profile.target ?? ''} pending={pending} t={t} save={target => act({ name: 'target', payload: { target } })} />
             <FocusQuests daily={snapshot.dailyQuests} weekly={snapshot.weeklyQuests} t={t} />
             {invitations}
+            {quietToggle}
             <FriendsPanel profile={profile} friends={friends} pending={pending} now={observed} t={t}
               add={code => act({ name: 'addFriend', payload: { code } })}
               answer={(id, answer) => act({ name: 'answerFriend', payload: { id, answer } })}
@@ -547,12 +563,23 @@ export function Library({ id }: { id: string }) {
         <Button muted onPress={() => setInviteOpen(false)}>{t.done}</Button>
       </View></View>
     </Modal>
-    <Modal visible={Boolean(peer?.desk_ref && !running && !verify)} transparent onRequestClose={() => setPeer(undefined)} accessibilityViewIsModal>
+    <CoinNotice awards={snapshot.coinAwards} account={id} locale={locale} t={t}
+      enabled={foreground && !prize && !verify && !profile?.tourPending && !accountPanel && !selectedPeer
+        && !rankingOpen && !cardOpen && !inviteOpen} />
+    <Modal visible={Boolean(selectedPeer?.desk_ref && !running && !verify)} transparent onRequestClose={() => setPeer(undefined)} accessibilityViewIsModal>
       <View style={ui.modal}><View style={ui.card}>
-        <Text style={ui.heading}>{peer?.name}</Text>
-        {(['coffee', 'clap'] as const).map(kind => <Button key={kind} disabled={pending} onPress={() => {
-          if (peer?.desk_ref) act({ name: 'react', payload: { desk: peer.desk_ref, kind } });
+        <Text style={ui.heading}>{selectedPeer?.name}</Text>
+        {selectedPeer?.acceptsInteractions === false && <Text style={ui.small}>{t.interactionUnavailable}</Text>}
+        {(['coffee', 'clap'] as const).map(kind => <Button key={kind} disabled={pending || selectedPeer?.acceptsInteractions === false} onPress={() => {
+          if (selectedPeer?.desk_ref) act({ name: 'react', payload: { desk: selectedPeer.desk_ref, kind } });
         }}>{kind === 'coffee' ? t.coffeeReaction : t.clapReaction}</Button>)}
+        {room && !room.private && selectedPeer?.desk_ref && !selectedPeer.friendStatus &&
+          <Button muted disabled={pending} onPress={() => {
+            if (selectedPeer.desk_ref) act({ name: 'addDeskFriend', payload: { desk: selectedPeer.desk_ref } });
+          }}>{t.addFriend}</Button>}
+        {selectedPeer?.friendStatus && <Text style={ui.small}>{t[({
+          accepted: 'friendsWithPeer', sent: 'friendSent', incoming: 'friendIncoming',
+        } as const)[selectedPeer.friendStatus]]}</Text>}
         {actionError !== '' && <Text style={ui.warning}>{actionError}</Text>}
         <Button muted onPress={() => setPeer(undefined)}>{t.done}</Button>
       </View></View>

@@ -9,7 +9,7 @@ export type DeskPropName =
   | 'brassLamp' | 'deskCalendar' | 'pottedCactus' | 'recordPlayer' | 'zenGarden'
   | 'moonstoneLamp' | 'rainbowPrism' | 'moonGlobe' | 'clockworkOwl';
 export type PropName =
-  | Exclude<DeskPropName, 'plant'> | PetItem | 'leaves' | 'pot' | 'catSleep' | 'catUpset' | 'space' | 'forest' | 'shore'
+  | Exclude<DeskPropName, 'plant'> | PetItem | 'leaves' | 'pot' | 'catSleep' | 'catUpset' | 'coffeeGift' | 'space' | 'forest' | 'shore'
   | 'jellyTankBase' | 'jellyTankDrift';
 export type AvatarFeatures = {
   hair_style?: number | null;

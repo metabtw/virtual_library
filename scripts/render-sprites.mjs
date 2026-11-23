@@ -90,7 +90,7 @@ for (const item of [
 }
 prop('items/plant.png', 'leaves', 'pot');
 
-for (const part of ['catSleep', 'catUpset', 'leaves', 'pot', 'jellyTankBase', 'jellyTankDrift']) prop('animations/' + part + '.png', part);
+for (const part of ['coffeeGift', 'catSleep', 'catUpset', 'leaves', 'pot', 'jellyTankBase', 'jellyTankDrift']) prop('animations/' + part + '.png', part);
 for (let tone = 0; tone < avatarOptions.skin_tone.tr.length; tone++) {
   for (let frame = 0; frame < writingSize.frames; frame++) {
     const file = tone === 0 ? 'writing-' + frame : 'writing-' + tone + '-' + frame;

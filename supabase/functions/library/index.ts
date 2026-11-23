@@ -14,7 +14,7 @@ const actions = new Set([
   'state', 'profile', 'join', 'leave', 'status', 'start', 'verify', 'buy', 'place',
   'startAccountDeletion', 'deleteAccount', 'finishTour', 'pushRegister', 'pushRemove', 'target', 'createRoom', 'joinCode',
   'openBox', 'openChest', 'abandon', 'studySummary', 'leaderboard', 'rankingVisibility', 'react',
-  'addFriend', 'answerFriend', 'removeFriend', 'inviteFriend', 'answerStudyInvite', 'adStart', 'roomPresence',
+  'addFriend', 'addDeskFriend', 'setDoNotDisturb', 'answerFriend', 'removeFriend', 'inviteFriend', 'answerStudyInvite', 'adStart', 'roomPresence',
 ]);
 
 // Browser calls use an explicit Supabase bearer token. The endpoint has no cookie-based session.

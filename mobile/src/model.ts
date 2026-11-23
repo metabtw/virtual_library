@@ -1,4 +1,5 @@
 import type { AvatarFeatures, HairSkin, OutfitSkin, PetItem } from '../../public/avatar-art';
+import type { CoinAward } from '../../public/coin-notices';
 import type { DeskActivity } from '../../public/desk-status';
 
 export type Gender = 'unspecified' | 'female' | 'male';
@@ -19,9 +20,10 @@ export type Pet = { xp: number; upset: boolean };
 export type Drop = { item: ItemId } | { coins: number };
 export type ReactionKind = 'coffee' | 'clap';
 export type DeskReaction = { id: string; kind: ReactionKind; name: string };
-export type Member = { own: boolean; desk_ref?: string; name: string; status: DeskStatus; activity?: DeskActivity; avatar: Avatar; placed: ItemId[]; target?: string; pet?: Pet | null };
+export type CoffeeCup = { id: string; expiresAt: number };
+export type Member = { own: boolean; desk_ref?: string; name: string; status: DeskStatus; activity?: DeskActivity; avatar: Avatar; placed: ItemId[]; target?: string; pet?: Pet | null; acceptsInteractions?: boolean; friendStatus?: Friend['status'] | null; coffeeCup?: CoffeeCup | null };
 export type Profile = { name: string; coins: number; room: string | null; status: DeskStatus | null; avatar: Avatar; target?: string;
-  readerCode?: string; referralCode?: string; shortReaderCode?: string; shortReferralCode?: string; ownsPrivateRoom?: boolean; tourPending?: boolean };
+  readerCode?: string; referralCode?: string; shortReaderCode?: string; shortReferralCode?: string; ownsPrivateRoom?: boolean; tourPending?: boolean; doNotDisturb?: boolean };
 export type Room = { id: string; name: string; name_en: string; count: number; capacity: number; private?: boolean; owned?: boolean; invite?: string | null; targets?: string[]; minutes?: number };
 export type Focus = {
   start: number; end: number; checks: number; state: 'active' | 'completed' | 'invalid';
@@ -49,6 +51,7 @@ export type Snapshot = {
   chests?: number;
   drop?: Drop | null;
   reactions?: DeskReaction[];
+  coinAwards?: CoinAward[];
   dailyQuests?: DailyQuests;
   weeklyQuests?: WeeklyQuests;
   boxes?: RewardBox[];
@@ -86,6 +89,8 @@ export type Command = {
   react: { desk: string; kind: ReactionKind };
   rankingVisibility: { visible: boolean };
   addFriend: { code: string };
+  addDeskFriend: { desk: string };
+  setDoNotDisturb: { enabled: boolean };
   answerFriend: { id: string; answer: Answer };
   removeFriend: { id: string };
   inviteFriend: { id: string };
