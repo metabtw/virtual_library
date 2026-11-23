@@ -8,6 +8,7 @@ import { build } from 'esbuild';
 import googleWeb from './google-web-config.json' with { type: 'json' };
 import { privacyPage } from './privacy-page.js';
 import { termsPage } from './terms-page.js';
+import { themedBackdrops } from './public/room-art.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const script = 'text/javascript; charset=utf-8';
@@ -26,6 +27,9 @@ export const webFiles = new Map([
   ['/robots.txt', ['public/robots.txt', 'text/plain; charset=utf-8']],
   ['/sitemap.xml', ['public/sitemap.xml', 'application/xml; charset=utf-8']],
   ['/room-preferences.css', ['public/room-preferences.css', css]],
+  ['/account-dialogs.js', ['public/account-dialogs.js', script]],
+  ['/onboarding.js', ['public/onboarding.js', script]],
+  ['/room-art.js', ['public/room-art.js', script]],
   ['/app.js', ['public/app.js', script]],
   ['/google-sign-in.js', ['public/google-sign-in.js', script]],
   ['/avatar-art.js', ['public/avatar-art.js', script]],
@@ -43,7 +47,7 @@ export const webFiles = new Map([
   ['/room-social.js', ['public/room-social.js', script]],
   ['/library.webp', ['public/library.webp', image]],
   ['/aurora.webp', ['mobile/assets/aurora.webp', image]],
-  ...['rain', 'garden', 'stars'].map(theme => [`/room-themes/${theme}.webp`, [`mobile/assets/themes/${theme}.webp`, image]]),
+  ...themedBackdrops.map(theme => [`/room-themes/${theme}.webp`, [`mobile/assets/themes/${theme}.webp`, image]]),
   ...['rain', 'fire', 'cafe', 'lofi', 'space', 'forest', 'shore'].map(track =>
     [`/room-ambience/${track}.m4a`, [`mobile/assets/ambience/${track}.m4a`, audio]]),
 ]);
@@ -98,11 +102,7 @@ export function getWebConfig(env = process.env) {
   const paired = url.origin === googleWeb.supabaseOrigin;
   const google = env.WEB_AUTH_GOOGLE !== 'false' && (paired || env.WEB_AUTH_GOOGLE === 'true' || env.EXPO_PUBLIC_AUTH_GOOGLE === 'true');
   return { url: url.origin, key, google,
-    ...(google && paired ? {
-      firebaseGoogle: googleWeb.firebase,
-      ...(env.WEB_FIREBASE_CUSTOM_AUTH_DOMAIN === 'virtualstudycrew.com'
-        ? { firebaseGoogleDomain: 'virtualstudycrew.com' } : {}),
-    } : {}),
+    ...(google && paired ? { firebaseGoogle: googleWeb.firebase } : {}),
     apple: env.EXPO_PUBLIC_AUTH_APPLE === 'true' };
 }
 

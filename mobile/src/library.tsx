@@ -3,12 +3,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, BackHandler, Image, ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text,
   useWindowDimensions, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { avatarOptions, avatarPresets, defaultAvatar, hairStyles, pickAvatarStyle } from '../../public/avatar-art';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../../public/focus-clock';
 import { displayDeskStatuses, recordDeskStatus, type DeskUpdates } from '../../public/desk-status';
 import { earnedQuestCoins, roomGoalMinutes } from '../../public/study-rewards';
-import { deleteAccount, library, notifyRoomPresence, roomConnection, supabase } from './api';
+import { library, notifyRoomPresence, roomConnection, supabase } from './api';
 import type { Avatar, BoxTier, Command, Drop, Focus, ItemId, Member, Profile, Snapshot } from './model';
 import { RoomScene, Sprite } from './scene';
 import { allowReminders, hasExactReminderSettings, openExactReminderSettings, syncRemoteReminders,
@@ -24,7 +23,9 @@ import { dressedAvatar } from './cosmetics';
 import { roomThemes, ThemePicker } from './themes';
 import { LeaderboardModal, StudyCardModal } from './study';
 import { presetAssets } from './asset-art';
-import { PolicyLinks, TermsButton } from './auth';
+import { TermsButton } from './auth';
+import { AccountSheet, type AccountPanel } from './account-sheets';
+import { LoadingScreen, TourSheet } from './arrival';
 import { ShopRewards } from './ads';
 import { FocusQuests, FriendInviteButton, FriendsPanel, ProfileCodeField, ProfileCodes, StudyInvitations } from './community';
 import type { ProfileCodePrefix } from '../../public/room-social';
@@ -178,6 +179,7 @@ function Period({ focus, remaining, pending, onAction, t, canStart }: {
 export function Library({ id }: { id: string }) {
   const { locale, setLocale, page, setPage, alerts, setAlerts, usage, setUsage, theme, setTheme } = usePreferences();
   const t = words[locale];
+  useEffect(() => { setPage('rooms'); }, [id, setPage]);
   const [prize, setPrize] = useState<{ drop: Drop; tier: BoxTier } | null>(null);
   const [editing, setEditing] = useState(false);
   const [moment, setMoment] = useState(() => performance.now());
@@ -188,13 +190,13 @@ export function Library({ id }: { id: string }) {
   const [peer, setPeer] = useState<Member>();
   const [rankingOpen, setRankingOpen] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
-  const [dataOpen, setDataOpen] = useState(false);
+  const [accountPanel, setAccountPanel] = useState<AccountPanel | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [reactionMessage, setReactionMessage] = useState('');
   const reactionTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const seenReactions = useRef(new Set<string>());
   const [actionError, setActionError] = useState('');
-  const [deleting, setDeleting] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [reminderRevision, setReminderRevision] = useState(0);
   const [presenceReadyRoom, setPresenceReadyRoom] = useState<string | null>(null);
   const [deskUpdates, setDeskUpdates] = useState<DeskUpdates>(() => new Map());
@@ -295,7 +297,10 @@ export function Library({ id }: { id: string }) {
     onSuccess: (data, action) => {
       queryClient.setQueryData(key, data);
       setMoment(performance.now());
-      if (action.name === 'profile') setEditing(false);
+      if (action.name === 'profile') {
+        setEditing(false);
+        if (data.profile?.tourPending) setPage('rooms');
+      }
       if (['join', 'joinCode', 'createRoom'].includes(action.name)) { setPage('room'); trackUsage('room_joined'); }
       if (action.name === 'answerStudyInvite' && data.joinedInvite) { setPage('room'); trackUsage('room_joined'); }
       if (action.name === 'start') trackUsage('focus_started');
@@ -371,29 +376,19 @@ export function Library({ id }: { id: string }) {
     setAlerts(false);
     setUsage(false);
     setUsageMeasurement(false);
-    await supabase!.auth.signOut({ scope: 'local' });
+    const { error } = await supabase!.auth.signOut({ scope: 'local' });
+    if (error && !accountDeleted) throw error;
     queryClient.removeQueries({ queryKey: key });
     queryClient.removeQueries({ queryKey: ['studySummary', id] });
     queryClient.removeQueries({ queryKey: ['leaderboard', id] });
     setPage('rooms');
   }
 
-  function requestDeletion() {
-    Alert.alert(t.deleteAccount, t.confirmDelete, [
-      { text: t.cancel, style: 'cancel' },
-      { text: t.deleteAccount, style: 'destructive', onPress: () => {
-        setActionError('');
-        setDeleting(true);
-        void deleteAccount().then(() => signOut(true)).catch(error => setActionError(message(t, error)))
-          .finally(() => setDeleting(false));
-      } },
-    ]);
-  }
-
+  if (!snapshot && !query.isError) return <LoadingScreen label={t.loading} />;
   if (!snapshot) return <View style={ui.content}>
     <Text style={ui.title}>{t.app}</Text>
-    <Text style={ui.small}>{query.isError ? message(t, query.error) : t.loading}</Text>
-    {query.isError && <Button onPress={() => void query.refetch()}>{t.retry}</Button>}
+    <Text style={ui.warning}>{message(t, query.error)}</Text>
+    <Button onPress={() => void query.refetch()}>{t.retry}</Button>
   </View>;
 
   const profile = snapshot.profile;
@@ -405,19 +400,23 @@ export function Library({ id }: { id: string }) {
   const prizeId = prize && 'item' in prize.drop ? prize.drop.item : undefined;
   const prizeItem = snapshot.items.find(item => item.id === prizeId);
   const label = (item: { name: string; name_en: string }) => locale === 'tr' ? item.name : item.name_en;
-  const pending = mutation.isPending || deleting;
+  const pending = mutation.isPending || signingOut;
   function act(action: Action) {
     if (pending) return;
     if (running && action.name === 'status' && action.payload?.status === 'break') setPendingPauseAt(observed);
     mutation.mutate(action);
   }
+  const leaveCopy = room?.owned && room.count <= 1 ? t.leaveConfirm + '\n\n' + t.privateRoomClosing : t.leaveConfirm;
   function requestLeave() {
-    if (!localRoom || pending || running) return;
-    const warning = room?.owned && room.count <= 1 ? `\n\n${t.privateRoomClosing}` : '';
-    Alert.alert(t.leave, t.leaveConfirm + warning, [
-      { text: t.cancel, style: 'cancel' },
-      { text: t.leave, style: 'destructive', onPress: () => act({ name: 'leave' }) },
-    ]);
+    if (localRoom && !pending && !running) setAccountPanel('leave');
+  }
+  function confirmAccount(action: 'leave' | 'signOut') {
+    setAccountPanel(null);
+    if (action === 'leave') act({ name: 'leave' });
+    else {
+      setSigningOut(true);
+      void signOut().catch(error => setActionError(message(t, error))).finally(() => setSigningOut(false));
+    }
   }
   const invitations = <StudyInvitations invites={snapshot.studyInvites} locale={locale} pending={pending} now={observed} t={t}
     answer={(id, answer) => act({ name: 'answerStudyInvite', payload: { id, answer } })} />;
@@ -515,10 +514,10 @@ export function Library({ id }: { id: string }) {
         </View>
         <View style={ui.card}>
           <Text style={ui.heading}>{t.myAccount}</Text>
-          <Button tone="data" disabled={pending} onPress={() => { setActionError(''); setDataOpen(true); }}>{t.myData}</Button>
-          <Button tone="signOut" disabled={pending} onPress={() => void signOut()}>{t.signOut}</Button>
+          <Button tone="data" disabled={pending} onPress={() => setAccountPanel('data')}>{t.myData}</Button>
+          <Button tone="signOut" disabled={pending} onPress={() => setAccountPanel('signOut')}>{t.signOut}</Button>
           <TermsButton locale={locale} t={t} />
-          <Button tone="danger" disabled={pending} onPress={requestDeletion}>{t.deleteAccount}</Button>
+          <Button tone="danger" disabled={pending} onPress={() => setAccountPanel('delete')}>{t.deleteAccount}</Button>
         </View>
       </>}
     </ScrollView>
@@ -533,21 +532,10 @@ export function Library({ id }: { id: string }) {
       pending={pending} changeVisibility={visible => act({ name: 'rankingVisibility', payload: { visible } })} />}
     {cardOpen && profile && !running && !verify && <StudyCardModal user={id} profile={profile}
       equipment={equipped} close={() => setCardOpen(false)} t={t} />}
-    <Modal visible={dataOpen && !running} animationType="slide" onRequestClose={() => setDataOpen(false)}>
-      <SafeAreaView style={ui.screen}>
-        <ScrollView contentContainerStyle={ui.content}>
-          <View style={{ alignSelf: 'flex-start' }}><Button muted onPress={() => setDataOpen(false)}>{t.goBack}</Button></View>
-          <Text accessibilityRole="header" style={ui.title}>{t.myData}</Text>
-          <View style={ui.card}>
-            <Text style={ui.heading}>{t.privacy}</Text>
-            <Text style={[ui.small, { lineHeight: 21 }]}>{t.privacyBody}</Text>
-            <PolicyLinks locale={locale} t={t} />
-          </View>
-          {actionError !== '' && <Text accessibilityLiveRegion="polite" style={ui.warning}>{actionError}</Text>}
-          <Button tone="danger" disabled={pending} onPress={requestDeletion}>{t.deleteAccount}</Button>
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
+    {accountPanel && !running && <AccountSheet panel={accountPanel} change={setAccountPanel} confirm={confirmAccount}
+      deleted={() => signOut(true)} leaveCopy={leaveCopy} inRoom={!!localRoom} locale={locale} t={t} />}
+    {profile?.tourPending && !accountPanel && !running && !verify && <TourSheet t={t} pending={pending} error={actionError}
+      finish={() => act({ name: 'finishTour' })} />}
     <Modal visible={inviteOpen && !!room && !running && !verify} transparent onRequestClose={() => setInviteOpen(false)} accessibilityViewIsModal>
       <View style={ui.modal}><View style={[ui.card, { width: '100%', maxWidth: 450, maxHeight: '80%' }]}>
         <Text style={ui.heading}>{t.friendInvite}</Text>

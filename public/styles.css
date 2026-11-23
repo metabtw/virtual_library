@@ -120,7 +120,7 @@ h1,.profile-card h2 {overflow-wrap: anywhere}
   padding: clamp(10px,2vw,20px);
   border-radius: 24px;
   border-color: #fbc18857;
-  background: linear-gradient(#16112025,#1a0f1980),url('/library.webp') center/cover,#3a262a;
+  background: linear-gradient(#16112025,#1a0f1980),var(--room-art,url('/library.webp')) center/cover,#3a262a;
   box-shadow: var(--glow);
 }
 .scene-top {flex-wrap: wrap}
@@ -953,3 +953,48 @@ dialog {max-height:calc(100dvh - 24px);overflow:auto}
   .reward-chest,.reward-lid,.reward-stars i,.reward-result:not([hidden]) {animation:none}
 }
 @media (max-width:440px) { .quest-grid {grid-template-columns:minmax(0,1fr)} }
+
+.auth-links {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(min(100%,8rem),1fr));
+  align-items:stretch;
+  gap:8px;
+}
+.auth-links > a {justify-content:center;text-align:center;white-space:normal}
+
+.room-tools {display:grid;gap:10px;margin-bottom:18px}
+.room-search {position:relative;display:block;width:100%;max-width:30rem;margin:0}
+.room-search span {position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--accent);font-size:21px;pointer-events:none}
+.room-search input {width:100%;min-height:46px;padding-left:40px}
+.room-actions .room-tool {display:block;padding:6px 12px}
+.room-tool > form {margin:6px 0 8px}
+.room-tool > .room-owned {margin:0 0 8px}
+.room-card .room-preview {aspect-ratio:3/1;overflow:hidden;border-radius:10px;background:#31233a}
+.room-preview img {width:100%;height:100%;display:block;object-fit:cover;object-position:50% 34%}
+
+.action-sheet {width:min(28rem,calc(100% - 24px))}
+.action-sheet p {white-space:pre-line;line-height:1.55}
+.sheet-actions {display:flex;flex-wrap:wrap;gap:8px}
+.sheet-actions > button {flex:1 1 8rem;min-height:44px;white-space:normal}
+.action-sheet .stacked > p {margin:0;min-height:1.3em}
+#deletion-confirmation input {letter-spacing:.22em;text-align:center;font-size:1.2rem}
+
+.tour-sheet {width:min(34rem,calc(100% - 24px))}
+.tour-welcome {margin:0 0 10px;color:var(--accent);font-weight:700}
+.tour-art {display:block;width:100%;height:clamp(105px,28vw,158px);object-fit:cover;object-position:50% 33%;border-radius:12px}
+.tour-copy {padding:12px 0 0}
+.tour-copy h2 {font-size:1.2rem}
+.tour-copy p {margin:8px 0 14px}
+.tour-actions {display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:center;text-align:center}
+.tour-actions button {min-height:44px;white-space:normal}
+.tour-actions small {color:var(--muted)}
+
+.startup-screen {position:fixed;inset:0;z-index:30;display:grid;place-content:center;justify-items:center;
+  gap:20px;background:radial-gradient(ellipse at center,#342438,#18121e 65%);text-align:center}
+.startup-screen p {margin:0}
+.startup-mark {position:relative;display:grid;width:192px;height:192px;place-items:center}
+.startup-mark img {position:relative;object-fit:contain}
+.startup-ring {position:absolute;inset:0;animation:pixel-ring 1.6s steps(16) infinite}
+.startup-ring i {position:absolute;width:8px;height:8px;margin:-4px;background:#ffbd7e;box-shadow:0 0 12px #ff9c5877}
+@keyframes pixel-ring {to {transform:rotate(1turn)}}
+@media (prefers-reduced-motion:reduce) { .startup-ring {animation:none} }

@@ -34,7 +34,7 @@ Varsayılan Supabase göndericisi giriş bağlantısı yollar. Bağlantıyı web
 
 ## Web yönlendirmesi
 
-Web ve mobil aynı Supabase Auth ve Edge Function kurulumunu kullanır. **Authentication → URL Configuration** izin listesine yerel geliştirme için `http://localhost:3000/` ve `http://localhost:3000/account-deletion` adreslerini ekle. `127.0.0.1` veya farklı port kullanıyorsan o adresleri de ekle. Yayınlanan web uygulaması için HTTPS kök adresini ve hesap silme yolunu ayrıca kaydet.
+Web ve mobil aynı Supabase Auth ve Edge Function kurulumunu kullanır. **Authentication → URL Configuration** izin listesine yerel geliştirme için `http://localhost:3000/` ve `http://localhost:3000/account-deletion` adreslerini ekle. `127.0.0.1` veya farklı port kullanıyorsan o adresleri de ekle. Yayınlanan web uygulaması için HTTPS kök adresini, hesap silme yolunu ve silme kodu e-postası için `https://virtualstudycrew.com/account-deletion?intent=verify` adresini ayrıca kaydet.
 
 ## Google ile giriş
 
@@ -44,14 +44,9 @@ Web, `cqvrxlttlyjjlibitrvh` projesiyle kullanıldığında `google-auth` dalınd
 
 Supabase Dashboard'da **Authentication → Sign In / Providers → Google** bölümünde bu Google Client ID kayıtlı olmalı. Firebase Authentication **Authorized domains** listesinde web uygulamasını açtığın adresin alan adı bulunmalı. `localhost` ve `127.0.0.1` yerel test içindir. Webde Google girişini gizlemek için kök `.env.local` dosyasında `WEB_AUTH_GOOGLE=false` kullan.
 
-### Google hesap seçicisinde yayın alan adı
+### Firebase dönüş adresi ve Google markası
 
-1. Firebase **Authentication → Settings → Authorized domains** bölümünde `virtualstudycrew.com` kayıtlı olmalı.
-2. Firebase **Authentication → Sign-in method → Google** bölümündeki web istemci kimliğini bul. Aynı istemciyi Google Cloud **Google Auth Platform → Clients** bölümünde açıp **Authorized redirect URIs** listesine `https://virtualstudycrew.com/__/auth/handler` ekle. Google izin ekranındaki uygulama adını **Branding** üzerinden düzenleyebilirsin.
-3. Google Cloud kaydını doğruladıktan sonra Vercel Production ortamına `WEB_FIREBASE_CUSTOM_AUTH_DOMAIN=virtualstudycrew.com` ekle ve `main` dalını yeniden dağıt. Vercel, `/__/auth/` altındaki Firebase giriş isteklerini proje sunucusuna iletir. Google, dönüş adresini reddederse bu değişkeni kaldırıp Firebase’in varsayılan giriş adresiyle yeniden dağıt.
-4. Canlı sitede Google hesabıyla giriş yap ve Supabase profilinin açıldığını doğrula.
-
-[Firebase özel alan adı kuralları](https://firebase.google.com/docs/auth/web/redirect-best-practices)
+Web uygulaması Firebase projesinin varsayılan dönüş adresini kullanır. Google Cloud **Google Auth Platform → Clients** bölümündeki bağlı web istemcisinin **Authorized redirect URIs** listesinde `https://gen-lang-client-0743834205.firebaseapp.com/__/auth/handler` kayıtlı olmalı. İzin ekranındaki uygulama adı ve logo, aynı Google Cloud projesinin **Branding** bölümünde yönetilir. [Firebase Google giriş yönergesi](https://firebase.google.com/docs/auth/web/google-signin)
 
 ### Expo ve ayrı Supabase projeleri
 

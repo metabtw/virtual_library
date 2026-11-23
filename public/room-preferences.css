@@ -1,19 +1,7 @@
-.scene[data-room-theme='rain'] {
-  background-image: linear-gradient(#17182e20, #22182f8c), url('/room-themes/rain.webp');
-  border-color: #849ae26b;
-}
-.scene[data-room-theme='garden'] {
-  background-image: linear-gradient(#19382a1a, #16281d8a), url('/room-themes/garden.webp');
-  border-color: #8ec8a96b;
-}
-.scene[data-room-theme='stars'] {
-  background-image: linear-gradient(#23133220, #20122e85), url('/room-themes/stars.webp');
-  border-color: #b28ccf6b;
-}
-.scene[data-room-theme='aurora'] {
-  background-image: linear-gradient(#12101b22, #14121b90), url('/aurora.webp');
-  border-color: #8ec8a96b;
-}
+.scene[data-room-theme='rain'], .scene[data-room-theme='rain-terrace'], .scene[data-room-theme='mathematics'] {border-color:#849ae26b}
+.scene[data-room-theme='garden'], .scene[data-room-theme='aurora'], .scene[data-room-theme='aurora-observatory'], .scene[data-room-theme='science'] {border-color:#8ec8a96b}
+.scene[data-room-theme='stars'], .scene[data-room-theme='japanese-garden'], .scene[data-room-theme='art'],
+.scene[data-room-theme='literature'] {border-color:#b28ccf6b}
 
 .room-preferences {
   display: grid;

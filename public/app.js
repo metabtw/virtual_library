@@ -1,3 +1,6 @@
+import { createAccountDialogs } from './account-dialogs.js';
+import { loadingPixels, tourSteps } from './onboarding.js';
+import { defaultRoomTheme, roomBackdrop } from './room-art.js';
 import { createClient } from './supabase-web.js';
 import { config } from './config.js';
 import { createRoomConnection, emailAuthMessage, invokeLibrary } from './library-client.js';
@@ -17,8 +20,11 @@ const client = config && createClient(config.url, config.key, {
   auth: { flowType: 'pkce', detectSessionInUrl: false },
 });
 if (config?.firebaseGoogle) void import('./google-sign-in.js').catch(() => {});
+let authReady = !client;
+let tourIndex = 0;
 const deletionPage = location.pathname === '/account-deletion';
 const content = document.querySelector('#content');
+const tourDialog = document.querySelector('#onboarding-dialog');
 const notice = document.querySelector('#notice');
 const verification = document.querySelector('#verify-dialog');
 const reactionDialog = document.querySelector('#reaction-dialog');
@@ -37,7 +43,6 @@ const shareCodeStatus = document.querySelector('#share-code-status');
 const languageToggle = document.querySelector('#language-toggle');
 const labels = { room: 'library', rooms: 'rooms', shop: 'shop', profile: 'profileInventory', ranking: 'leaderboard' };
 const palette = ['#bd7050', '#789078', '#7988ab', '#ad7963'];
-const roomIcons = { night: '☾', garden: '❧', archive: '✦', 'rain-terrace': '☂', 'aurora-observatory': '✧', 'japanese-garden': '❀' };
 const categories = {
   all: 'catalogAll', wearable: 'catalogClothes', hair: 'catalogHair', desk: 'catalogDesk',
   pet: 'catalogPets', ambience: 'catalogSound', rare: 'catalogChests',
@@ -96,6 +101,55 @@ const localName = item => locale === 'en' ? item.name_en || item.name : item.nam
 const privacyHref = () => '/privacy?lang=' + locale;
 const termsHref = () => '/terms?lang=' + locale;
 const deletionHref = () => '/account-deletion?lang=' + locale;
+const accountDialogs = createAccountDialogs({
+  t,
+  invoke: (action, payload) => invokeLibrary(client, action, payload),
+  deleted: () => closeSession(true),
+});
+
+function loadingScreen() {
+  return `<div class="startup-screen" role="status" aria-label="${t('loading')}">
+    <div class="startup-mark"><div class="startup-ring" aria-hidden="true">${loadingPixels.map(pixel =>
+      `<i style="left:${pixel.x}px;top:${pixel.y}px;opacity:${pixel.opacity}"></i>`).join('')}</div>
+      <img src="/app-logo.png" width="126" height="126" alt=""></div>
+    <p>${t('loading')}</p>
+  </div>`;
+}
+
+function showTour(index) {
+  const step = tourSteps[index];
+  tourIndex = index;
+  tourDialog.innerHTML = `<p class="tour-welcome" id="onboarding-title">${t('tourTitle')}</p>
+    <img class="tour-art" src="${roomBackdrop(step.art)}" alt="">
+    <div class="tour-copy"><h2>${t(step.title)}</h2><p>${t(step.body)}</p></div>
+    <div class="tour-actions">
+      <button class="secondary" type="button" data-tour="skip">${t('tourSkip')}</button>
+      <small>${index + 1} / ${tourSteps.length}</small>
+      <button class="primary" type="button" data-tour="next">${t(index + 1 === tourSteps.length ? 'tourStart' : 'tourNext')}</button>
+    </div>`;
+  if (!tourDialog.open) tourDialog.showModal();
+  else tourDialog.querySelector('[data-tour="next"]').focus();
+}
+
+async function finishTour() {
+  if (await request('finishTour')) {
+    tourDialog.close();
+    tourIndex = 0;
+    if (!data.profile?.room) location.hash = 'rooms';
+  }
+}
+
+tourDialog.addEventListener('click', event => {
+  const action = event.target.closest('[data-tour]')?.dataset.tour;
+  if (!action || busy) return;
+  if (action === 'next' && tourIndex + 1 < tourSteps.length) showTour(tourIndex + 1);
+  else void finishTour();
+});
+tourDialog.addEventListener('cancel', event => {
+  event.preventDefault();
+  if (!busy) void finishTour();
+});
+
 const profileHref = () => '/?lang=' + locale + '#profile';
 
 function termsButton() {
@@ -301,7 +355,9 @@ async function request(action, payload) {
 function reflectSession(next) {
   accessToken = next?.access_token;
   const id = next?.user?.id;
-  if (id === userId && lastView !== undefined) return;
+  if (id === userId && lastView !== undefined && authReady) return;
+  if (id && !userId && authReady && !deletionPage) history.replaceState(null, '', '#rooms');
+  authReady = true;
   revision++;
   userId = id;
   data = clock = ranking = rankingRequest = undefined;
@@ -316,6 +372,8 @@ function reflectSession(next) {
   catalogCategory.shop = catalogCategory.inventory = 'all';
   expandedPanels.clear();
   if (rewardDialog.open) rewardDialog.close();
+  if (tourDialog.open) tourDialog.close();
+  tourIndex = 0;
   lastRead = 0;
   lastView = lastScene = undefined;
   seenReactions.clear();
@@ -328,7 +386,7 @@ function reflectSession(next) {
 
 function signInView() {
   if (!client) return `<section class="card account-card">${deletionPage ? backToProfile() : ''}
-    <h1>${t('app')}</h1><p>${t('missingConfig')}</p><a href="${privacyHref()}">${t('readPrivacy')}</a></section>`;
+    <h1>${t('app')}</h1><p>${t('missingConfig')}</p><div class="auth-links"><a class="secondary account-button account-data" href="${privacyHref()}">${t('readPrivacy')}</a>${termsButton()}</div></section>`;
   return `<section class="card account-card auth-card">
     <div class="auth-heading"><img class="auth-emblem" src="/app-logo.png" width="45" height="45" alt=""><h1>${t(deletionPage ? 'deleteAccount' : 'signInTitle')}</h1></div>
     ${deletionPage ? '' : `<p>${t('siteIntro')}</p>`}
@@ -349,9 +407,9 @@ function signInView() {
         <button class="primary">${t('sendEmail')}</button>
       </form>`}
     ${emailFeedback ? `<p class="auth-feedback" role="alert">${t(emailFeedback)}</p>` : ''}
-    <div class="auth-links"><a href="${privacyHref()}">${t('readPrivacy')}</a>
+    <div class="auth-links"><a class="secondary account-button account-data" href="${privacyHref()}">${t('readPrivacy')}</a>
     ${termsButton()}
-    ${deletionPage ? backToProfile() : `<a href="${deletionHref()}">${t('deletionPage')}</a>`}</div>
+    ${deletionPage ? backToProfile() : `<a class="secondary account-button account-danger" href="${deletionHref()}">${t('deletionPage')}</a>`}</div>
   </section>`;
 }
 
@@ -459,6 +517,7 @@ function roomView(room) {
         <button class="primary" data-action="start" ${validDuration() ? '' : 'disabled'}>▶ &nbsp; ${t('start')}</button>`
         : `<a class="primary" href="#rooms">${t('joinRoom')}</a>`;
   const minutes = room?.minutes ?? 0;
+  const theme = roomPreferences.themeFor(room);
   const hasFriends = data.friends?.some(friend => friend.status === 'accepted');
   return `<div class="room-layout">
     <div class="heading compact-heading room-heading"><div class="room-identity"><h1 id="room-title">${name}</h1>
@@ -470,7 +529,7 @@ function roomView(room) {
       <progress aria-label="${t('groupMinutes')}" max="${roomGoalMinutes}" value="${minutes % roomGoalMinutes}"></progress>
       <b>${minutes % roomGoalMinutes}/${roomGoalMinutes}</b></div>` : ''}
     <div class="room-stage">
-      <section class="scene" data-room-theme="${roomPreferences.themeFor(room)}" aria-labelledby="room-title">
+      <section class="scene" data-room-theme="${theme}" style="--room-art:url('${roomBackdrop(theme)}')" aria-labelledby="room-title">
         <div class="scene-top"><span><span class="dot"></span> <span id="room-count">${room?.count ?? 0}</span> / ${room?.capacity ?? 9} ${t('people')}</span><span>☾ &nbsp; ${t('quietRoom')}</span></div>
         <div id="room-seats"></div>
       </section>
@@ -491,22 +550,36 @@ function roomView(room) {
   </div>`;
 }
 
+function roomTool(id, title, contents) {
+  return `<details class="card room-tool" data-disclosure="${id}" ${expandedPanels.has(id) ? 'open' : ''}>
+    <summary class="disclosure-summary"><span>${title}</span><small></small></summary>${contents}</details>`;
+}
+
 function roomsView() {
   return `<div class="heading compact-heading"><h1>${t('rooms')}</h1><a class="secondary" href="#ranking">${t('leaderboard')}</a></div>
+  <div class="room-tools">
+    <label class="room-search"><span aria-hidden="true">⌕</span>
+      <input type="search" id="room-search" placeholder="${t('searchTarget')}" aria-label="${t('searchTarget')}" value="${escape(roomSearch)}"></label>
+    <div class="room-grid room-actions private-actions">
+      ${roomTool('create-private-room', t('openPrivateRoom'), data.profile.ownsPrivateRoom
+        ? `<p class="room-owned" role="status">${t('privateRoomOwned')}</p>`
+        : `<form class="stacked" id="create-room-form"><label class="field">${t('roomName')}
+          <input name="roomName" value="${escape(draft.roomName)}" required minlength="2" maxlength="32"></label>
+          <button class="primary">${t('createRoom')}</button></form>`)}
+      ${roomTool('join-private-room', t('joinCode'), `<form class="stacked" id="join-room-form">
+        <label class="field">${t('inviteCode')} <input name="invite" value="${escape(draft.invite)}" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6"></label>
+        <button class="secondary">${t('joinCode')}</button></form>`)}
+    </div>
+  </div>
   ${studyInvitations(data, t, escape, locale)}
-  <label class="field room-search">${t('searchTarget')} <input type="search" id="room-search" value="${escape(roomSearch)}"></label>
   <div class="room-grid room-list">${data.rooms.map(room => `<article class="card room-card" data-room-id="${escape(room.id)}">
-    <span class="item-icon" aria-hidden="true">${room.private ? '◆' : roomIcons[room.id] ?? '☾'}</span>
+    <div class="room-preview"><img src="${roomBackdrop(defaultRoomTheme(room.id, (room.minutes ?? 0) >= roomGoalMinutes))}" alt="" width="384" height="128" loading="lazy"></div>
     <div class="room-card-title"><h2>${escape(localName(room))}</h2>${room.private ? `<span class="private-badge">${t('privateBadge')}</span>` : ''}</div>
     ${room.targets?.length ? `<p class="room-targets">${escape(room.targets.join(' · '))}</p>` : ''}
     <p><span class="dot"></span> ${room.count} / ${room.capacity} ${t('people')}</p>
     <button class="primary" data-action="join" data-value="${escape(room.id)}" ${room.count >= room.capacity && data.profile?.room !== room.id ? 'disabled' : ''}>${t(data.profile?.room === room.id ? 'open' : room.count >= room.capacity ? 'roomFull' : 'joinRoom')}</button>
   </article>`).join('')}</div>
-  <p id="room-search-empty" role="status" hidden>${t('noRooms')}</p>
-  <div class="room-grid room-actions private-actions">
-    ${data.profile.ownsPrivateRoom ? `<div class="card room-owned" role="status"><p>${t('privateRoomOwned')}</p></div>` : `<form class="card stacked" id="create-room-form"><label class="field">${t('roomName')} <input name="roomName" value="${escape(draft.roomName)}" required minlength="2" maxlength="32"></label><button class="primary">${t('createRoom')}</button></form>`}
-    <form class="card stacked" id="join-room-form"><label class="field">${t('inviteCode')} <input name="invite" value="${escape(draft.invite)}" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6"></label><button class="secondary">${t('joinCode')}</button></form>
-  </div>`;
+  <p id="room-search-empty" role="status" hidden>${t('noRooms')}</p>`;
 }
 
 function filterRooms() {
@@ -698,6 +771,7 @@ function paint(signature, html) {
 }
 
 function render() {
+  if (!authReady) { paint('auth-loading', loadingScreen); return; }
   const page = location.hash.slice(1);
   const lock = running();
   const sidebar = document.querySelector('.sidebar');
@@ -720,13 +794,13 @@ function render() {
     const signIn = !userId;
     document.querySelector('#location').textContent = t(signIn ? 'signIn' : deletionPage ? 'deletionPage' : 'library');
     paint(JSON.stringify([signIn, deletionPage, emailSentTo, emailFeedback, Boolean(data), locale]),
-      signIn ? signInView : deletionPage ? deletionView : () => `<p>${t('loading')}</p>`);
+      signIn ? signInView : deletionPage ? deletionView : loadingScreen);
     updateEmailResend();
     return;
   }
   const inRoom = Boolean(data.profile?.room);
   const roomLocked = lock || (page === 'rooms' && inRoom);
-  const view = !data.profile ? 'profile' : roomLocked ? 'room' : Object.hasOwn(labels, page) ? page : 'room';
+  const view = !data.profile ? 'profile' : roomLocked ? 'room' : Object.hasOwn(labels, page) ? page : 'rooms';
   if (roomLocked && page !== 'room') history.replaceState(null, '', '#room');
   document.querySelector('#location').textContent = t(labels[view]);
   document.querySelectorAll('nav a').forEach(link => {
@@ -746,6 +820,7 @@ function render() {
     : view === 'profile' ? profileView() : view === 'ranking' ? rankingView() : shopView());
   roomPreferences.sync(view === 'room' ? room : null, data.inventory);
   if (view === 'rooms') filterRooms();
+  if (data.profile?.tourPending && !tourDialog.open && !lock) showTour(tourIndex);
   if (view === 'ranking' && !ranking) void loadRanking();
   if (view === 'room') {
     const count = room?.count ?? 0;
@@ -820,11 +895,22 @@ function updateClock() {
   }
 }
 
+async function closeSession(accountDeleted = false) {
+  if (!accountDeleted && data?.profile?.room) await invokeLibrary(client, 'roomPresence', {
+    ...roomConnection.payload(), mode: 'disconnect', room: data.profile.room,
+  }).catch(() => {});
+  const { error } = await client.auth.signOut({ scope: 'local' });
+  if (error && !accountDeleted) throw error;
+  if (!deletionPage) history.replaceState(null, '', '#rooms');
+  reflectSession(null);
+  toast(t(accountDeleted ? 'accountDeleted' : 'signedOut'));
+}
+
 async function leaveRoom() {
   if (busy || !data?.profile?.room || running()) return;
   const room = data.rooms.find(item => item.id === data.profile.room);
   const warning = room?.owned && room.count <= 1 ? `\n\n${t('privateRoomClosing')}` : '';
-  if (!confirm(t('leaveConfirm') + warning)) return;
+  if (!await accountDialogs.confirm(t('leave'), t('leaveConfirm') + warning)) return;
   if (await request('leave')) {
     location.hash = 'rooms';
     if (data.privateRoomClosing) toast(t('privateRoomClosing'));
@@ -1043,10 +1129,7 @@ document.addEventListener('click', async event => {
     try {
       if (value === 'google' && config.firebaseGoogle) {
         const { signInWithFirebaseGoogle } = await import('./google-sign-in.js');
-        const firebaseConfig = location.protocol === 'https:' && location.hostname === config.firebaseGoogleDomain
-          ? { ...config.firebaseGoogle, authDomain: config.firebaseGoogleDomain }
-          : config.firebaseGoogle;
-        await signInWithFirebaseGoogle(client.auth, firebaseConfig, locale);
+        await signInWithFirebaseGoogle(client.auth, config.firebaseGoogle, locale);
       } else {
         const { error } = await client.auth.signInWithOAuth({ provider: value, options: { redirectTo: redirectTo() } });
         if (error) throw error;
@@ -1064,18 +1147,14 @@ document.addEventListener('click', async event => {
     return;
   }
   if (!userId) return;
-  if (action === 'sign-out' || action === 'delete-account') {
-    if (action === 'delete-account' && !confirm(t('confirmDelete'))) return;
-    busy = button.disabled = true;
-    try {
-      if (action === 'delete-account') await invokeLibrary(client, 'deleteAccount');
-      else await invokeLibrary(client, 'roomPresence', { ...roomConnection.payload(), mode: 'disconnect', room: data?.profile?.room }).catch(() => {});
-      const { error } = await client.auth.signOut({ scope: 'local' });
-      if (error && action !== 'delete-account') throw error;
-      reflectSession(null);
-      toast(t(action === 'delete-account' ? 'accountDeleted' : 'signedOut'));
-    } catch (error) { toast(messageFor(error.message, t)); }
-    finally { busy = button.disabled = false; }
+  if (action === 'delete-account') { await accountDialogs.startDeletion(); return; }
+  if (action === 'sign-out') {
+    const warning = data?.profile?.room ? `\n\n${t('signOutRoom')}` : '';
+    if (!await accountDialogs.confirm(t('signOut'), t('confirmSignOut') + warning)) return;
+    busy = true;
+    try { await closeSession(); }
+    catch (error) { toast(messageFor(error.message, t)); }
+    finally { busy = false; }
     return;
   }
   if (!data?.profile || (running() && action !== 'verify' && !(action === 'status' && value === 'break'))) return;
@@ -1159,6 +1238,7 @@ window.addEventListener('pageshow', event => {
   if (event.persisted && !document.hidden) { roomConnection.advance(); refreshState(); }
 });
 if (client) {
+  render();
   const url = new URL(location.href);
   const code = url.searchParams.get('code');
   if (code) {

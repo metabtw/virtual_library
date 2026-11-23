@@ -7,7 +7,7 @@
   <title>Virtual Study Crew · Giriş kodun</title>
 </head>
 <body style="margin:0;padding:0;background-color:#0d1927;color:#fff5dd;font-family:Arial,sans-serif;-webkit-text-size-adjust:100%;">
-  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">Virtual Study Crew giriş kodun 120 saniye geçerlidir.</div>
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">{{ if eq .RedirectTo "https://virtualstudycrew.com/account-deletion?intent=verify" }}Virtual Study Crew hesap silme kodun 120 saniye geçerlidir.{{ else }}Virtual Study Crew giriş kodun 120 saniye geçerlidir.{{ end }}</div>
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#0d1927" style="background-color:#0d1927;">
     <tr>
       <td align="center" style="padding:26px 12px;">
@@ -20,8 +20,8 @@
           </tr>
           <tr>
             <td align="center" style="padding:4px 20px 16px;">
-              <h1 style="margin:0 0 10px;color:#fff5dd;font:700 30px/1.2 Georgia,serif;">Giriş kodun</h1>
-              <p style="margin:0;color:#d9e6ec;font-size:15px;line-height:1.5;">Uygulamadaki giriş ekranına dön ve aşağıdaki 6 haneli kodu gir.</p>
+              <h1 style="margin:0 0 10px;color:#fff5dd;font:700 30px/1.2 Georgia,serif;">{{ if eq .RedirectTo "https://virtualstudycrew.com/account-deletion?intent=verify" }}Hesap silme kodun{{ else }}Giriş kodun{{ end }}</h1>
+              <p style="margin:0;color:#d9e6ec;font-size:15px;line-height:1.5;">{{ if eq .RedirectTo "https://virtualstudycrew.com/account-deletion?intent=verify" }}Hesabını silmek için uygulamadaki onay ekranına dön ve bu 6 haneli kodu gir.{{ else }}Uygulamadaki giriş ekranına dön ve aşağıdaki 6 haneli kodu gir.{{ end }}</p>
             </td>
           </tr>
           <tr>
@@ -39,7 +39,7 @@
           <tr>
             <td style="padding:0 20px 18px;color:#c6d9e3;font-size:13px;line-height:1.5;">
               <p style="margin:0 0 9px;">Kodunu kimseyle paylaşma. Bu isteği sen başlatmadıysan e-postayı yoksayabilirsin.</p>
-              <p lang="en" style="margin:0;">Enter this six-digit, one-time code in Virtual Study Crew within 120 seconds. If you didn’t request it, ignore this email.</p>
+              <p lang="en" style="margin:0;">{{ if eq .RedirectTo "https://virtualstudycrew.com/account-deletion?intent=verify" }}Enter this code on the account deletion screen within 120 seconds.{{ else }}Enter this six-digit, one-time code in Virtual Study Crew within 120 seconds.{{ end }} If you didn’t request it, ignore this email.</p>
             </td>
           </tr>
           <tr>

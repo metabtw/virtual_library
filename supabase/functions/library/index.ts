@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.106.2';
 
+import { accountDeletion } from '../_shared/account-deletion.ts';
 import { deliverRewards } from '../_shared/rewards.ts';
 import { adPlatforms, openRewardedAd } from '../_shared/ad-rewards.ts';
 
@@ -7,10 +8,11 @@ declare const EdgeRuntime: { waitUntil(work: Promise<unknown>): void };
 
 const url = Deno.env.get('SUPABASE_URL')!;
 const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-const auth = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!);
+const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+const auth = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
 const actions = new Set([
   'state', 'profile', 'join', 'leave', 'status', 'start', 'verify', 'buy', 'place',
-  'deleteAccount', 'pushRegister', 'pushRemove', 'target', 'createRoom', 'joinCode',
+  'startAccountDeletion', 'deleteAccount', 'finishTour', 'pushRegister', 'pushRemove', 'target', 'createRoom', 'joinCode',
   'openBox', 'openChest', 'abandon', 'studySummary', 'leaderboard', 'rankingVisibility', 'react',
   'addFriend', 'answerFriend', 'removeFriend', 'inviteFriend', 'answerStudyInvite', 'adStart', 'roomPresence',
 ]);
@@ -37,9 +39,9 @@ Deno.serve(async (request) => {
   const body = await request.json().catch(() => null);
   if (!actions.has(body?.action)) return reply({ error: 'invalidAction' }, { status: 400 });
 
-  if (body.action === 'deleteAccount') {
-    const { error: deletion } = await admin.auth.admin.deleteUser(data.user.id);
-    return reply(deletion ? { error: 'accountDeletion' } : { deleted: true }, { status: deletion ? 500 : 200 });
+  if (body.action === 'startAccountDeletion' || body.action === 'deleteAccount') {
+    const otp = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    return reply(await accountDeletion(admin, otp, token, data.user, body.action, body.payload));
   }
   if (body.action === 'adStart') return reply(await openRewardedAd(admin, data.user.id, body.payload?.platform));
 

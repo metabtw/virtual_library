@@ -43,13 +43,32 @@
         <h1>Virtual Study Crew</h1>
         <p>Arkadaşlarınla sanal çalışma odalarına katıl, odak sayacını ayarla ve kendi piksel avatarınla birlikte ders çalış.</p>
         <nav class="auth-links" aria-label="Yasal bilgiler">
-          <a href="/privacy">Gizlilik politikası</a>
+          <a class="secondary account-button account-data" href="/privacy">Gizlilik politikası</a>
           <a class="secondary account-button account-terms" href="/terms">Kullanım koşulları</a>
         </nav>
       </section>
     </section>
   </main>
   <p id="notice" role="status"></p>
+  <dialog class="action-sheet" id="action-confirmation" aria-labelledby="action-confirm-title">
+    <h2 id="action-confirm-title"></h2><p></p>
+    <form method="dialog" class="sheet-actions">
+      <button class="secondary" value="cancel" autofocus></button>
+      <button class="secondary account-button account-danger" value="confirm"></button>
+    </form>
+  </dialog>
+  <dialog class="action-sheet" id="deletion-confirmation" aria-labelledby="deletion-confirm-title">
+    <h2 id="deletion-confirm-title"></h2>
+    <p data-deletion-instructions></p>
+    <form class="stacked">
+      <label class="field"><span></span><input name="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required></label>
+      <p data-deletion-feedback role="status"></p>
+      <button type="submit" class="secondary account-button account-danger"></button>
+      <div class="sheet-actions"><button type="button" class="secondary" data-close-deletion></button>
+        <button type="button" class="secondary" data-send-code></button></div>
+    </form>
+  </dialog>
+  <dialog class="action-sheet tour-sheet" id="onboarding-dialog" aria-labelledby="onboarding-title"></dialog>
   <dialog id="box-reward-dialog" class="reward-dialog" aria-labelledby="box-reward-title">
     <h2 id="box-reward-title"></h2>
     <div class="reward-stage" aria-hidden="true">

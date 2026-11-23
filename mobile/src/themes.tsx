@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { defaultRoomTheme, type RoomBackdrop } from '../../public/room-art';
 import type { ThemeChoice } from './model';
 import type { Translation } from './strings';
 import { Button, ui } from './ui';
 
-type ResolvedTheme = Exclude<ThemeChoice, 'auto'> | 'aurora';
 type Palette = { border: string; accent: string; desk: string; shadow: string };
 
-export const roomThemes: Record<ResolvedTheme, { image: number; palette: Palette }> = {
+export const roomThemes: Record<RoomBackdrop, { image: number; palette: Palette }> = {
   classic: { image: require('../../public/library.webp'), palette: {
     border: '#b77c66', accent: '#ffdbab', desk: '#a66a4a', shadow: '#603837',
   } },
@@ -23,16 +23,40 @@ export const roomThemes: Record<ResolvedTheme, { image: number; palette: Palette
   aurora: { image: require('../assets/aurora.webp'), palette: {
     border: '#72a492', accent: '#d3fbd1', desk: '#4e7f70', shadow: '#36584d',
   } },
+  'old-archive': { image: require('../assets/themes/old-archive.webp'), palette: {
+    border: '#b78862', accent: '#ffcd8e', desk: '#89573e', shadow: '#4f3631',
+  } },
+  'rain-terrace': { image: require('../assets/themes/rain-terrace.webp'), palette: {
+    border: '#778ab2', accent: '#c0d8ff', desk: '#685779', shadow: '#3a3055',
+  } },
+  'aurora-observatory': { image: require('../assets/themes/aurora-observatory.webp'), palette: {
+    border: '#72a492', accent: '#d3fbd1', desk: '#4e7f70', shadow: '#36584d',
+  } },
+  'japanese-garden': { image: require('../assets/themes/japanese-garden.webp'), palette: {
+    border: '#b67691', accent: '#ffd4e1', desk: '#915a76', shadow: '#4c344b',
+  } },
+  'mathematics': { image: require('../assets/themes/mathematics.webp'), palette: {
+    border: '#6d9dbd', accent: '#c3ebff', desk: '#4e6e91', shadow: '#303c60',
+  } },
+  'history': { image: require('../assets/themes/history.webp'), palette: {
+    border: '#9f9269', accent: '#eee0a4', desk: '#786446', shadow: '#444030',
+  } },
+  'science': { image: require('../assets/themes/science.webp'), palette: {
+    border: '#669fa4', accent: '#b8f4e9', desk: '#527d83', shadow: '#2d4c59',
+  } },
+  'literature': { image: require('../assets/themes/literature.webp'), palette: {
+    border: '#a37f97', accent: '#fdd3e2', desk: '#8b5c71', shadow: '#4d354b',
+  } },
+  'languages': { image: require('../assets/themes/languages.webp'), palette: {
+    border: '#bf8c6d', accent: '#fedbb3', desk: '#a66e56', shadow: '#623e3a',
+  } },
+  'art': { image: require('../assets/themes/art.webp'), palette: {
+    border: '#a57ba6', accent: '#f5d7ff', desk: '#926892', shadow: '#523f60',
+  } },
 };
 
-export function resolveTheme(choice: ThemeChoice, room: string | null, aurora: boolean): ResolvedTheme {
-  if (choice !== 'auto') return choice;
-  if (aurora) return 'aurora';
-  if (room === 'rain-terrace') return 'rain';
-  if (room === 'aurora-observatory') return 'aurora';
-  if (room === 'japanese-garden' || room === 'garden') return 'garden';
-  if (room === 'archive') return 'stars';
-  return 'classic';
+export function resolveTheme(choice: ThemeChoice, room: string | null, aurora: boolean): RoomBackdrop {
+  return choice === 'auto' ? defaultRoomTheme(room, aurora) : choice;
 }
 
 const labels = {

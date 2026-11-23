@@ -54,8 +54,7 @@ test('builds the static Vercel site and keeps browser configuration public', asy
     rule.destination === `https://${googleWeb.firebase.authDomain}/__/auth/:path*`));
   assert.equal(getWebConfig({
     ...env, WEB_FIREBASE_CUSTOM_AUTH_DOMAIN: 'virtualstudycrew.com',
-  }).firebaseGoogleDomain,
-    'virtualstudycrew.com');
+  }).firebaseGoogle.authDomain, googleWeb.firebase.authDomain);
   assert.equal(getWebConfig({ ...env, WEB_FIREBASE_AUTH_REDIRECT_URI: 'https://virtualstudycrew.com/__/auth/handler' }).firebaseGoogleDomain,
     undefined);
 

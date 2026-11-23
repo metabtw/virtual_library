@@ -28,7 +28,7 @@ try {
     create schema auth;
     create schema realtime;
     create schema storage;
-    create table auth.users (id uuid primary key);
+    create table auth.users (id uuid primary key, recovery_sent_at timestamptz, recovery_token text not null default '');
     create table storage.buckets (id text primary key, name text, public boolean);
     create table realtime.messages (extension text);
     create table realtime.desk_events (payload jsonb, event text, topic text, private boolean);
@@ -55,6 +55,7 @@ try {
   }
 
   const migrated = await action(legacy, 'state');
+  assert.equal(migrated.profile.tourPending, false);
   assert.equal(migrated.profile.avatar.hair, 2);
   assert.equal(migrated.profile.avatar.hair_style, null);
   assert.equal(migrated.profile.avatar.skin_tone, 0);
@@ -622,6 +623,43 @@ try {
     "select public.credit_rewarded_ad(null,'web','web','fake',now())",
   ]) await assert.rejects(db.query(sql), /permission denied/);
   await db.exec('reset role');
+
+  const publicRooms = (await action(first, 'state')).rooms.filter(room => !room.private);
+  assert.equal(publicRooms.length, 12);
+  for (const id of ['mathematics', 'history', 'science', 'literature', 'languages', 'art']) {
+    assert.ok(publicRooms.some(room => room.id === id && room.capacity === 9));
+  }
+  assert.equal((await action(first, 'state')).profile.tourPending, true);
+  assert.equal((await action(first, 'finishTour')).profile.tourPending, false);
+  assert.equal((await action(first, 'state')).profile.tourPending, false);
+
+  const jwtSession = '00000000-0000-4000-a000-000000000910';
+  const otherSession = '00000000-0000-4000-a000-000000000911';
+  const { rows: [{ id: removal }] } = await db.query('select public.reserve_account_deletion($1,$2) as id', [first, jwtSession]);
+  assert.ok(removal);
+  const challengeQuery = [first, jwtSession, removal];
+  const removalStep = async (step, ids = challengeQuery) => (await db.query(
+    `select public.${step}_account_deletion($1,$2,$3) as result`, ids)).rows[0].result;
+  assert.equal((await db.query('select public.reserve_account_deletion($1,$2) as id', [first, otherSession])).rows[0].id, null);
+  assert.equal(await removalStep('activate'), null);
+  assert.equal(await removalStep('attempt'), false);
+  await db.query("update auth.users set recovery_sent_at=clock_timestamp(), recovery_token='otp' where id=$1", [first]);
+  assert.ok(Number(await removalStep('activate')) > Date.now());
+  assert.equal(await removalStep('attempt', [first, otherSession, removal]), false);
+  assert.equal(await removalStep('consume'), false);
+  for (let i = 0; i < 5; i++) assert.equal(await removalStep('attempt'), true);
+  assert.equal(await removalStep('attempt'), false);
+  await db.query("update public.account_deletion_challenges set attempts=0 where user_id=$1", [first]);
+  assert.equal(await removalStep('attempt'), true);
+  await db.query("update auth.users set recovery_sent_at=recovery_sent_at + interval '1 second' where id=$1", [first]);
+  assert.equal(await removalStep('attempt'), false, 'an ordinary newer login code replaces the reserved deletion code');
+  await db.query("update auth.users set recovery_sent_at=recovery_sent_at - interval '1 second', recovery_token='' where id=$1", [first]);
+  await db.query("update public.account_deletion_challenges set expires_at=clock_timestamp() - interval '1 second' where user_id=$1", [first]);
+  assert.equal(await removalStep('consume'), false);
+  await db.query("update public.account_deletion_challenges set expires_at=clock_timestamp() + interval '1 second' where user_id=$1", [first]);
+  assert.equal(await removalStep('consume'), true);
+  assert.equal(await removalStep('consume'), false, 'the challenge can only be consumed once');
+  assert.equal((await db.query("select has_function_privilege('authenticated','public.consume_account_deletion(uuid,uuid,uuid)','execute') as allowed")).rows[0].allowed, false);
 
   await db.query('delete from auth.users where id = $1', [first]);
   assert.equal((await db.query('select count(*)::int as count from public.profile_share_codes where profile_id = $1', [first])).rows[0].count, 0);

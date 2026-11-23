@@ -1,13 +1,14 @@
 import type { Session } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Login, watchSession } from '../src/auth';
 import { Library } from '../src/library';
 import { ui } from '../src/ui';
-import { usePreferences } from '../src/strings';
+import { LoadingScreen } from '../src/arrival';
+import { usePreferences, words } from '../src/strings';
 
 export default function Index() {
+  const t = words[usePreferences(s => s.locale)];
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
   const [preferencesReady, setPreferencesReady] = useState(usePreferences.persist.hasHydrated);
@@ -21,6 +22,6 @@ export default function Index() {
   }, []);
   useEffect(() => watchSession(setSession, () => setReady(true)), []);
   return <SafeAreaView style={ui.screen}>
-    {!ready || !preferencesReady ? <ActivityIndicator color="#ffb360" /> : session ? <Library key={session.user.id} id={session.user.id} /> : <Login />}
+    {!ready || !preferencesReady ? <LoadingScreen label={t.loading} /> : session ? <Library key={session.user.id} id={session.user.id} /> : <Login />}
   </SafeAreaView>;
 }

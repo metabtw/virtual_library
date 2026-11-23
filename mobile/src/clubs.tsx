@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Pressable, Share, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Pressable, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { defaultRoomTheme } from '../../public/room-art';
 import { roomGoalMinutes } from '../../public/study-rewards';
 import type { Room } from './model';
 import type { Locale, Translation } from './strings';
-import { Button, Field, ui } from './ui';
+import { roomThemes } from './themes';
+import { Button, Disclosure, Field, ui } from './ui';
 
 type DirectoryProps = {
   rooms: Room[]; current: string | null; pending: boolean; ownsPrivateRoom: boolean; coins: number; locale: Locale;
@@ -19,9 +21,25 @@ export function Directory({ rooms, current, pending, ownsPrivateRoom, coins, loc
   const visible = rooms.filter(room =>
     [room.name, room.name_en, ...(room.targets ?? [])].some(value => value.toLocaleLowerCase(locale).includes(query)));
   return <>
-    <Field label={t.searchTarget} value={search} onChangeText={searchFor} maxLength={48} />
+    <TextInput accessibilityLabel={t.searchTarget} placeholder={t.searchTarget} placeholderTextColor="#b9a2b7"
+      style={ui.input} value={search} onChangeText={searchFor} maxLength={48} />
+    <View style={ui.card}>
+      <Disclosure title={t.openPrivateRoom}>
+        {ownsPrivateRoom ? <Text style={ui.small}>{t.privateRoomOwned}</Text> : <>
+          <Field label={t.roomName} value={name} onChangeText={setName} maxLength={32} />
+          <Button disabled={pending || coins < 10 || name.trim().length < 2} onPress={() => create(name.trim())}>{t.createRoom}</Button>
+        </>}
+      </Disclosure>
+      <Disclosure title={t.joinCode}>
+        <Field label={t.inviteCode} value={code} onChangeText={value => setCode(value.replace(/\D/g, ''))}
+          maxLength={6} keyboardType="number-pad" />
+        <Button muted disabled={pending || code.length !== 6} onPress={() => enter(code)}>{t.joinCode}</Button>
+      </Disclosure>
+    </View>
     {!visible.length && <Text style={ui.small}>{t.noRooms}</Text>}
     <View style={styles.roomGrid}>{visible.map(room => <View style={[ui.card, styles.roomCard, fontScale >= 1.55 && styles.full]} key={room.id}>
+      <Image source={roomThemes[defaultRoomTheme(room.id, (room.minutes ?? 0) >= roomGoalMinutes)].image}
+        accessibilityIgnoresInvertColors accessible={false} resizeMode="cover" style={styles.preview} />
       <View style={styles.roomTitle}>
         <Text numberOfLines={2} style={styles.name}>{locale === 'tr' ? room.name : room.name_en}</Text>
         {room.private && <PrivateBadge t={t} />}
@@ -31,22 +49,6 @@ export function Directory({ rooms, current, pending, ownsPrivateRoom, coins, loc
         {room.id === current ? t.open : room.count >= room.capacity ? t.roomFull : t.join}
       </Button></View>
     </View>)}</View>
-    <View style={ui.card}>
-      <Text style={ui.heading}>{t.privateRoom}</Text>
-      <View style={styles.roomGrid}>
-        <View style={[styles.roomForm, fontScale >= 1.55 && styles.full]}>
-          {ownsPrivateRoom ? <Text style={ui.small}>{t.privateRoomOwned}</Text> : <>
-            <Field label={t.roomName} value={name} onChangeText={setName} maxLength={32} />
-            <Button disabled={pending || coins < 10 || name.trim().length < 2} onPress={() => create(name.trim())}>{t.createRoom}</Button>
-          </>}
-        </View>
-        <View style={[styles.roomForm, fontScale >= 1.55 && styles.full]}>
-          <Field label={t.inviteCode} value={code} onChangeText={value => setCode(value.replace(/\D/g, ''))}
-            maxLength={6} keyboardType="number-pad" />
-          <Button muted disabled={pending || code.length !== 6} onPress={() => enter(code)}>{t.joinCode}</Button>
-        </View>
-      </View>
-    </View>
   </>;
 }
 
@@ -99,7 +101,7 @@ const styles = StyleSheet.create({
   targetToggle: { minHeight: 44 },
   roomGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   roomCard: { width: '48.5%', gap: 6, padding: 9, minWidth: 0 },
-  roomForm: { width: '48%', gap: 6, justifyContent: 'space-between' },
+  preview: { width: '100%', height: 62, borderRadius: 8, backgroundColor: '#31233a' },
   full: { width: '100%' },
   roomTitle: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, alignItems: 'center' },
   name: { color: '#fff0dc', fontWeight: '700', fontSize: 14, flexShrink: 1 },

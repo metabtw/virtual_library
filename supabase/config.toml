@@ -4,6 +4,7 @@ project_id = "virtual-library"
 site_url = "sanalkutuphane://auth"
 additional_redirect_urls = [
   "sanalkutuphane://auth",
+  "https://virtualstudycrew.com/account-deletion?intent=verify",
   "http://localhost:3000/",
   "http://localhost:3000/account-deletion",
   "http://127.0.0.1:3000/",
@@ -19,7 +20,7 @@ subject = "Virtual Study Crew · Giriş kodun"
 content_path = "./supabase/templates/sign-in-code.html"
 
 [auth.email.template.magic_link]
-subject = "Virtual Study Crew · Giriş kodun"
+subject = "Virtual Study Crew · Doğrulama kodun"
 content_path = "./supabase/templates/sign-in-code.html"
 
 [functions.library]

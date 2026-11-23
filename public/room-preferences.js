@@ -1,3 +1,4 @@
+import { defaultRoomTheme, roomBackdrop } from './room-art.js';
 import { webText } from './web-strings.js';
 import { premiumAmbience, roomGoalMinutes } from './study-rewards.js';
 
@@ -6,11 +7,6 @@ const preferenceKey = 'library-room-preferences';
 const themes = {
   auto: 'themeAuto', classic: 'themeClassic', rain: 'themeRain',
   garden: 'themeGarden', stars: 'themeStars',
-};
-
-const themeImages = {
-  classic: '/library.webp', rain: '/room-themes/rain.webp', garden: '/room-themes/garden.webp',
-  stars: '/room-themes/stars.webp', aurora: '/aurora.webp',
 };
 
 const tracks = {
@@ -23,12 +19,7 @@ const isAvailable = (track, inventory) => !premiumAmbience.includes(track) || in
 
 export function resolveRoomTheme(choice, room) {
   if (choice !== 'auto') return choice;
-  if ((room?.minutes ?? 0) >= roomGoalMinutes) return 'aurora';
-  if (room?.id === 'rain-terrace') return 'rain';
-  if (room?.id === 'aurora-observatory') return 'aurora';
-  if (room?.id === 'japanese-garden' || room?.id === 'garden') return 'garden';
-  if (room?.id === 'archive') return 'stars';
-  return 'classic';
+  return defaultRoomTheme(room?.id, (room?.minutes ?? 0) >= roomGoalMinutes);
 }
 
 function readPreferences(storage) {
@@ -112,7 +103,7 @@ export function createRoomPreferences({
 
   function markup(room, items) {
     const themeOptions = Object.entries(themes).map(([choice, label]) =>
-      `<button type="button" data-room-theme-choice="${choice}" aria-pressed="${theme === choice}"><img src="${themeImages[resolveRoomTheme(choice, room)]}" alt="" width="70" height="38" loading="lazy">${translate(label)}</button>`).join('');
+      `<button type="button" data-room-theme-choice="${choice}" aria-pressed="${theme === choice}"><img src="${roomBackdrop(resolveRoomTheme(choice, room))}" alt="" width="70" height="38" loading="lazy">${translate(label)}</button>`).join('');
     const mix = Object.entries(tracks).map(([track, label]) => isAvailable(track, items)
       ? `<fieldset class="ambience-track"><legend>${translate(label)}</legend><div class="ambience-levels">${levels.map((name, level) =>
         `<label><input type="radio" name="ambience-${track}" data-ambience-track="${track}" value="${level}" ${volumes[track] === level ? 'checked' : ''}><span>${translate(name)}</span></label>`).join('')}</div></fieldset>`
@@ -132,7 +123,10 @@ export function createRoomPreferences({
       if (choice && Object.hasOwn(themes, choice.dataset.roomThemeChoice)) {
         theme = choice.dataset.roomThemeChoice;
         save();
-        document.querySelector('.scene[data-room-theme]').dataset.roomTheme = themeFor(activeRoom);
+        const scene = document.querySelector('.scene[data-room-theme]');
+        const next = themeFor(activeRoom);
+        scene.dataset.roomTheme = next;
+        scene.style.setProperty('--room-art', `url('${roomBackdrop(next)}')`);
         const picker = choice.closest('.room-theme');
         for (const option of picker.querySelectorAll('[data-room-theme-choice]')) {
           option.setAttribute('aria-pressed', String(option === choice));
