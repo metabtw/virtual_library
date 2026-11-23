@@ -1,11 +1,13 @@
 type Gender = 'unspecified' | 'female' | 'male';
 type Labels = Record<'tr' | 'en', readonly string[]>;
-export type HairSkin = 'copperCurls' | 'silverBraid' | 'midnightFade' | 'lavenderBuns' | 'mintBob';
-export type OutfitSkin = 'auroraHood' | 'archiveVest' | 'moonCoat' | 'autumnPoncho' | 'starlightJacket' | 'mossOveralls';
-export type PetItem = 'cat' | 'dragon' | 'pinkRabbit' | 'pugPup' | 'yellowChick';
+export type HairSkin = 'copperCurls' | 'silverBraid' | 'midnightFade' | 'lavenderBuns' | 'mintBob' | 'twinBraids' | 'shortWaves' | 'sideSwept' | 'highPonytail' | 'curlyFringe';
+export type OutfitSkin = 'auroraHood' | 'archiveVest' | 'moonCoat' | 'autumnPoncho' | 'starlightJacket' | 'mossOveralls' | 'denimJacket' | 'stripedCardigan' | 'linenShirt' | 'raincoat' | 'boatNeckSweater';
+export type PetItem = 'cat' | 'dragon' | 'pinkRabbit' | 'pugPup' | 'yellowChick' | 'arcticFox';
 export type DeskPropName =
   | 'lamp' | 'neon' | 'mushroomLamp' | 'goldKeys' | 'plant' | 'teaSet' | 'hourglass' | 'foxMug' | 'retroRadio'
-  | 'miniGlobe' | 'crystalTerrarium' | 'jellyTank' | 'origamiCrane';
+  | 'miniGlobe' | 'crystalTerrarium' | 'jellyTank' | 'origamiCrane'
+  | 'brassLamp' | 'deskCalendar' | 'pottedCactus' | 'recordPlayer' | 'zenGarden'
+  | 'moonstoneLamp' | 'rainbowPrism' | 'moonGlobe' | 'clockworkOwl';
 export type PropName =
   | Exclude<DeskPropName, 'plant'> | PetItem | 'leaves' | 'pot' | 'catSleep' | 'catUpset' | 'space' | 'forest'
   | 'jellyTankBase' | 'jellyTankDrift';

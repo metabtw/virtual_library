@@ -43,6 +43,8 @@ test('builds the static Vercel site and keeps browser configuration public', asy
     rule.headers.some(header => header.key === 'X-Robots-Tag' && header.value === 'noindex')));
   assert.match(await read('privacy.html'), /<html lang="tr">/);
   assert.match(await read('privacy-en.html'), /Retention &lt; 30 days/);
+  assert.match(await read('terms.html'), /Kullanım koşulları/u);
+  assert.match(await read('terms-en.html'), /Terms of service/);
   assert.deepEqual(JSON.parse(await read('healthz.json')), { ok: true });
   for (const { destination } of vercel.rewrites) {
     if (destination.startsWith('https://')) continue;

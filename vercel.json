@@ -17,6 +17,12 @@
       "destination": "/privacy-en.html"
     },
     { "source": "/privacy", "destination": "/privacy.html" },
+    {
+      "source": "/terms",
+      "has": [{ "type": "query", "key": "lang", "value": "en" }],
+      "destination": "/terms-en.html"
+    },
+    { "source": "/terms", "destination": "/terms.html" },
     { "source": "/healthz", "destination": "/healthz.json" }
   ],
   "headers": [

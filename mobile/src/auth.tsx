@@ -12,13 +12,17 @@ const googleEnabled = process.env.EXPO_PUBLIC_AUTH_GOOGLE === 'true';
 const privacyUrl = process.env.EXPO_PUBLIC_PRIVACY_URL;
 WebBrowser.maybeCompleteAuthSession();
 
-export function PrivacyLink({ locale, t }: { locale: Locale; t: Translation }) {
-  let url: URL;
-  try { url = new URL(privacyUrl ?? ''); }
+export function PolicyLinks({ locale, t }: { locale: Locale; t: Translation }) {
+  let privacy: URL;
+  try { privacy = new URL(privacyUrl || 'https://virtualstudycrew.com/privacy'); }
   catch { return null; }
-  if (url.protocol !== 'https:') return null;
-  url.searchParams.set('lang', locale);
-  return <Button muted onPress={() => void Linking.openURL(url.toString()).catch(() => {})}>{t.readPrivacy}</Button>;
+  if (privacy.protocol !== 'https:') return null;
+  privacy.searchParams.set('lang', locale);
+  const terms = `https://virtualstudycrew.com/terms?lang=${locale}`;
+  return <>
+    <Button muted onPress={() => void Linking.openURL(privacy.toString()).catch(() => {})}>{t.readPrivacy}</Button>
+    <Button muted onPress={() => void Linking.openURL(terms).catch(() => {})}>{t.terms}</Button>
+  </>;
 }
 
 export function Login() {
@@ -121,7 +125,7 @@ export function Login() {
     </View>}
     <View style={ui.card}>
       <Text style={ui.heading}>{t.privacy}</Text><Text style={ui.small}>{t.privacyBody}</Text>
-      <PrivacyLink locale={locale} t={t} />
+      <PolicyLinks locale={locale} t={t} />
     </View>
   </ScrollView>;
 }

@@ -28,7 +28,9 @@ export const roomThemes: Record<ResolvedTheme, { image: number; palette: Palette
 export function resolveTheme(choice: ThemeChoice, room: string | null, aurora: boolean): ResolvedTheme {
   if (choice !== 'auto') return choice;
   if (aurora) return 'aurora';
-  if (room === 'garden') return 'garden';
+  if (room === 'rain-terrace') return 'rain';
+  if (room === 'aurora-observatory') return 'aurora';
+  if (room === 'japanese-garden' || room === 'garden') return 'garden';
   if (room === 'archive') return 'stars';
   return 'classic';
 }

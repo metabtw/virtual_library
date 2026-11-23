@@ -2,7 +2,7 @@ import { setStringAsync } from 'expo-clipboard';
 import { useState } from 'react';
 import { Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { inviteWait, splitProfileCode, type ProfileCodePrefix } from '../../public/room-social';
-import type { Answer, DailyQuests as Quests, Friend, Profile, StudyInvite } from './model';
+import type { Answer, DailyQuests as Quests, Friend, Profile, StudyInvite, WeeklyQuests } from './model';
 import type { Locale, Translation } from './strings';
 import { Button, ui } from './ui';
 
@@ -63,23 +63,31 @@ export function ProfileCodes({ profile, accountId, t }: { profile: Profile; acco
   </View>;
 }
 
-export function DailyQuests({ quests, t }: { quests?: Quests; t: Translation }) {
-  if (!quests) return null;
-  return <View style={ui.card}>
-    <Text style={ui.heading}>{t.dailyQuests}</Text>
-    {quests.goals.map(goal => {
-      const progress = Math.min(quests.minutes, goal.minutes);
-      const label = `${t.todayFocus} · ${goal.minutes} ${t.minuteUnit}`;
-      return <View key={goal.minutes} style={styles.quest}>
-        <View style={styles.actions}><Text style={ui.ink}>{label}</Text><Text style={ui.accent}>+{goal.coins} {t.coins}</Text></View>
-        <View accessibilityRole="progressbar" accessibilityLabel={label}
-          accessibilityValue={{ min: 0, now: progress, max: goal.minutes }} style={styles.progress}>
-          <View style={[styles.fill, { width: `${progress / goal.minutes * 100}%` }]} />
+export function FocusQuests({ daily, weekly, t }: { daily?: Quests; weekly?: WeeklyQuests; t: Translation }) {
+  const dailyGoals = daily?.goals.map(goal => ({
+    ...goal, id: String(goal.minutes), target: goal.minutes, progress: daily.minutes, unit: 'minutes',
+  }));
+  const groups = [
+    { title: t.dailyQuests, label: t.todayFocus, goals: dailyGoals },
+    { title: t.weeklyQuests, label: t.weekFocus, goals: weekly?.goals, note: t.weeklyReset },
+  ];
+  return <>{groups.map(({ title, label, goals, note }) => goals?.length ? <View key={title} style={ui.card}>
+    <Text style={ui.heading}>{title}</Text>
+    {note && <Text style={ui.small}>{note}</Text>}
+    {goals.map(goal => {
+      const progress = Math.min(goal.progress, goal.target);
+      const unit = goal.unit === 'days' ? t.dayUnit : t.minuteUnit;
+      const task = `${goal.unit === 'days' ? t.activeDays : label} · ${goal.target} ${unit}`;
+      return <View key={goal.id} style={styles.quest}>
+        <View style={styles.actions}><Text style={[ui.ink, { flexShrink: 1 }]}>{task}</Text><Text style={ui.accent}>+{goal.coins} {t.coins}</Text></View>
+        <View accessibilityRole="progressbar" accessibilityLabel={task}
+          accessibilityValue={{ min: 0, now: progress, max: goal.target }} style={styles.progress}>
+          <View style={[styles.fill, { width: `${progress / goal.target * 100}%` }]} />
         </View>
-        <Text style={ui.small}>{goal.completed ? '✓ ' + t.questCompleted : `${progress} / ${goal.minutes} ${t.minuteUnit}`}</Text>
+        <Text style={ui.small}>{goal.completed ? '✓ ' + t.questCompleted : `${progress} / ${goal.target} ${unit}`}</Text>
       </View>;
     })}
-  </View>;
+  </View> : null)}</>;
 }
 
 export function StudyInvitations({ invites, locale, pending, now, t, answer }: {

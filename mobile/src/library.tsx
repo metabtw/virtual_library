@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { avatarOptions, avatarPresets, defaultAvatar, hairStyles, pickAvatarStyle } from '../../public/avatar-art';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../../public/focus-clock';
 import { displayDeskStatuses, recordDeskStatus, type DeskUpdates } from '../../public/desk-status';
-import { roomGoalMinutes } from '../../public/study-rewards';
+import { earnedQuestCoins, roomGoalMinutes } from '../../public/study-rewards';
 import { deleteAccount, library, notifyRoomPresence, roomConnection, supabase } from './api';
 import type { Avatar, Command, Drop, Focus, ItemId, Member, Profile, Snapshot } from './model';
 import { RoomScene, Sprite } from './scene';
@@ -23,9 +23,9 @@ import { dressedAvatar } from './cosmetics';
 import { roomThemes, ThemePicker } from './themes';
 import { LeaderboardModal, StudyCardModal } from './study';
 import { presetAssets } from './asset-art';
-import { PrivacyLink } from './auth';
+import { PolicyLinks } from './auth';
 import { ShopRewards } from './ads';
-import { DailyQuests, FriendInviteButton, FriendsPanel, ProfileCodeField, ProfileCodes, StudyInvitations } from './community';
+import { FocusQuests, FriendInviteButton, FriendsPanel, ProfileCodeField, ProfileCodes, StudyInvitations } from './community';
 import type { ProfileCodePrefix } from '../../public/room-social';
 
 type Action = { [K in keyof Command]: { name: K; payload?: Command[K] } }[keyof Command];
@@ -208,6 +208,17 @@ export function Library({ id }: { id: string }) {
     },
   });
   const snapshot = query.data;
+  const previousSnapshot = useRef(snapshot);
+  useEffect(() => {
+    const previous = previousSnapshot.current;
+    previousSnapshot.current = snapshot;
+    const earned = previous && snapshot ? earnedQuestCoins(previous, snapshot) : 0;
+    if (earned) {
+      setReactionMessage(`${t.questsReward} · +${earned} ${t.coins}`);
+      clearTimeout(reactionTimeout.current);
+      reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
+    }
+  }, [snapshot, t]);
   const roomMembers = useMemo(() => displayDeskStatuses(snapshot?.members ?? [], snapshot?.now ?? 0, deskUpdates),
     [snapshot?.members, snapshot?.now, deskUpdates]);
   const inventory = snapshot?.inventory;
@@ -459,10 +470,10 @@ export function Library({ id }: { id: string }) {
         </> : effectivePage === 'shop' ? <>
           <ShopRewards snapshot={snapshot} serverNow={observed} pending={pending} t={t}
             refresh={() => void query.refetch()} openChest={() => act({ name: 'openChest' })} />
-          <DailyQuests quests={snapshot.dailyQuests} t={t} />
+          <FocusQuests daily={snapshot.dailyQuests} weekly={snapshot.weeklyQuests} t={t} />
           <Catalog snapshot={snapshot} t={t} locale={locale} pending={pending}
             action={item => act({ name: 'buy', payload: { item } })}
-            openBox={() => act({ name: 'openBox' })} /></> :
+            openBox={tier => act({ name: 'openBox', payload: { tier } })} /></> :
           <>
             <View style={profileStyles.header}>
               <Text accessibilityRole="header" style={profileStyles.title}>{t.profileInventory}</Text>
@@ -475,7 +486,7 @@ export function Library({ id }: { id: string }) {
               <ProfileOverview profile={profile} accountId={id} equipment={equipped} pending={pending} t={t}
                 onEdit={() => setEditing(true)} onLeave={requestLeave} />}
             <TargetEditor initial={profile.target ?? ''} pending={pending} t={t} save={target => act({ name: 'target', payload: { target } })} />
-            <DailyQuests quests={snapshot.dailyQuests} t={t} />
+            <FocusQuests daily={snapshot.dailyQuests} weekly={snapshot.weeklyQuests} t={t} />
             {invitations}
             <FriendsPanel profile={profile} friends={friends} pending={pending} now={observed} t={t}
               add={code => act({ name: 'addFriend', payload: { code } })}
@@ -527,7 +538,7 @@ export function Library({ id }: { id: string }) {
           <View style={ui.card}>
             <Text style={ui.heading}>{t.privacy}</Text>
             <Text style={[ui.small, { lineHeight: 21 }]}>{t.privacyBody}</Text>
-            <PrivacyLink locale={locale} t={t} />
+            <PolicyLinks locale={locale} t={t} />
           </View>
           {actionError !== '' && <Text accessibilityLiveRegion="polite" style={ui.warning}>{actionError}</Text>}
           <Button tone="danger" disabled={pending} onPress={requestDeletion}>{t.deleteAccount}</Button>

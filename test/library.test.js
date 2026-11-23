@@ -33,7 +33,7 @@ test('serves the web app, public deletion route, shared client and artwork', asy
   }
 });
 
-test('readiness and both privacy notice languages are public routes', async t => {
+test('readiness, privacy and terms are public routes in both languages', async t => {
   const env = {
     PRIVACY_CONTROLLER_NAME: 'School & Library',
     PRIVACY_CONTACT_EMAIL: 'privacy@example.test',
@@ -46,7 +46,7 @@ test('readiness and both privacy notice languages are public routes', async t =>
   assert.deepEqual(await ready.json(), { ok: true });
   const unconfigured = await fixture(t, { config: null, env: {} });
   assert.equal((await fetch(unconfigured + '/healthz')).status, 503);
-  assert.match(await (await fetch(unconfigured + '/privacy')).text(), /Bu taslak/u);
+  assert.match(await (await fetch(unconfigured + '/privacy')).text(), /Gizlilik politikası/u);
   const tr = await (await fetch(address + '/privacy')).text();
   assert.match(tr, /Saklama süresi/u);
   assert.match(tr, /href="\/\?lang=tr#profile".*Geri dön/u);
@@ -56,7 +56,15 @@ test('readiness and both privacy notice languages are public routes', async t =>
   assert.match(en, /Retention &lt; 90 days/);
   assert.match(en, /href="\/\?lang=en#profile".*Go back/);
   assert.match(en, /class="[^"]*account-danger" href="\/account-deletion\?lang=en"/);
-  assert.doesNotMatch(en, /completes this draft/);
+  assert.match(en, /href="\/terms\?lang=en"/);
+  for (const [lang, title] of [['tr', 'Kullanım koşulları'], ['en', 'Terms of service']]) {
+    const terms = await fetch(address + '/terms?lang=' + lang);
+    assert.equal(terms.status, 200);
+    const page = await terms.text();
+    assert.match(page, new RegExp('<html lang="' + lang + '">'));
+    assert.ok(page.includes('<h1>' + title + '</h1>'));
+    assert.ok(page.includes('href="/privacy?lang=' + lang + '"'));
+  }
 });
 
 test('serves the shared ambience tracks and supports media byte ranges', async t => {

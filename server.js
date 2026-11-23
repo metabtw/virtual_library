@@ -7,6 +7,7 @@ import { loadEnvFile } from 'node:process';
 import { build } from 'esbuild';
 import googleWeb from './google-web-config.json' with { type: 'json' };
 import { privacyPage } from './privacy-page.js';
+import { termsPage } from './terms-page.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const script = 'text/javascript; charset=utf-8';
@@ -133,6 +134,7 @@ export function createWebServer({ config = getWebConfig(), bundle = new Uint8Arr
     }).end(request.method === 'HEAD' ? undefined : content);
     if (request.method === 'GET' || request.method === 'HEAD') {
       if (pathname === '/healthz') return write('application/json; charset=utf-8', JSON.stringify({ ok: Boolean(config) }), config ? 200 : 503);
+      if (pathname === '/terms') return write(html, termsPage(searchParams.get('lang')));
       if (pathname === '/privacy') return write(html, privacyPage(searchParams.get('lang'), env));
       if (pathname === '/config.js') return write(script, `export const config = ${JSON.stringify(config)};`);
       if (pathname === '/supabase-web.js') return write(script, bundle);

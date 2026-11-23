@@ -825,7 +825,6 @@ button.seat-name:hover { outline: 1px solid #ffb469; }
 .catalog-plant { position: relative; }
 .catalog-plant img { position: absolute; inset: 0; }
 .rare-card { border-color: #ad79bd; }
-.mystery-box .item-preview {background:radial-gradient(ellipse,#634066,#312439 74%)}
 .room-meta { color: #deb991; }
 .ranking-list { padding: 0; margin: 0; list-style: none; width: 100%; }
 .ranking-list li { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid #80605b55; }
@@ -834,3 +833,22 @@ button.seat-name:hover { outline: 1px solid #ffb469; }
 .toolbar > :is(button,a),.control-actions button {min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere}
 .room-meta,.card h2,.card p {overflow-wrap:anywhere}
 dialog {max-height:calc(100dvh - 24px);overflow:auto}
+
+.box-offers { margin-bottom: 20px; }
+.box-grid { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.mystery-box { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+.mystery-box h3 { margin: 0; }
+.mystery-box .item-preview { background: radial-gradient(ellipse, #523928, #2d211d); }
+.mystery-box.box-epic .item-preview { background: radial-gradient(ellipse, #563b73, #2d203e); }
+.mystery-box.box-legendary .item-preview { background: radial-gradient(ellipse, #6c4620, #342421); }
+.mystery-box.box-epic { border-color: #865da6; }
+.mystery-box.box-legendary { border-color: #a87642; }
+.mystery-box .primary { margin-top: auto; }
+.box-odds { display: grid; gap: 6px; padding: 0; margin: 0 0 4px; list-style: none; }
+.box-odds li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 6px; font-size: .84rem; }
+.box-odds img { width: 22px; height: 22px; image-rendering: pixelated; }
+.box-odds b { color: #ffd098; font-variant-numeric: tabular-nums; }
+.notice-section + .notice-section { margin-top: 1.5rem; }
+
+@media (max-width: 1050px) { .box-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .box-grid { grid-template-columns: minmax(0, 1fr); } }

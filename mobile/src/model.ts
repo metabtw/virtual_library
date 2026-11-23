@@ -1,4 +1,4 @@
-import type { AvatarFeatures, PetItem } from '../../public/avatar-art';
+import type { AvatarFeatures, HairSkin, OutfitSkin, PetItem } from '../../public/avatar-art';
 import type { DeskActivity } from '../../public/desk-status';
 
 export type Gender = 'unspecified' | 'female' | 'male';
@@ -8,10 +8,10 @@ export type AmbienceTrack = 'rain' | 'fire' | 'cafe' | 'lofi' | 'space' | 'fores
 export type Volume = 0 | 1 | 2 | 3;
 export type ItemId =
   | 'lamp' | 'plant' | PetItem | 'sweater' | 'goldKeys' | 'neon' | 'space' | 'forest'
-  | 'auroraHood' | 'archiveVest' | 'moonCoat' | 'copperCurls' | 'silverBraid' | 'midnightFade'
   | 'teaSet' | 'hourglass' | 'miniGlobe' | 'crystalTerrarium'
-  | 'autumnPoncho' | 'starlightJacket' | 'mossOveralls' | 'lavenderBuns' | 'mintBob'
-  | 'mushroomLamp' | 'foxMug' | 'retroRadio' | 'jellyTank' | 'origamiCrane';
+  | 'mushroomLamp' | 'foxMug' | 'retroRadio' | 'jellyTank' | 'origamiCrane'
+  | HairSkin | OutfitSkin | 'brassLamp' | 'deskCalendar' | 'pottedCactus' | 'recordPlayer' | 'zenGarden'
+  | 'moonstoneLamp' | 'rainbowPrism' | 'moonGlobe' | 'clockworkOwl';
 export type ItemKind = 'desk' | 'wearable' | 'hair' | 'rare' | 'ambience' | 'pet';
 export type Item = { id: ItemId; name: string; name_en: string; price: number; kind: ItemKind };
 export type ThemeChoice = 'auto' | 'classic' | 'rain' | 'garden' | 'stars';
@@ -30,6 +30,11 @@ export type Focus = {
 export type Friend = { id: string; name: string; code: string; shortCode?: string; status: 'accepted' | 'sent' | 'incoming'; inRoom?: boolean; inviteRetryAt?: number | null };
 export type StudyInvite = { id: string; name: string; room: string; room_en: string; private: boolean; expiresAt?: number };
 export type DailyQuests = { date: string; minutes: number; goals: { minutes: number; coins: number; completed: boolean }[] };
+export type WeeklyQuests = { start: string; end: string; goals: {
+  id: string; target: number; progress: number; unit: 'minutes' | 'days'; coins: number; completed: boolean;
+}[] };
+export type BoxTier = 'basic' | 'epic' | 'legendary';
+export type RewardBox = { id: BoxTier; price: number; rewards: { item: ItemId; weight: number }[] };
 export type Answer = 'accept' | 'reject';
 
 export type Snapshot = {
@@ -45,6 +50,8 @@ export type Snapshot = {
   drop?: Drop | null;
   reactions?: DeskReaction[];
   dailyQuests?: DailyQuests;
+  weeklyQuests?: WeeklyQuests;
+  boxes?: RewardBox[];
   friends?: Friend[];
   studyInvites?: StudyInvite[];
   joinedInvite?: boolean;
@@ -72,7 +79,7 @@ export type Command = {
   target: { target: string };
   createRoom: { name: string };
   joinCode: { code: string };
-  openBox: undefined;
+  openBox: { tier: BoxTier };
   openChest: undefined;
   abandon: undefined;
   react: { desk: string; kind: ReactionKind };

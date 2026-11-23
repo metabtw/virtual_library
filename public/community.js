@@ -21,16 +21,24 @@ export function studyInviteButton(friend, t, escape, label = t('studyInvite')) {
     ${escape(label)}<small></small></button>`;
 }
 
-export function dailyQuests(quests, t) {
-  if (!quests) return '';
-  return `<section class="card community-card daily-quests">
-    <h2>${t('dailyQuests')}</h2>
-    <div class="quest-grid">${quests.goals.map(goal => `<div class="quest">
-      <div><strong>${t('todayFocus')} · ${goal.minutes} ${t('minuteUnit')}</strong><span>+ ${goal.coins} ${t('coins')}</span></div>
-      <progress aria-label="${t('todayFocus')} ${goal.minutes} ${t('minuteUnit')}" value="${Math.min(quests.minutes, goal.minutes)}" max="${goal.minutes}"></progress>
-      <small>${goal.completed ? '✓ ' + t('questCompleted') : `${quests.minutes} / ${goal.minutes} ${t('minuteUnit')}`}</small>
-    </div>`).join('')}</div>
-  </section>`;
+export function focusQuests(daily, weekly, t) {
+  const dailyGoals = daily?.goals.map(goal => ({ ...goal, target: goal.minutes, progress: daily.minutes, unit: 'minutes' }));
+  return [
+    { goals: dailyGoals, title: 'dailyQuests', label: 'todayFocus' },
+    { goals: weekly?.goals, title: 'weeklyQuests', label: 'weekFocus', reset: 'weeklyReset' },
+  ].filter(group => group.goals?.length).map(({ goals, title, label, reset }) => `<section class="card community-card daily-quests">
+    <h2>${t(title)}</h2>${reset ? `<p>${t(reset)}</p>` : ''}
+    <div class="quest-grid">${goals.map(goal => {
+      const amount = Math.min(goal.progress, goal.target);
+      const unit = t(goal.unit === 'days' ? 'dayUnit' : 'minuteUnit');
+      const task = `${t(goal.unit === 'days' ? 'activeDays' : label)} · ${goal.target} ${unit}`;
+      return `<div class="quest">
+        <div><strong>${task}</strong><span>+ ${goal.coins} ${t('coins')}</span></div>
+        <progress aria-label="${task}" value="${amount}" max="${goal.target}"></progress>
+        <small>${goal.completed ? '✓ ' + t('questCompleted') : `${amount} / ${goal.target} ${unit}`}</small>
+      </div>`;
+    }).join('')}</div>
+  </section>`).join('');
 }
 
 export function friendsPanel(snapshot, friendCode, t, escape) {

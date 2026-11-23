@@ -2,6 +2,7 @@ import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { privacyPage } from '../privacy-page.js';
+import { termsPage } from '../terms-page.js';
 import { bundleFirebaseGoogle, bundleSupabase, getWebConfig, loadWebEnvironment, webFiles } from '../server.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -29,6 +30,8 @@ export async function buildWeb(output, env = process.env) {
     ['healthz.json', JSON.stringify({ ok: true })],
     ['privacy.html', privacyPage('tr', env)],
     ['privacy-en.html', privacyPage('en', env)],
+    ['terms.html', termsPage('tr')],
+    ['terms-en.html', termsPage('en')],
   ]);
   if (firebase) pages.set('firebase-google-sdk.js', firebase);
   await Promise.all([...pages].map(([name, content]) => writeFile(resolve(output, name), content)));

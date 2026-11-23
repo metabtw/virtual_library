@@ -24,7 +24,9 @@ const isAvailable = (track, inventory) => !['space', 'forest'].includes(track) |
 export function resolveRoomTheme(choice, room) {
   if (choice !== 'auto') return choice;
   if ((room?.minutes ?? 0) >= roomGoalMinutes) return 'aurora';
-  if (room?.id === 'garden') return 'garden';
+  if (room?.id === 'rain-terrace') return 'rain';
+  if (room?.id === 'aurora-observatory') return 'aurora';
+  if (room?.id === 'japanese-garden' || room?.id === 'garden') return 'garden';
   if (room?.id === 'archive') return 'stars';
   return 'classic';
 }

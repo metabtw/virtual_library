@@ -163,7 +163,7 @@ try {
   const membership = await db.query('select seen from public.room_members where user_id = $1', [second]);
   assert.equal(Number(membership.rows[0].seen), 123, 'maintenance must not refresh Presence');
   const reward = await action(second, 'state');
-  assert.equal(reward.profile.coins, 45);
+  assert.equal(reward.profile.coins, 40);
   assert.equal(reward.session.state, 'completed');
 
   await db.query("insert into public.push_devices values ('ExpoPushToken[example_second]', $1, 'en')", [third]);
@@ -259,7 +259,7 @@ try {
 
   const opening = await action(third, 'openChest');
   assert.equal(opening.chests, 0);
-  assert.ok(['goldKeys', 'dragon', 'neon'].includes(opening.drop.item));
+  assert.ok(['goldKeys', 'moonstoneLamp', 'neon'].includes(opening.drop.item));
   assert.equal((await action(third, 'openChest')).error, 'noChest');
   assert.equal((await action(third, 'openBox')).error, 'insufficientCoins');
   await db.query('update public.profiles set coins = 80 where id = $1', [third]);
@@ -279,6 +279,12 @@ try {
     autumnPoncho: ['wearable', 21], starlightJacket: ['wearable', 27], mossOveralls: ['wearable', 23],
     lavenderBuns: ['hair', 17], mintBob: ['hair', 15], mushroomLamp: ['desk', 18],
     foxMug: ['desk', 8], retroRadio: ['desk', 15], jellyTank: ['desk', 26], origamiCrane: ['desk', 13],
+    twinBraids: ['hair', 22], shortWaves: ['hair', 24], sideSwept: ['hair', 22],
+    highPonytail: ['hair', 28], curlyFringe: ['hair', 26],
+    denimJacket: ['wearable', 28], stripedCardigan: ['wearable', 26], linenShirt: ['wearable', 24],
+    raincoat: ['wearable', 30], boatNeckSweater: ['wearable', 28],
+    brassLamp: ['desk', 30], deskCalendar: ['desk', 18], pottedCactus: ['desk', 22],
+    recordPlayer: ['desk', 34], zenGarden: ['desk', 32],
   };
   const priceTotal = Object.values(catalog).reduce((sum, [, price]) => sum + price, 0);
   await db.query('update public.profiles set coins = $2 where id = $1', [shopper, priceTotal]);
@@ -291,7 +297,14 @@ try {
   assert.equal((await action(shopper, 'state')).profile.coins, 0);
   assert.equal((await action(shopper, 'buy', { item: 'teaSet' })).error, 'itemOwned');
   const rare = storefront.items.filter(entry => entry.kind === 'rare').map(entry => entry.id).sort();
-  assert.deepEqual(rare, ['dragon', 'goldKeys', 'neon']);
+  assert.deepEqual(rare, ['arcticFox', 'clockworkOwl', 'dragon', 'goldKeys', 'moonGlobe', 'moonstoneLamp', 'neon', 'rainbowPrism']);
+  assert.deepEqual(storefront.boxes.map(box => [box.id, box.price, box.rewards.map(reward => reward.weight)]), [
+    ['basic', 50, [55, 30, 15]], ['epic', 85, [55, 35, 10]], ['legendary', 130, [70, 30]],
+  ]);
+  assert.deepEqual(storefront.boxes.flatMap(box => box.rewards.map(reward => reward.item)).sort(), rare);
+  for (const room of ['rain-terrace', 'aurora-observatory', 'japanese-garden']) {
+    assert.ok(storefront.rooms.some(entry => entry.id === room && entry.capacity === 9 && !entry.private));
+  }
   for (const item of rare) assert.equal((await action(shopper, 'buy', { item })).error, 'itemMissing');
   const baseAvatar = storefront.profile.avatar;
   await action(shopper, 'place', { item: 'auroraHood' });
@@ -331,6 +344,30 @@ try {
   assert.equal(newStyle.profile.coins, 0);
   assert.deepEqual(newStyle.members.find(member => member.own).placed,
     ['mintBob', 'mossOveralls', 'mushroomLamp', 'origamiCrane', 'retroRadio']);
+
+  await db.query('update public.profiles set coins = 1000 where id = $1', [shopper]);
+  assert.equal((await action(shopper, 'openBox', { tier: ['epic'] })).error, 'invalidBox');
+  assert.equal((await action(shopper, 'openBox', { tier: 'fake' })).error, 'invalidBox');
+  let balance = 1000;
+  for (const offer of storefront.boxes) {
+    const awarded = new Set();
+    for (const reward of offer.rewards) {
+      const result = await action(shopper, 'openBox', { tier: offer.id });
+      balance -= offer.price;
+      assert.equal(result.profile.coins, balance);
+      assert.ok(offer.rewards.some(entry => entry.item === result.drop.item));
+      assert.ok(!awarded.has(result.drop.item), 'boxes must not award duplicate items');
+      awarded.add(result.drop.item);
+    }
+    assert.equal((await action(shopper, 'openBox', { tier: offer.id })).error, 'collectionComplete');
+    assert.equal((await action(shopper, 'state')).profile.coins, balance);
+  }
+  await db.query('insert into public.room_chests (room_id, milestone, user_id) values ($1, 999999, $2)', ['night', shopper]);
+  const fallback = await action(shopper, 'openChest');
+  assert.deepEqual(fallback.drop, { coins: 10 });
+  assert.equal(fallback.profile.coins, balance + 10);
+  const equipFox = await action(shopper, 'place', { item: 'arcticFox' });
+  assert.ok(equipFox.inventory.some(entry => entry.item === 'arcticFox' && entry.placed));
 
   // Reactions use room-scoped desk references and only reach their recipient.
   const recipientState = await action(third, 'state');
@@ -434,7 +471,7 @@ try {
   assert.equal((await action(first, 'inviteFriend', { id: relation })).error, 'friendInRoom');
   assert.equal((await action(invitee, 'answerStudyInvite', { id: study.id, answer: 'accept' })).error, 'studyInviteMissing');
 
-  for (const [minutes, expectedCoins] of [[30, 46], [60, 62]]) {
+  for (const [minutes, expectedCoins] of [[30, 41], [60, 52], [90, 58], [120, 74]]) {
     await action(invitee, 'start', { duration: 30 });
     assert.equal((await action(invitee, 'inviteFriend', { id: relation })).error, 'working');
     await shiftSession(invitee, 1200100);
@@ -442,10 +479,32 @@ try {
     await shiftSession(invitee, 600000);
     const complete = await action(invitee, 'state');
     assert.equal(complete.dailyQuests.minutes, minutes);
-    assert.deepEqual(complete.dailyQuests.goals.map(goal => goal.completed), [true, minutes === 60]);
+    assert.deepEqual(complete.dailyQuests.goals.map(goal => goal.completed), [minutes >= 60, minutes >= 120]);
     assert.equal(complete.profile.coins, expectedCoins);
     assert.equal((await action(invitee, 'state')).profile.coins, expectedCoins);
   }
+
+  const weeklyReader = '00000000-0000-4000-a000-000000000103';
+  await db.query('insert into auth.users values ($1)', [weeklyReader]);
+  await action(weeklyReader, 'profile', basic);
+  await db.query(`insert into public.sessions (user_id, start_ms, end_ms, state)
+    select $1, (extract(epoch from completed) - minutes * 60) * 1000, extract(epoch from completed) * 1000, state
+    from (values ('2024-01-01 00:00:00+03'::timestamptz, 150, 'completed'),
+      ('2024-01-02 21:00:00+03'::timestamptz, 150, 'completed'),
+      ('2024-01-04 21:00:00+03'::timestamptz, 150, 'completed'),
+      ('2024-01-07 23:59:59+03'::timestamptz, 150, 'completed'),
+      ('2024-01-08 00:00:00+03'::timestamptz, 20, 'completed'),
+      ('2024-01-06 21:00:00+03'::timestamptz, 180, 'invalid')) as records(completed, minutes, state)`, [weeklyReader]);
+  const weeklyFor = async monday => (await db.query('select public.weekly_focus_quests($1, $2) as quests', [weeklyReader, monday])).rows[0].quests;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const week = await weeklyFor('2024-01-01');
+    assert.equal(week.end, '2024-01-08');
+    assert.deepEqual(week.goals.map(goal => [goal.target, goal.progress, goal.coins, goal.completed]),
+      [[300, 600, 15, true], [600, 600, 30, true], [4, 4, 15, true]]);
+    assert.equal((await action(weeklyReader, 'state')).profile.coins, 90);
+  }
+  assert.deepEqual((await weeklyFor('2024-01-08')).goals.map(goal => [goal.progress, goal.completed]),
+    [[20, false], [20, false], [0, false]]);
 
   const openAd = async (network = 'web', placement = 'web') =>
     (await db.query('select public.open_rewarded_ad($1,$2,$3) as result', [invitee, network, placement])).rows[0].result;
@@ -460,7 +519,7 @@ try {
     if (index) assert.equal(await creditAd(attempt, 'watch-0'), false);
     assert.equal(await creditAd(attempt, 'watch-' + index), true);
     assert.equal(await creditAd(attempt, 'watch-' + index), true, 'duplicate provider callback is acknowledged');
-    assert.equal((await action(invitee, 'state')).profile.coins, 62 + (index + 1) * 5);
+    assert.equal((await action(invitee, 'state')).profile.coins, 74 + (index + 1) * 5);
     assert.equal((await openAd('admob', '1234567890')).error, 'adCooldown');
     const { rows: [{ wait_minutes }] } = await db.query(
       'select (extract(epoch from retry_at - rewarded_at) / 60)::int as wait_minutes from public.rewarded_ad_attempts where id = $1', [attempt]);

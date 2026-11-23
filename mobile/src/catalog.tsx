@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { mysteryBoxPrice } from '../../public/study-rewards';
+import { boxLabels, boxOdds } from '../../public/study-rewards';
 import { itemAssets } from './asset-art';
-import type { Item, ItemId, ItemKind, Snapshot } from './model';
+import type { BoxTier, Item, ItemId, ItemKind, Snapshot } from './model';
 import type { Locale, Translation } from './strings';
 import { Button, Options, ui } from './ui';
 
@@ -43,25 +43,58 @@ type GalleryProps = {
   locale: Locale;
   pending: boolean;
   action: (item: ItemId) => void;
-  openBox?: () => void;
 };
 
-function ItemGrid({ items, inventory, owned, snapshot, t, locale, pending, action, openBox }: GalleryProps) {
+const boxArt = {
+  basic: require('../assets/items/mysteryBox.png'),
+  epic: require('../assets/items/epicBox.png'),
+  legendary: require('../assets/items/legendaryBox.png'),
+};
+
+const boxPalettes = {
+  basic: { backgroundColor: '#463129', borderColor: '#98654f' },
+  epic: { backgroundColor: '#473256', borderColor: '#a075c1' },
+  legendary: { backgroundColor: '#544022', borderColor: '#c49954' },
+};
+
+function Boxes({ snapshot, owned, locale, t, pending, openBox }: Pick<GalleryProps, 'snapshot' | 'owned' | 'locale' | 't' | 'pending'> & {
+  openBox: (tier: BoxTier) => void;
+}) {
+  const percent = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 2 });
+  const items = new Map(snapshot.items.map(item => [item.id, item]));
+  return <>
+    <Text style={styles.rewardTitle}>{t.catalogChests}</Text>
+    <Text style={ui.small}>{t.boxRules}</Text>
+    {(snapshot.boxes ?? []).map(box => {
+      const odds = boxOdds(box.rewards, owned);
+      const available = odds.some(reward => reward.chance > 0);
+      const boxName = t[boxLabels[box.id]];
+      const price = `${box.price} ${t.boxOpen}`;
+      return <View key={box.id} style={[ui.card, boxPalettes[box.id]]}>
+        <View style={styles.boxHeader}>
+          <Image source={boxArt[box.id]} style={styles.boxIcon} resizeMode="contain" accessible={false} />
+          <Text accessibilityRole="header" style={[styles.name, { flexShrink: 1 }]}>{boxName}</Text>
+        </View>
+        {odds.map(reward => {
+          const item = items.get(reward.item);
+          return <View key={reward.item} style={styles.boxOdds}>
+            <Image source={itemAssets[reward.item]} style={styles.prizeIcon} resizeMode="contain" accessible={false} />
+            <Text style={[ui.ink, { flex: 1 }]}>{item ? locale === 'tr' ? item.name : item.name_en : reward.item}</Text>
+            <Text style={ui.accent}>{reward.chance ? percent.format(reward.chance) : t.owned}</Text>
+          </View>;
+        })}
+        <Button accessibilityLabel={`${boxName} · ${price}`} disabled={pending || !available || (snapshot.profile?.coins ?? 0) < box.price}
+          onPress={() => openBox(box.id)}>{available ? price : t.collectionComplete}</Button>
+      </View>;
+    })}
+  </>;
+}
+
+function ItemGrid({ items, inventory, owned, snapshot, t, locale, pending, action }: GalleryProps) {
   const { width, fontScale } = useWindowDimensions();
   const compact = width < 350 || fontScale >= 1.35;
   const coins = snapshot.profile?.coins ?? 0;
-  const rewardAvailable = openBox && snapshot.items.some(item => item.kind === 'rare' && !owned.has(item.id));
   return <View style={styles.grid}>
-    {openBox && <View style={[styles.tile, styles.rare, compact && styles.full]}>
-      <View accessible={false} style={[styles.art, styles.boxArt]}>
-        <Image source={require('../assets/items/mysteryBox.png')} style={styles.prop} resizeMode="contain" accessible={false} />
-      </View>
-      <View style={styles.details}>
-        <Text style={styles.name}>{t.box}</Text>
-        <Text style={ui.small}>{rewardAvailable ? t.boxRules : t.collectionComplete}</Text>
-      </View>
-      <Button disabled={pending || !rewardAvailable || coins < mysteryBoxPrice} onPress={openBox}>{t.openBox}</Button>
-    </View>}
     {items.map(item => {
       const hasItem = owned.has(item.id);
       const equipped = owned.get(item.id) === true;
@@ -103,7 +136,7 @@ export function Catalog({ snapshot, inventory, locale, t, pending, action, openB
   t: Translation;
   pending: boolean;
   action: (item: ItemId) => void;
-  openBox?: () => void;
+  openBox?: (tier: BoxTier) => void;
 }) {
   const [category, setCategory] = useState<Category>('all');
   const owned = new Map(snapshot.inventory.map(entry => [entry.item, entry.placed]));
@@ -111,7 +144,7 @@ export function Catalog({ snapshot, inventory, locale, t, pending, action, openB
   const visible = category === 'all' ? choices : choices.filter(item => item.kind === category);
   const regular = inventory ? visible : visible.filter(item => item.kind !== 'rare');
   const prizes = inventory ? [] : visible.filter(item => item.kind === 'rare');
-  const box = prizes.length ? openBox : undefined;
+  const box = prizes.length && snapshot.boxes?.length ? openBox : undefined;
   const grid = { inventory: !!inventory, owned, snapshot, t, locale, pending, action };
 
   return <>
@@ -120,8 +153,9 @@ export function Catalog({ snapshot, inventory, locale, t, pending, action, openB
       values={(Object.keys(categoryLabels) as Category[]).map(value => [value, t[categoryLabels[value]]])}
       onChange={setCategory} />
     {!visible.length && <Text style={ui.small}>{inventory && !choices.length ? t.emptyInventory : t.catalogEmpty}</Text>}
-    {(regular.length > 0 || box) && <ItemGrid {...grid} items={regular} openBox={box} />}
-    {!!prizes.length && <>
+    {box && <Boxes {...grid} openBox={box} />}
+    {!!regular.length && <ItemGrid {...grid} items={regular} />}
+    {!box && !!prizes.length && <>
       <View style={styles.rewardHeader}>
         <Text style={styles.rewardTitle}>{t.catalogChests}</Text>
         <Text style={ui.small}>{t.chestCollectionInfo}</Text>
@@ -132,6 +166,10 @@ export function Catalog({ snapshot, inventory, locale, t, pending, action, openB
 }
 
 const styles = StyleSheet.create({
+  boxHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  boxIcon: { width: 60, height: 60 },
+  boxOdds: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  prizeIcon: { width: 26, height: 26 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tile: { flexBasis: '48%', flexGrow: 1, borderRadius: 16, borderWidth: 1, borderColor: '#684c5c',
     backgroundColor: '#2c2230', padding: 8, gap: 8, minWidth: 0 },
@@ -139,7 +177,6 @@ const styles = StyleSheet.create({
   rare: { backgroundColor: '#2f253e', borderColor: '#8f6ba8' },
   equipped: { borderColor: '#88b693' },
   art: { minHeight: 108, borderRadius: 11, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  boxArt: { backgroundColor: '#382941', borderColor: '#a77bb366' },
   prop: { width: 96, maxWidth: '100%', height: 96 },
   skin: { width: 62, height: 96 },
   details: { flexGrow: 1, gap: 4, paddingHorizontal: 2 },

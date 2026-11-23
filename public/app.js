@@ -9,8 +9,8 @@ import { avatarOptions, avatarPresets, defaultAvatar, deskEquipment, dressedAvat
 import { createRoomPreferences } from './room-preferences.js';
 import { downloadStudyCard, messageFor, reactionArt } from './web-social.js';
 import { webText } from './web-strings.js';
-import { adCooldownSeconds, mysteryBoxPrice, roomGoalMinutes } from './study-rewards.js';
-import { dailyQuests, friendsPanel, studyInviteButton, studyInvitations } from './community.js';
+import { adCooldownSeconds, boxLabels, boxOdds, earnedQuestCoins, roomGoalMinutes } from './study-rewards.js';
+import { focusQuests, friendsPanel, studyInviteButton, studyInvitations } from './community.js';
 import { inviteWait, splitProfileCode } from './room-social.js';
 
 const client = config && createClient(config.url, config.key, {
@@ -30,7 +30,7 @@ const shareCodeStatus = document.querySelector('#share-code-status');
 const languageToggle = document.querySelector('#language-toggle');
 const labels = { room: 'library', rooms: 'rooms', shop: 'shop', profile: 'profileInventory', ranking: 'leaderboard' };
 const palette = ['#bd7050', '#789078', '#7988ab', '#ad7963'];
-const roomIcons = { night: '☾', garden: '❧', archive: '✦' };
+const roomIcons = { night: '☾', garden: '❧', archive: '✦', 'rain-terrace': '☂', 'aurora-observatory': '✧', 'japanese-garden': '❀' };
 const categories = {
   all: 'catalogAll', wearable: 'catalogClothes', hair: 'catalogHair', desk: 'catalogDesk',
   pet: 'catalogPets', ambience: 'catalogSound', rare: 'catalogChests',
@@ -87,6 +87,7 @@ const placed = () => data.inventory.filter(entry => entry.placed).map(entry => e
 const now = () => clock ? serverTimeAt(clock) : 0;
 const localName = item => locale === 'en' ? item.name_en || item.name : item.name;
 const privacyHref = () => '/privacy?lang=' + locale;
+const termsHref = () => '/terms?lang=' + locale;
 const deletionHref = () => '/account-deletion?lang=' + locale;
 const profileHref = () => '/?lang=' + locale + '#profile';
 
@@ -217,7 +218,9 @@ async function request(action, payload) {
   try {
     const result = await invokeLibrary(client, action, { ...payload, ...roomConnection.payload(), foreground: !document.hidden });
     if (version !== revision || (data && result.now < data.now)) return false;
-    if (data?.session?.state !== result.session?.state && result.session?.state === 'completed') toast(t('reward'));
+    const earned = data ? earnedQuestCoins(data, result) : 0;
+    const completed = data?.session?.state !== result.session?.state && result.session?.state === 'completed';
+    if (earned || completed) toast([completed && t('reward'), earned && `${t('questsReward')} · +${earned} ${t('coins')}`].filter(Boolean).join(' '));
     if (data?.session?.state !== result.session?.state && result.session?.state === 'invalid') toast(t('invalid'));
     data = result;
     clock = markServerTime(result.now);
@@ -299,6 +302,7 @@ function signInView() {
       </form>`}
     ${emailFeedback ? `<p class="auth-feedback" role="alert">${t(emailFeedback)}</p>` : ''}
     <div class="auth-links"><a href="${privacyHref()}">${t('readPrivacy')}</a>
+    <a href="${termsHref()}">${t('terms')}</a>
     ${deletionPage ? backToProfile() : `<a href="${deletionHref()}">${t('deletionPage')}</a>`}</div>
   </section>`;
 }
@@ -473,8 +477,8 @@ function itemImage(item) {
   return hasPropArt(item.id) ? `<img src="${propImage(item.id)}" alt="">` : '✦';
 }
 
-function itemCards(items, inventoryOnly, firstCard = '') {
-  return `<div class="cards">${firstCard}${items.map(item => {
+function itemCards(items, inventoryOnly) {
+  return `<div class="cards">${items.map(item => {
     const owned = data.inventory.find(entry => entry.item === item.id);
     const rare = item.kind === 'rare';
     const label = item.kind === 'hair' || item.kind === 'wearable' ? 'catalogWear' : 'use';
@@ -488,15 +492,33 @@ function itemCards(items, inventoryOnly, firstCard = '') {
   }).join('')}</div>`;
 }
 
-function mysteryBoxCard() {
-  const prizes = data.items.filter(item => item.kind === 'rare');
-  if (!prizes.length) return '';
-  const available = prizes.some(item => !data.inventory.some(entry => entry.item === item.id));
-  return `<article class="card rare-card mystery-box">
-    <span class="item-icon item-preview"><img src="${propImage('mysteryBox')}" alt=""></span>
-    <h2>${t('box')}</h2><p>${t(available ? 'boxRules' : 'collectionComplete')}</p>
-    <button class="primary" data-action="openBox" ${!available || data.profile.coins < mysteryBoxPrice ? 'disabled' : ''}>${t('openBox')}</button>
-  </article>`;
+function boxCards() {
+  const boxes = data.boxes ?? [];
+  if (!boxes.length) return '';
+  const owned = new Set(data.inventory.map(entry => entry.item));
+  const items = new Map(data.items.map(item => [item.id, item]));
+  const percent = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 2 });
+  return `<section class="box-offers">
+    <h2 class="section-title">${t('catalogChests')}</h2><p>${t('boxRules')}</p>
+    <div class="box-grid">${boxes.map(box => {
+      const odds = boxOdds(box.rewards, owned);
+      const available = odds.some(reward => reward.chance > 0);
+      const art = { basic: 'mysteryBox', epic: 'epicBox', legendary: 'legendaryBox' }[box.id];
+      const label = t(boxLabels[box.id]);
+      return `<article class="card mystery-box box-${escape(box.id)}">
+        <span class="item-icon item-preview"><img src="${propImage(art)}" alt=""></span>
+        <h3>${label}</h3>
+        <ul class="box-odds" aria-label="${t('boxOdds')}">${odds.map(reward => {
+          const item = items.get(reward.item);
+          const name = item ? localName(item) : reward.item;
+          return `<li><img src="${propImage(reward.item)}" alt=""><span>${escape(name)}</span>
+            <b>${reward.chance ? percent.format(reward.chance) : t('owned')}</b></li>`;
+        }).join('')}</ul>
+        <button class="primary" data-action="openBox" data-value="${escape(box.id)}" aria-label="${label} · ${box.price} ${t('boxOpen')}"
+          ${!available || data.profile.coins < box.price ? 'disabled' : ''}>${available ? '◉ ' + box.price + ' ' + t('boxOpen') : t('collectionComplete')}</button>
+      </article>`;
+    }).join('')}</div>
+  </section>`;
 }
 
 function catalog(inventoryOnly) {
@@ -506,12 +528,13 @@ function catalog(inventoryOnly) {
   const visible = activeCategory === 'all' ? choices : choices.filter(item => item.kind === activeCategory);
   const regular = inventoryOnly ? visible : visible.filter(item => item.kind !== 'rare');
   const prizes = inventoryOnly ? [] : visible.filter(item => item.kind === 'rare');
-  const box = !inventoryOnly && (activeCategory === 'all' || activeCategory === 'rare') ? mysteryBoxCard() : '';
+  const boxes = !inventoryOnly && (activeCategory === 'all' || activeCategory === 'rare') ? boxCards() : '';
   return `<div class="catalog-filter">${picker(scope, t('catalogFilter'), activeCategory,
     Object.entries(categories).map(([value, label]) => [value, t(label)]))}</div>
     ${!visible.length ? `<p class="empty-message">${t(inventoryOnly && !choices.length ? 'emptyInventory' : 'catalogEmpty')}</p>` : ''}
-    ${regular.length || box ? itemCards(regular, inventoryOnly, box) : ''}
-    ${prizes.length ? `<h2 class="section-title">${t('catalogChests')}</h2><p>${t('chestCollectionInfo')}</p>${itemCards(prizes, false)}` : ''}`;
+    ${boxes}
+    ${regular.length ? itemCards(regular, inventoryOnly) : ''}
+    ${!boxes && prizes.length ? `<h2 class="section-title">${t('catalogChests')}</h2>${itemCards(prizes, false)}` : ''}`;
 }
 
 function profileCode(label, code, shareable = true) {
@@ -558,7 +581,7 @@ function profileView() {
         <button class="secondary">${t('saveTarget')}</button>
       </form>
     </details>
-    ${dailyQuests(data.dailyQuests, t)}${studyInvitations(data, t, escape, locale)}${friendsPanel(data, draft.friendCode, t, escape)}
+    ${focusQuests(data.dailyQuests, data.weeklyQuests, t)}${studyInvitations(data, t, escape, locale)}${friendsPanel(data, draft.friendCode, t, escape)}
     <h2 class="section-title">${t('inventory')}</h2><p class="equipment-note">${t('equipmentLimit')}</p>${catalog(true)}` : ''}
   <section class="card account-section" aria-labelledby="account-title">
     <h2 id="account-title">${t('myAccount')}</h2>
@@ -567,6 +590,7 @@ function profileView() {
       <button class="secondary account-button account-sign-out" data-action="sign-out">${t('signOut')}</button>
       <a class="secondary account-button account-danger" href="${deletionHref()}">${t('deleteAccount')}</a>
     </div>
+    <a href="${termsHref()}">${t('terms')}</a>
   </section>`;
 }
 
@@ -576,7 +600,7 @@ function shopView() {
   <div class="toolbar reward-toolbar"><button class="primary" data-action="reward-ad" ${openingAd ? 'disabled' : ''}>${t(openingAd ? 'adLoading' : 'watchAd')}</button>
     <button class="secondary" data-action="openChest" ${!data.chests ? 'disabled' : ''}>${t('chest')} · ${data.chests ?? 0}</button>
     <small id="ad-cooldown" role="status"></small></div>
-  ${dailyQuests(data.dailyQuests, t)}${catalog(false)}`;
+  ${focusQuests(data.dailyQuests, data.weeklyQuests, t)}${catalog(false)}`;
 }
 
 function rankingView() {
@@ -665,7 +689,7 @@ function render() {
     ? [room?.id, room?.minutes, room?.invite, data.profile?.status, data.session, durationChoice, data.inventory,
       data.friends?.some(friend => friend.status === 'accepted')]
     : view === 'rooms' ? [data.rooms, data.studyInvites, data.profile.ownsPrivateRoom] : view === 'ranking' ? ranking
-      : [data.profile, data.inventory, data.items, data.dailyQuests,
+      : [data.profile, data.inventory, data.items, data.dailyQuests, data.weeklyQuests, data.boxes,
         view === 'shop' ? [data.chests, data.adPlatforms?.web, openingAd] : [data.friends, data.studyInvites]], editing, locale,
   catalogCategory[view === 'profile' ? 'inventory' : view]]);
   paint(signature, () => view === 'room' ? roomView(room) : view === 'rooms' ? roomsView()
@@ -1049,7 +1073,7 @@ document.addEventListener('click', async event => {
   if (action === 'abandon' && !confirm(t('abandonConfirm'))) return;
   const payload = {
     join: { room: value }, status: { status: value }, start: { duration: duration() },
-    buy: { item: value }, place: { item: value }, react: { desk: selectedDesk?.desk_ref, kind: value },
+    openBox: { tier: value }, buy: { item: value }, place: { item: value }, react: { desk: selectedDesk?.desk_ref, kind: value },
     rankingVisibility: { visible: value === 'true' },
     answerFriend: { id: value, answer: button.dataset.answer }, removeFriend: { id: value },
     inviteFriend: { id: value }, answerStudyInvite: { id: value, answer: button.dataset.answer },

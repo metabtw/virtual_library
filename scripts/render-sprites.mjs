@@ -74,13 +74,17 @@ for (const preset of avatarPresets) avatar('avatars/' + preset.id + '.png', pres
 for (const item of [
   'sweater', 'auroraHood', 'archiveVest', 'moonCoat', 'autumnPoncho', 'starlightJacket', 'mossOveralls',
   'copperCurls', 'silverBraid', 'midnightFade', 'lavenderBuns', 'mintBob',
+  'twinBraids', 'shortWaves', 'sideSwept', 'highPonytail', 'curlyFringe',
+  'denimJacket', 'stripedCardigan', 'linenShirt', 'raincoat', 'boatNeckSweater',
 ]) {
   avatar('items/' + item + '.png', dressedAvatar(base, [item]));
 }
 for (const item of [
   'lamp', 'goldKeys', 'dragon', 'neon', 'teaSet', 'hourglass', 'miniGlobe', 'crystalTerrarium',
   'mushroomLamp', 'foxMug', 'retroRadio', 'jellyTank', 'origamiCrane', 'pinkRabbit', 'pugPup', 'yellowChick',
-  'cat', 'space', 'forest', 'mysteryBox',
+  'cat', 'space', 'forest', 'mysteryBox', 'epicBox', 'legendaryBox',
+  'brassLamp', 'deskCalendar', 'pottedCactus', 'recordPlayer', 'zenGarden',
+  'moonstoneLamp', 'rainbowPrism', 'moonGlobe', 'arcticFox', 'clockworkOwl',
 ]) {
   prop('items/' + item + '.png', item);
 }
