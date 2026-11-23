@@ -9,7 +9,7 @@ import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } f
 import { displayDeskStatuses, recordDeskStatus, type DeskUpdates } from '../../public/desk-status';
 import { earnedQuestCoins, roomGoalMinutes } from '../../public/study-rewards';
 import { deleteAccount, library, notifyRoomPresence, roomConnection, supabase } from './api';
-import type { Avatar, Command, Drop, Focus, ItemId, Member, Profile, Snapshot } from './model';
+import type { Avatar, BoxTier, Command, Drop, Focus, ItemId, Member, Profile, Snapshot } from './model';
 import { RoomScene, Sprite } from './scene';
 import { allowReminders, hasExactReminderSettings, openExactReminderSettings, syncRemoteReminders,
   removeRemoteReminders, useReminder } from './reminders';
@@ -18,12 +18,13 @@ import { message, usePreferences, words, type Locale, type Translation } from '.
 import { Button, Field, Options, ui } from './ui';
 import { Directory, Invite, PrivateBadge, RoomGoal, TargetEditor } from './clubs';
 import { Ambience } from './ambience';
-import { Catalog, ItemIllustration } from './catalog';
+import { Catalog } from './catalog';
+import { ChestReward } from './chest-reward';
 import { dressedAvatar } from './cosmetics';
 import { roomThemes, ThemePicker } from './themes';
 import { LeaderboardModal, StudyCardModal } from './study';
 import { presetAssets } from './asset-art';
-import { PolicyLinks } from './auth';
+import { PolicyLinks, TermsButton } from './auth';
 import { ShopRewards } from './ads';
 import { FocusQuests, FriendInviteButton, FriendsPanel, ProfileCodeField, ProfileCodes, StudyInvitations } from './community';
 import type { ProfileCodePrefix } from '../../public/room-social';
@@ -177,7 +178,7 @@ function Period({ focus, remaining, pending, onAction, t, canStart }: {
 export function Library({ id }: { id: string }) {
   const { locale, setLocale, page, setPage, alerts, setAlerts, usage, setUsage, theme, setTheme } = usePreferences();
   const t = words[locale];
-  const [prize, setPrize] = useState<Drop | null>(null);
+  const [prize, setPrize] = useState<{ drop: Drop; tier: BoxTier } | null>(null);
   const [editing, setEditing] = useState(false);
   const [moment, setMoment] = useState(() => performance.now());
   const [foreground, setForeground] = useState((AppState.currentState ?? 'active') === 'active');
@@ -300,7 +301,7 @@ export function Library({ id }: { id: string }) {
       if (action.name === 'start') trackUsage('focus_started');
       if (action.name === 'verify') trackUsage('focus_confirmed');
       if (action.name === 'leave') { setInviteOpen(false); setPage('rooms'); }
-      if (data.drop) setPrize(data.drop);
+      if (data.drop) setPrize({ drop: data.drop, tier: action.name === 'openBox' ? action.payload?.tier ?? 'basic' : 'basic' });
       if (action.name === 'react') {
         setPeer(undefined);
         setReactionMessage(t.reactionSent);
@@ -401,7 +402,8 @@ export function Library({ id }: { id: string }) {
   const friends = snapshot.friends ?? [];
   const accepted = friends.filter(friend => friend.status === 'accepted');
   const unread = friends.filter(friend => friend.status === 'incoming').length + (snapshot.studyInvites?.length ?? 0);
-  const prizeItem = prize && 'item' in prize ? snapshot.items.find(item => item.id === prize.item) : undefined;
+  const prizeId = prize && 'item' in prize.drop ? prize.drop.item : undefined;
+  const prizeItem = snapshot.items.find(item => item.id === prizeId);
   const label = (item: { name: string; name_en: string }) => locale === 'tr' ? item.name : item.name_en;
   const pending = mutation.isPending || deleting;
   function act(action: Action) {
@@ -473,7 +475,7 @@ export function Library({ id }: { id: string }) {
           <FocusQuests daily={snapshot.dailyQuests} weekly={snapshot.weeklyQuests} t={t} />
           <Catalog snapshot={snapshot} t={t} locale={locale} pending={pending}
             action={item => act({ name: 'buy', payload: { item } })}
-            openBox={tier => act({ name: 'openBox', payload: { tier } })} /></> :
+            openBox={(tier, price) => act({ name: 'openBox', payload: { tier, price } })} /></> :
           <>
             <View style={profileStyles.header}>
               <Text accessibilityRole="header" style={profileStyles.title}>{t.profileInventory}</Text>
@@ -515,6 +517,7 @@ export function Library({ id }: { id: string }) {
           <Text style={ui.heading}>{t.myAccount}</Text>
           <Button tone="data" disabled={pending} onPress={() => { setActionError(''); setDataOpen(true); }}>{t.myData}</Button>
           <Button tone="signOut" disabled={pending} onPress={() => void signOut()}>{t.signOut}</Button>
+          <TermsButton locale={locale} t={t} />
           <Button tone="danger" disabled={pending} onPress={requestDeletion}>{t.deleteAccount}</Button>
         </View>
       </>}
@@ -566,16 +569,9 @@ export function Library({ id }: { id: string }) {
         <Button muted onPress={() => setPeer(undefined)}>{t.done}</Button>
       </View></View>
     </Modal>
-    <Modal visible={prize !== null && !verify} transparent onRequestClose={() => setPrize(null)} accessibilityViewIsModal>
-      <View style={ui.modal}><View style={ui.card}>
-        <Text style={ui.heading}>✨ {t.prize}</Text>
-        {prizeItem && <ItemIllustration item={prizeItem} />}
-        {prize && <Text style={ui.accent}>{'item' in prize
-          ? label(prizeItem ?? { name: prize.item, name_en: prize.item })
-          : `${prize.coins} ${t.coins}`}</Text>}
-        <Button onPress={() => setPrize(null)}>{t.done}</Button>
-      </View></View>
-    </Modal>
+    {prize && !verify && <ChestReward tier={prize.tier} item={prizeItem}
+      title={prizeItem ? label(prizeItem) : prizeId ?? ('coins' in prize.drop ? `${prize.drop.coins} ${t.coins}` : '')}
+      t={t} close={() => setPrize(null)} />}
     <Modal visible={verify} transparent onRequestClose={() => {}} accessibilityViewIsModal>
       <View style={ui.modal}><View style={ui.card}>
         <Text style={ui.heading}>{t.verify}</Text>

@@ -1,5 +1,8 @@
 export const roomGoalMinutes: number;
 export const boxLabels: { basic: 'boxBasic'; epic: 'boxEpic'; legendary: 'boxLegendary' };
+export const boxArt: { basic: 'mysteryBox'; epic: 'epicBox'; legendary: 'legendaryBox' };
+export const premiumAmbience: readonly string[];
+export function canBuyFromShop(item: { kind: string; box_only?: boolean }): boolean;
 export function boxOdds<Item extends string>(
   rewards: readonly { item: Item; weight: number }[], owned: { has(item: Item): boolean },
 ): { item: Item; chance: number }[];

@@ -82,7 +82,9 @@ try {
   assert.equal((await action(legacy, 'buy', { item: 'pinkRabbit' })).profile.coins, 6);
   assert.equal((await action(legacy, 'buy', { item: 'yellowChick' })).error, 'insufficientCoins');
   await db.query('update public.profiles set coins = 40 where id = $1', [legacy]);
-  assert.equal((await action(legacy, 'buy', { item: 'pugPup' })).profile.coins, 12);
+  assert.equal((await action(legacy, 'buy', { item: 'pugPup' })).error, 'boxOnly');
+  await db.query("insert into public.user_items (user_id, item) values ($1, 'pugPup')", [legacy]);
+  await db.query('update public.profiles set coins = 12 where id = $1', [legacy]);
   assert.equal((await action(legacy, 'buy', { item: 'yellowChick' })).profile.coins, 0);
   for (const animal of ['pinkRabbit', 'pugPup', 'yellowChick', 'dragon']) {
     const placed = await action(legacy, 'place', { item: animal });
@@ -259,11 +261,11 @@ try {
 
   const opening = await action(third, 'openChest');
   assert.equal(opening.chests, 0);
-  assert.ok(['goldKeys', 'moonstoneLamp', 'neon'].includes(opening.drop.item));
+  assert.ok(milestone.boxes.find(box => box.id === 'basic').rewards.some(reward => reward.item === opening.drop.item));
   assert.equal((await action(third, 'openChest')).error, 'noChest');
   assert.equal((await action(third, 'openBox')).error, 'insufficientCoins');
-  await db.query('update public.profiles set coins = 80 where id = $1', [third]);
-  assert.equal((await action(third, 'buy', { item: 'neon' })).error, 'itemMissing');
+  await db.query('update public.profiles set coins = 105 where id = $1', [third]);
+  assert.equal((await action(third, 'buy', { item: 'neon' })).error, 'boxOnly');
   const box = await action(third, 'openBox');
   assert.equal(box.profile.coins, 30);
   assert.notEqual(box.drop.item, opening.drop.item);
@@ -271,41 +273,41 @@ try {
   assert.equal((await action(third, 'place', { item: 'space' })).error, 'itemMissing');
 
   const shopper = users[3];
-  const catalog = {
-    lamp: ['desk', 10],
-    auroraHood: ['wearable', 24], archiveVest: ['wearable', 20], moonCoat: ['wearable', 28],
-    copperCurls: ['hair', 14], silverBraid: ['hair', 18], midnightFade: ['hair', 12],
-    teaSet: ['desk', 9], hourglass: ['desk', 11], miniGlobe: ['desk', 16], crystalTerrarium: ['desk', 22],
-    autumnPoncho: ['wearable', 21], starlightJacket: ['wearable', 27], mossOveralls: ['wearable', 23],
-    lavenderBuns: ['hair', 17], mintBob: ['hair', 15], mushroomLamp: ['desk', 18],
-    foxMug: ['desk', 8], retroRadio: ['desk', 15], jellyTank: ['desk', 26], origamiCrane: ['desk', 13],
-    twinBraids: ['hair', 22], shortWaves: ['hair', 24], sideSwept: ['hair', 22],
-    highPonytail: ['hair', 28], curlyFringe: ['hair', 26],
-    denimJacket: ['wearable', 28], stripedCardigan: ['wearable', 26], linenShirt: ['wearable', 24],
-    raincoat: ['wearable', 30], boatNeckSweater: ['wearable', 28],
-    brassLamp: ['desk', 30], deskCalendar: ['desk', 18], pottedCactus: ['desk', 22],
-    recordPlayer: ['desk', 34], zenGarden: ['desk', 32],
+  const direct = {
+    desk: ['deskCalendar', 'lamp', 'plant'],
+    hair: ['midnightFade', 'mintBob', 'shortWaves'],
+    wearable: ['denimJacket', 'linenShirt', 'sweater'],
+    pet: ['cat', 'pinkRabbit', 'yellowChick'],
+    ambience: ['forest', 'shore', 'space'],
   };
-  const priceTotal = Object.values(catalog).reduce((sum, [, price]) => sum + price, 0);
-  await db.query('update public.profiles set coins = $2 where id = $1', [shopper, priceTotal]);
   const storefront = await action(shopper, 'state');
-  for (const [item, [kind, price]] of Object.entries(catalog)) {
-    assert.ok(storefront.items.some(entry => entry.id === item && entry.kind === kind && entry.price === price));
-    const purchase = await action(shopper, 'buy', { item });
-    assert.ok(purchase.inventory.some(entry => entry.item === item && !entry.placed));
+  const forSale = storefront.items.filter(entry => !entry.box_only);
+  assert.equal(forSale.length, 15);
+  for (const [category, ids] of Object.entries(direct)) {
+    assert.deepEqual(forSale.filter(entry => entry.kind === category).map(entry => entry.id).sort(), ids);
+  }
+  const priceTotal = forSale.reduce((sum, item) => sum + item.price, 0);
+  await db.query('update public.profiles set coins = $2 where id = $1', [shopper, priceTotal]);
+  for (const { id } of forSale) {
+    const purchase = await action(shopper, 'buy', { item: id });
+    assert.ok(purchase.inventory.some(entry => entry.item === id && !entry.placed));
   }
   assert.equal((await action(shopper, 'state')).profile.coins, 0);
-  assert.equal((await action(shopper, 'buy', { item: 'teaSet' })).error, 'itemOwned');
-  const rare = storefront.items.filter(entry => entry.kind === 'rare').map(entry => entry.id).sort();
-  assert.deepEqual(rare, ['arcticFox', 'clockworkOwl', 'dragon', 'goldKeys', 'moonGlobe', 'moonstoneLamp', 'neon', 'rainbowPrism']);
-  assert.deepEqual(storefront.boxes.map(box => [box.id, box.price, box.rewards.map(reward => reward.weight)]), [
-    ['basic', 50, [55, 30, 15]], ['epic', 85, [55, 35, 10]], ['legendary', 130, [70, 30]],
+  assert.equal((await action(shopper, 'buy', { item: 'deskCalendar' })).error, 'itemOwned');
+  const restricted = storefront.items.filter(entry => entry.box_only).map(entry => entry.id).sort();
+  assert.deepEqual(storefront.boxes.map(box => [box.id, box.price, box.rewards.length]), [
+    ['basic', 75, 23], ['epic', 140, 10], ['legendary', 230, 5],
   ]);
-  assert.deepEqual(storefront.boxes.flatMap(box => box.rewards.map(reward => reward.item)).sort(), rare);
+  assert.deepEqual(storefront.boxes.flatMap(box => box.rewards.map(reward => reward.item)).sort(), restricted);
   for (const room of ['rain-terrace', 'aurora-observatory', 'japanese-garden']) {
     assert.ok(storefront.rooms.some(entry => entry.id === room && entry.capacity === 9 && !entry.private));
   }
-  for (const item of rare) assert.equal((await action(shopper, 'buy', { item })).error, 'itemMissing');
+  for (const item of restricted) assert.equal((await action(shopper, 'buy', { item })).error, 'boxOnly');
+  await db.query(`insert into public.user_items (user_id, item)
+    select $1, unnest($2::text[]) on conflict do nothing`, [shopper, [
+    'auroraHood', 'archiveVest', 'copperCurls', 'silverBraid', 'teaSet', 'hourglass', 'miniGlobe', 'crystalTerrarium',
+    'autumnPoncho', 'starlightJacket', 'mossOveralls', 'lavenderBuns', 'mushroomLamp', 'foxMug', 'retroRadio', 'jellyTank', 'origamiCrane',
+  ]]);
   const baseAvatar = storefront.profile.avatar;
   await action(shopper, 'place', { item: 'auroraHood' });
   await action(shopper, 'place', { item: 'archiveVest' });
@@ -345,18 +347,20 @@ try {
   assert.deepEqual(newStyle.members.find(member => member.own).placed,
     ['mintBob', 'mossOveralls', 'mushroomLamp', 'origamiCrane', 'retroRadio']);
 
-  await db.query('update public.profiles set coins = 1000 where id = $1', [shopper]);
+  await db.query('update public.profiles set coins = 5000 where id = $1', [shopper]);
   assert.equal((await action(shopper, 'openBox', { tier: ['epic'] })).error, 'invalidBox');
   assert.equal((await action(shopper, 'openBox', { tier: 'fake' })).error, 'invalidBox');
-  let balance = 1000;
+  assert.equal((await action(shopper, 'openBox', { tier: 'epic', price: 85 })).error, 'boxPriceChanged');
+  const ownedBefore = new Set(newStyle.inventory.map(entry => entry.item));
+  let balance = 5000;
   for (const offer of storefront.boxes) {
     const awarded = new Set();
-    for (const reward of offer.rewards) {
-      const result = await action(shopper, 'openBox', { tier: offer.id });
+    for (const reward of offer.rewards.filter(entry => !ownedBefore.has(entry.item))) {
+      const result = await action(shopper, 'openBox', { tier: offer.id, price: offer.price });
       balance -= offer.price;
       assert.equal(result.profile.coins, balance);
       assert.ok(offer.rewards.some(entry => entry.item === result.drop.item));
-      assert.ok(!awarded.has(result.drop.item), 'boxes must not award duplicate items');
+      assert.ok(!ownedBefore.has(result.drop.item) && !awarded.has(result.drop.item), 'boxes must not award duplicate items');
       awarded.add(result.drop.item);
     }
     assert.equal((await action(shopper, 'openBox', { tier: offer.id })).error, 'collectionComplete');
@@ -500,11 +504,24 @@ try {
     const week = await weeklyFor('2024-01-01');
     assert.equal(week.end, '2024-01-08');
     assert.deepEqual(week.goals.map(goal => [goal.target, goal.progress, goal.coins, goal.completed]),
-      [[300, 600, 15, true], [600, 600, 30, true], [4, 4, 15, true]]);
+      [[300, 600, 15, true], [600, 600, 30, true], [4, 4, 15, true], [7, 2, 45, false]]);
     assert.equal((await action(weeklyReader, 'state')).profile.coins, 90);
   }
   assert.deepEqual((await weeklyFor('2024-01-08')).goals.map(goal => [goal.progress, goal.completed]),
-    [[20, false], [20, false], [0, false]]);
+    [[20, false], [20, false], [0, false], [0, false]]);
+  await db.query(`insert into public.sessions (user_id, start_ms, end_ms, state)
+    select $1, (extract(epoch from completed) - minutes * 60) * 1000, extract(epoch from completed) * 1000, 'completed'
+    from (values ('2024-01-03 21:00:00+03'::timestamptz, 30),
+      ('2024-01-05 21:00:00+03'::timestamptz, 29),
+      ('2024-01-06 22:00:00+03'::timestamptz, 30)) as records(completed, minutes)`, [weeklyReader]);
+  const streak = async () => (await weeklyFor('2024-01-01')).goals.find(goal => goal.id === 'streak-7');
+  assert.deepEqual([ (await streak()).progress, (await streak()).completed ], [4, false]);
+  await db.query(`insert into public.sessions (user_id, start_ms, end_ms)
+    values ($1, extract(epoch from '2024-01-05 21:10:00+03'::timestamptz) * 1000,
+      extract(epoch from '2024-01-05 21:11:00+03'::timestamptz) * 1000)`, [weeklyReader]);
+  await db.query("update public.sessions set state = 'completed' where user_id = $1 and state = 'active'", [weeklyReader]);
+  assert.deepEqual([ (await streak()).progress, (await streak()).completed ], [7, true]);
+  assert.equal((await action(weeklyReader, 'state')).profile.coins, 135);
 
   const openAd = async (network = 'web', placement = 'web') =>
     (await db.query('select public.open_rewarded_ad($1,$2,$3) as result', [invitee, network, placement])).rows[0].result;

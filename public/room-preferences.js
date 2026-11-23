@@ -1,5 +1,5 @@
 import { webText } from './web-strings.js';
-import { roomGoalMinutes } from './study-rewards.js';
+import { premiumAmbience, roomGoalMinutes } from './study-rewards.js';
 
 const preferenceKey = 'library-room-preferences';
 
@@ -14,12 +14,12 @@ const themeImages = {
 };
 
 const tracks = {
-  rain: 'rain', fire: 'fire', cafe: 'cafe', lofi: 'lofi', space: 'space', forest: 'forest',
+  rain: 'rain', fire: 'fire', cafe: 'cafe', lofi: 'lofi', space: 'space', forest: 'forest', shore: 'shore',
 };
 
 const levels = ['audioOff', 'audioLow', 'audioMid', 'audioHigh'];
 const isLevel = level => Number.isInteger(level) && level >= 0 && level < levels.length;
-const isAvailable = (track, inventory) => !['space', 'forest'].includes(track) || inventory.some(entry => entry.item === track);
+const isAvailable = (track, inventory) => !premiumAmbience.includes(track) || inventory.some(entry => entry.item === track);
 
 export function resolveRoomTheme(choice, room) {
   if (choice !== 'auto') return choice;

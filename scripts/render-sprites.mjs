@@ -82,7 +82,7 @@ for (const item of [
 for (const item of [
   'lamp', 'goldKeys', 'dragon', 'neon', 'teaSet', 'hourglass', 'miniGlobe', 'crystalTerrarium',
   'mushroomLamp', 'foxMug', 'retroRadio', 'jellyTank', 'origamiCrane', 'pinkRabbit', 'pugPup', 'yellowChick',
-  'cat', 'space', 'forest', 'mysteryBox', 'epicBox', 'legendaryBox',
+  'cat', 'space', 'forest', 'shore', 'mysteryBox', 'epicBox', 'legendaryBox',
   'brassLamp', 'deskCalendar', 'pottedCactus', 'recordPlayer', 'zenGarden',
   'moonstoneLamp', 'rainbowPrism', 'moonGlobe', 'arcticFox', 'clockworkOwl',
 ]) {

@@ -21,8 +21,8 @@ export function termsPage(requestedLanguage) {
   const text = words[locale];
   return informationPage(locale, '/terms', text.terms, sections[locale][0][1], `
     ${sections[locale].map(([title, body]) => `<section class="notice-section"><h2>${title}</h2><p>${body}</p></section>`).join('')}
-    <div class="notice-toolbar">
-      <a class="secondary account-button" href="/privacy?lang=${locale}">${text.readPrivacy}</a>
+    <div class="notice-actions">
+      <a class="secondary account-button account-data" href="/privacy?lang=${locale}">${text.readPrivacy}</a>
       <a class="secondary account-button account-danger" href="/account-deletion?lang=${locale}">${text.deleteAccount}</a>
     </div>`);
 }

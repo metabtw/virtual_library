@@ -1,4 +1,5 @@
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
+import { premiumAmbience } from '../../public/study-rewards';
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import type { AmbienceTrack, ItemId, Volume } from './model';
@@ -12,6 +13,7 @@ const sources: Record<AmbienceTrack, number> = {
   lofi: require('../assets/ambience/lofi.m4a'),
   space: require('../assets/ambience/space.m4a'),
   forest: require('../assets/ambience/forest.m4a'),
+  shore: require('../assets/ambience/shore.m4a'),
 };
 
 const tracks = Object.keys(sources) as AmbienceTrack[];
@@ -36,7 +38,7 @@ export function Ambience({ locked, inventory, t }: {
   const volumes = usePreferences(state => state.volumes);
   const setVolume = usePreferences(state => state.setVolume);
   const [ready, setReady] = useState(false);
-  const allowed = (track: AmbienceTrack) => (track !== 'space' && track !== 'forest')
+  const allowed = (track: AmbienceTrack) => !premiumAmbience.includes(track)
     || inventory.some(item => item.item === track);
   const levels: [Volume, string][] = [[0, t.audioOff], [1, t.audioLow], [2, t.audioMid], [3, t.audioHigh]];
 

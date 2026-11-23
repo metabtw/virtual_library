@@ -4,16 +4,16 @@ import type { DeskActivity } from '../../public/desk-status';
 export type Gender = 'unspecified' | 'female' | 'male';
 export type Avatar = AvatarFeatures & { gender: Gender; hair: number; outfit: number; color: string };
 export type DeskStatus = 'desk' | 'break';
-export type AmbienceTrack = 'rain' | 'fire' | 'cafe' | 'lofi' | 'space' | 'forest';
+export type AmbienceTrack = 'rain' | 'fire' | 'cafe' | 'lofi' | 'space' | 'forest' | 'shore';
 export type Volume = 0 | 1 | 2 | 3;
 export type ItemId =
-  | 'lamp' | 'plant' | PetItem | 'sweater' | 'goldKeys' | 'neon' | 'space' | 'forest'
+  | 'lamp' | 'plant' | PetItem | 'sweater' | 'goldKeys' | 'neon' | 'space' | 'forest' | 'shore'
   | 'teaSet' | 'hourglass' | 'miniGlobe' | 'crystalTerrarium'
   | 'mushroomLamp' | 'foxMug' | 'retroRadio' | 'jellyTank' | 'origamiCrane'
   | HairSkin | OutfitSkin | 'brassLamp' | 'deskCalendar' | 'pottedCactus' | 'recordPlayer' | 'zenGarden'
   | 'moonstoneLamp' | 'rainbowPrism' | 'moonGlobe' | 'clockworkOwl';
 export type ItemKind = 'desk' | 'wearable' | 'hair' | 'rare' | 'ambience' | 'pet';
-export type Item = { id: ItemId; name: string; name_en: string; price: number; kind: ItemKind };
+export type Item = { id: ItemId; name: string; name_en: string; price: number; kind: ItemKind; box_only?: boolean };
 export type ThemeChoice = 'auto' | 'classic' | 'rain' | 'garden' | 'stars';
 export type Pet = { xp: number; upset: boolean };
 export type Drop = { item: ItemId } | { coins: number };
@@ -79,7 +79,7 @@ export type Command = {
   target: { target: string };
   createRoom: { name: string };
   joinCode: { code: string };
-  openBox: { tier: BoxTier };
+  openBox: { tier: BoxTier; price: number };
   openChest: undefined;
   abandon: undefined;
   react: { desk: string; kind: ReactionKind };

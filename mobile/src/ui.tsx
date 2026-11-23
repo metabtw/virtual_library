@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
 const buttonTones = {
   data: { surface: { backgroundColor: '#24456a', borderColor: '#5687b7', borderWidth: 1 }, label: { color: '#d6eaff' } },
   signOut: { surface: { backgroundColor: '#5a451d', borderColor: '#a1803e', borderWidth: 1 }, label: { color: '#ffe698' } },
+  terms: { surface: { backgroundColor: '#3b2b50', borderColor: '#77568f', borderWidth: 1 }, label: { color: '#f2dcff' } },
   danger: { surface: { backgroundColor: '#642934', borderColor: '#b75e69', borderWidth: 1 }, label: { color: '#ffd9d8' } },
 };
 
@@ -17,6 +18,25 @@ export function Button({ children, onPress, disabled, muted, compact, tone, acce
     <Text style={[ui.buttonText, compact && ui.compactButtonText, muted && ui.ink, colors?.label]}>{children}</Text>
   </Pressable>;
 }
+
+export function Disclosure({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return <View>
+    <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }}
+      style={disclosureStyles.header} onPress={() => setOpen(expanded => !expanded)}>
+      <Text style={[ui.ink, disclosureStyles.title]}>{title}</Text>
+      {hint && <Text style={ui.small}>{hint}</Text>}
+      <Text accessible={false} style={ui.accent}>{open ? '▴' : '▾'}</Text>
+    </Pressable>
+    {open && <View style={disclosureStyles.content}>{children}</View>}
+  </View>;
+}
+
+const disclosureStyles = StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
+  title: { flex: 1, fontWeight: '700' },
+  content: { gap: 8, paddingTop: 4 },
+});
 
 export function Field({ label, ...props }: TextInputProps & { label: string }) {
   return <View style={ui.field}>

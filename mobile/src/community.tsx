@@ -4,7 +4,7 @@ import { Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-nativ
 import { inviteWait, splitProfileCode, type ProfileCodePrefix } from '../../public/room-social';
 import type { Answer, DailyQuests as Quests, Friend, Profile, StudyInvite, WeeklyQuests } from './model';
 import type { Locale, Translation } from './strings';
-import { Button, ui } from './ui';
+import { Button, Disclosure, ui } from './ui';
 
 export function ProfileCodeField({ label, prefix, value, onChange, onPrefixChange, t }: {
   label: string; prefix: ProfileCodePrefix; value: string; onChange: (value: string) => void;
@@ -72,21 +72,22 @@ export function FocusQuests({ daily, weekly, t }: { daily?: Quests; weekly?: Wee
     { title: t.weeklyQuests, label: t.weekFocus, goals: weekly?.goals, note: t.weeklyReset },
   ];
   return <>{groups.map(({ title, label, goals, note }) => goals?.length ? <View key={title} style={ui.card}>
-    <Text style={ui.heading}>{title}</Text>
-    {note && <Text style={ui.small}>{note}</Text>}
-    {goals.map(goal => {
-      const progress = Math.min(goal.progress, goal.target);
-      const unit = goal.unit === 'days' ? t.dayUnit : t.minuteUnit;
-      const task = `${goal.unit === 'days' ? t.activeDays : label} · ${goal.target} ${unit}`;
-      return <View key={goal.id} style={styles.quest}>
-        <View style={styles.actions}><Text style={[ui.ink, { flexShrink: 1 }]}>{task}</Text><Text style={ui.accent}>+{goal.coins} {t.coins}</Text></View>
-        <View accessibilityRole="progressbar" accessibilityLabel={task}
-          accessibilityValue={{ min: 0, now: progress, max: goal.target }} style={styles.progress}>
-          <View style={[styles.fill, { width: `${progress / goal.target * 100}%` }]} />
-        </View>
-        <Text style={ui.small}>{goal.completed ? '✓ ' + t.questCompleted : `${progress} / ${goal.target} ${unit}`}</Text>
-      </View>;
-    })}
+    <Disclosure title={title} hint={`${goals.filter(goal => goal.completed).length} / ${goals.length}`}>
+      {note && <Text style={ui.small}>{note}</Text>}
+      {goals.map(goal => {
+        const progress = Math.min(goal.progress, goal.target);
+        const unit = goal.unit === 'days' ? t.dayUnit : t.minuteUnit;
+        const task = goal.id === 'streak-7' ? t.streakSeven : `${goal.unit === 'days' ? t.activeDays : label} · ${goal.target} ${unit}`;
+        return <View key={goal.id} style={styles.quest}>
+          <View style={styles.actions}><Text style={[ui.ink, { flexShrink: 1 }]}>{task}</Text><Text style={ui.accent}>+{goal.coins} {t.coins}</Text></View>
+          <View accessibilityRole="progressbar" accessibilityLabel={task}
+            accessibilityValue={{ min: 0, now: progress, max: goal.target }} style={styles.progress}>
+            <View style={[styles.fill, { width: `${progress / goal.target * 100}%` }]} />
+          </View>
+          <Text style={ui.small}>{goal.completed ? '✓ ' + t.questCompleted : `${progress} / ${goal.target} ${unit}`}</Text>
+        </View>;
+      })}
+    </Disclosure>
   </View> : null)}</>;
 }
 

@@ -1,4 +1,4 @@
-import type { Gender, ItemId } from './model';
+import type { BoxTier, Gender, ItemId } from './model';
 
 export const avatarAssets: Record<Gender, number> = {
   unspecified: require('../assets/avatars/reader.png'),
@@ -45,6 +45,7 @@ export const itemAssets: Record<ItemId, number> = {
   neon: require('../assets/items/neon.png'),
   space: require('../assets/items/space.png'),
   forest: require('../assets/items/forest.png'),
+  shore: require('../assets/items/shore.png'),
   auroraHood: require('../assets/items/auroraHood.png'),
   archiveVest: require('../assets/items/archiveVest.png'),
   moonCoat: require('../assets/items/moonCoat.png'),
@@ -68,4 +69,11 @@ export const itemAssets: Record<ItemId, number> = {
   pinkRabbit: require('../assets/items/pinkRabbit.png'),
   pugPup: require('../assets/items/pugPup.png'),
   yellowChick: require('../assets/items/yellowChick.png'),
+};
+
+
+export const chestAssets: Record<BoxTier, number> = {
+  basic: require('../assets/items/mysteryBox.png'),
+  epic: require('../assets/items/epicBox.png'),
+  legendary: require('../assets/items/legendaryBox.png'),
 };

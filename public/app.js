@@ -9,7 +9,7 @@ import { avatarOptions, avatarPresets, defaultAvatar, deskEquipment, dressedAvat
 import { createRoomPreferences } from './room-preferences.js';
 import { downloadStudyCard, messageFor, reactionArt } from './web-social.js';
 import { webText } from './web-strings.js';
-import { adCooldownSeconds, boxLabels, boxOdds, earnedQuestCoins, roomGoalMinutes } from './study-rewards.js';
+import { adCooldownSeconds, boxArt, boxLabels, boxOdds, canBuyFromShop, earnedQuestCoins, roomGoalMinutes } from './study-rewards.js';
 import { focusQuests, friendsPanel, studyInviteButton, studyInvitations } from './community.js';
 import { inviteWait, splitProfileCode } from './room-social.js';
 
@@ -24,6 +24,13 @@ const verification = document.querySelector('#verify-dialog');
 const reactionDialog = document.querySelector('#reaction-dialog');
 const inviteDialog = document.querySelector('#study-invite-dialog');
 const coinHelp = document.querySelector('#coin-help-dialog');
+const rewardDialog = document.querySelector('#box-reward-dialog');
+const rewardStage = rewardDialog.querySelector('.reward-stage');
+const rewardResult = rewardDialog.querySelector('.reward-result');
+const rewardHeading = rewardDialog.querySelector('h2');
+const rewardButton = rewardDialog.querySelector('button');
+const expandedPanels = new Set();
+let revealTimer;
 const shareCodeDialog = document.querySelector('#share-code-dialog');
 const shareCodeText = document.querySelector('#share-code-text');
 const shareCodeStatus = document.querySelector('#share-code-status');
@@ -90,6 +97,48 @@ const privacyHref = () => '/privacy?lang=' + locale;
 const termsHref = () => '/terms?lang=' + locale;
 const deletionHref = () => '/account-deletion?lang=' + locale;
 const profileHref = () => '/?lang=' + locale + '#profile';
+
+function termsButton() {
+  return `<a class="secondary account-button account-terms" href="${termsHref()}">${t('terms')}</a>`;
+}
+
+function revealBoxReward() {
+  clearTimeout(revealTimer);
+  rewardStage.hidden = true;
+  rewardResult.hidden = false;
+  rewardHeading.textContent = t('prize');
+  rewardButton.textContent = t('done');
+}
+
+function showBoxReward(drop, tier) {
+  const prize = data.items.find(item => item.id === drop.item);
+  const name = prize ? localName(prize) : drop.item ?? drop.coins + ' ' + t('coins');
+  rewardDialog.dataset.tier = tier;
+  const source = propImage(boxArt[tier] ?? boxArt.basic);
+  rewardStage.querySelectorAll('img').forEach(image => { image.src = source; });
+  rewardResult.innerHTML = `<div class="item-preview">${prize ? itemImage(prize) : '<span class="reward-coins" aria-hidden="true">◉</span>'}</div><strong>${escape(name)}</strong>`;
+  rewardStage.hidden = false;
+  rewardResult.hidden = true;
+  rewardHeading.textContent = t('boxOpening');
+  rewardButton.textContent = t('boxReveal');
+  rewardDialog.showModal();
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) revealBoxReward();
+  else revealTimer = setTimeout(revealBoxReward, 1300);
+}
+
+rewardButton.addEventListener('click', () => {
+  if (rewardResult.hidden) revealBoxReward();
+  else rewardDialog.close();
+});
+rewardDialog.addEventListener('close', () => clearTimeout(revealTimer));
+
+content.addEventListener('toggle', event => {
+  const panel = event.target;
+  const id = panel.dataset.disclosure;
+  if (!id || !panel.isConnected) return;
+  if (panel.open) expandedPanels.add(id);
+  else expandedPanels.delete(id);
+}, true);
 
 function backToProfile() {
   return `<a class="secondary account-back" href="${profileHref()}"><span aria-hidden="true">←</span> ${t('goBack')}</a>`;
@@ -232,15 +281,12 @@ async function request(action, payload) {
     if (seenReactions.size > 128) for (const id of [...seenReactions].slice(0, 64)) seenReactions.delete(id);
     if (incoming.length) toast(incoming.map(event =>
       `${reactionArt[event.kind]} ${event.name} ${t(event.kind === 'coffee' ? 'coffeeReceived' : 'clapReceived')}`).join(' · '));
-    if (result.drop) {
-      const prize = result.items.find(item => item.id === result.drop.item);
-      toast(t(action === 'openBox' ? 'prize' : 'rewardDrop') + ' · ' +
-        (prize ? localName(prize) : result.drop.item ?? result.drop.coins + ' ' + t('coins')));
-    }
+    if (result.drop) showBoxReward(result.drop, action === 'openChest' ? 'basic' : payload?.tier);
     if (['target', 'place', 'profile', 'react'].includes(action)) trackPresence(presence, result.now);
     return true;
   } catch (error) {
     if (version === revision && (mutation || !data)) toast(messageFor(error.message, t));
+    if (error.message === 'boxPriceChanged') refreshRequested = true;
     return false;
   } finally {
     if (stateRequest === read) stateRequest = undefined;
@@ -268,6 +314,8 @@ function reflectSession(next) {
   refreshRequested = false;
   roomSearch = '';
   catalogCategory.shop = catalogCategory.inventory = 'all';
+  expandedPanels.clear();
+  if (rewardDialog.open) rewardDialog.close();
   lastRead = 0;
   lastView = lastScene = undefined;
   seenReactions.clear();
@@ -302,7 +350,7 @@ function signInView() {
       </form>`}
     ${emailFeedback ? `<p class="auth-feedback" role="alert">${t(emailFeedback)}</p>` : ''}
     <div class="auth-links"><a href="${privacyHref()}">${t('readPrivacy')}</a>
-    <a href="${termsHref()}">${t('terms')}</a>
+    ${termsButton()}
     ${deletionPage ? backToProfile() : `<a href="${deletionHref()}">${t('deletionPage')}</a>`}</div>
   </section>`;
 }
@@ -480,7 +528,7 @@ function itemImage(item) {
 function itemCards(items, inventoryOnly) {
   return `<div class="cards">${items.map(item => {
     const owned = data.inventory.find(entry => entry.item === item.id);
-    const rare = item.kind === 'rare';
+    const rare = !canBuyFromShop(item);
     const label = item.kind === 'hair' || item.kind === 'wearable' ? 'catalogWear' : 'use';
     return `<article class="card ${rare ? 'rare-card' : ''}"><span class="item-icon item-preview">${itemImage(item)}</span>
       <h2>${escape(localName(item))}</h2>${rare ? `<p>${t('chestReward')}</p>` : ''}
@@ -503,18 +551,23 @@ function boxCards() {
     <div class="box-grid">${boxes.map(box => {
       const odds = boxOdds(box.rewards, owned);
       const available = odds.some(reward => reward.chance > 0);
-      const art = { basic: 'mysteryBox', epic: 'epicBox', legendary: 'legendaryBox' }[box.id];
+      const art = boxArt[box.id];
+      const panel = 'box-' + box.id;
       const label = t(boxLabels[box.id]);
       return `<article class="card mystery-box box-${escape(box.id)}">
         <span class="item-icon item-preview"><img src="${propImage(art)}" alt=""></span>
         <h3>${label}</h3>
-        <ul class="box-odds" aria-label="${t('boxOdds')}">${odds.map(reward => {
-          const item = items.get(reward.item);
-          const name = item ? localName(item) : reward.item;
-          return `<li><img src="${propImage(reward.item)}" alt=""><span>${escape(name)}</span>
-            <b>${reward.chance ? percent.format(reward.chance) : t('owned')}</b></li>`;
-        }).join('')}</ul>
-        <button class="primary" data-action="openBox" data-value="${escape(box.id)}" aria-label="${label} · ${box.price} ${t('boxOpen')}"
+        <details class="box-disclosure" data-disclosure="${panel}" ${expandedPanels.has(panel) ? 'open' : ''}>
+          <summary class="disclosure-summary"><span>${t('boxOdds')}</span><small>${odds.length} ${t('prizeOptions')}</small></summary>
+          <ul class="box-odds" aria-label="${t('boxOdds')}">${odds.map(reward => {
+            const item = items.get(reward.item);
+            const name = item ? localName(item) : reward.item;
+            const art = item ? itemImage(item) : '';
+            return `<li><span class="box-odds-thumb" aria-hidden="true">${art}</span><span>${escape(name)}</span>
+              <b>${reward.chance ? percent.format(reward.chance) : t('owned')}</b></li>`;
+          }).join('')}</ul>
+        </details>
+        <button class="primary" data-action="openBox" data-value="${escape(box.id)}" data-price="${box.price}" aria-label="${label} · ${box.price} ${t('boxOpen')}"
           ${!available || data.profile.coins < box.price ? 'disabled' : ''}>${available ? '◉ ' + box.price + ' ' + t('boxOpen') : t('collectionComplete')}</button>
       </article>`;
     }).join('')}</div>
@@ -524,17 +577,14 @@ function boxCards() {
 function catalog(inventoryOnly) {
   const scope = inventoryOnly ? 'inventory' : 'shop';
   const activeCategory = catalogCategory[scope];
-  const choices = data.items.filter(item => !inventoryOnly || data.inventory.some(entry => entry.item === item.id));
+  const choices = data.items.filter(item => inventoryOnly ? data.inventory.some(entry => entry.item === item.id) : canBuyFromShop(item));
   const visible = activeCategory === 'all' ? choices : choices.filter(item => item.kind === activeCategory);
-  const regular = inventoryOnly ? visible : visible.filter(item => item.kind !== 'rare');
-  const prizes = inventoryOnly ? [] : visible.filter(item => item.kind === 'rare');
   const boxes = !inventoryOnly && (activeCategory === 'all' || activeCategory === 'rare') ? boxCards() : '';
   return `<div class="catalog-filter">${picker(scope, t('catalogFilter'), activeCategory,
     Object.entries(categories).map(([value, label]) => [value, t(label)]))}</div>
-    ${!visible.length ? `<p class="empty-message">${t(inventoryOnly && !choices.length ? 'emptyInventory' : 'catalogEmpty')}</p>` : ''}
+    ${!visible.length && !boxes ? `<p class="empty-message">${t(inventoryOnly && !choices.length ? 'emptyInventory' : 'catalogEmpty')}</p>` : ''}
     ${boxes}
-    ${regular.length ? itemCards(regular, inventoryOnly) : ''}
-    ${!boxes && prizes.length ? `<h2 class="section-title">${t('catalogChests')}</h2>${itemCards(prizes, false)}` : ''}`;
+    ${visible.length ? itemCards(visible, inventoryOnly) : ''}`;
 }
 
 function profileCode(label, code, shareable = true) {
@@ -581,16 +631,16 @@ function profileView() {
         <button class="secondary">${t('saveTarget')}</button>
       </form>
     </details>
-    ${focusQuests(data.dailyQuests, data.weeklyQuests, t)}${studyInvitations(data, t, escape, locale)}${friendsPanel(data, draft.friendCode, t, escape)}
+    ${focusQuests(data.dailyQuests, data.weeklyQuests, t, expandedPanels)}${studyInvitations(data, t, escape, locale)}${friendsPanel(data, draft.friendCode, t, escape)}
     <h2 class="section-title">${t('inventory')}</h2><p class="equipment-note">${t('equipmentLimit')}</p>${catalog(true)}` : ''}
   <section class="card account-section" aria-labelledby="account-title">
     <h2 id="account-title">${t('myAccount')}</h2>
     <div class="account-actions">
       <a class="secondary account-button account-data" href="${privacyHref()}">${t('myData')}</a>
       <button class="secondary account-button account-sign-out" data-action="sign-out">${t('signOut')}</button>
+      ${termsButton()}
       <a class="secondary account-button account-danger" href="${deletionHref()}">${t('deleteAccount')}</a>
     </div>
-    <a href="${termsHref()}">${t('terms')}</a>
   </section>`;
 }
 
@@ -600,7 +650,7 @@ function shopView() {
   <div class="toolbar reward-toolbar"><button class="primary" data-action="reward-ad" ${openingAd ? 'disabled' : ''}>${t(openingAd ? 'adLoading' : 'watchAd')}</button>
     <button class="secondary" data-action="openChest" ${!data.chests ? 'disabled' : ''}>${t('chest')} · ${data.chests ?? 0}</button>
     <small id="ad-cooldown" role="status"></small></div>
-  ${focusQuests(data.dailyQuests, data.weeklyQuests, t)}${catalog(false)}`;
+  ${focusQuests(data.dailyQuests, data.weeklyQuests, t, expandedPanels)}${catalog(false)}`;
 }
 
 function rankingView() {
@@ -1073,7 +1123,7 @@ document.addEventListener('click', async event => {
   if (action === 'abandon' && !confirm(t('abandonConfirm'))) return;
   const payload = {
     join: { room: value }, status: { status: value }, start: { duration: duration() },
-    openBox: { tier: value }, buy: { item: value }, place: { item: value }, react: { desk: selectedDesk?.desk_ref, kind: value },
+    openBox: { tier: value, price: Number(button.dataset.price) }, buy: { item: value }, place: { item: value }, react: { desk: selectedDesk?.desk_ref, kind: value },
     rankingVisibility: { visible: value === 'true' },
     answerFriend: { id: value, answer: button.dataset.answer }, removeFriend: { id: value },
     inviteFriend: { id: value }, answerStudyInvite: { id: value, answer: button.dataset.answer },

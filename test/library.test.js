@@ -69,7 +69,7 @@ test('readiness, privacy and terms are public routes in both languages', async t
 
 test('serves the shared ambience tracks and supports media byte ranges', async t => {
   const address = await fixture(t);
-  for (const track of ['rain', 'fire', 'cafe', 'lofi', 'space', 'forest']) {
+  for (const track of ['rain', 'fire', 'cafe', 'lofi', 'space', 'forest', 'shore']) {
     const response = await fetch(`${address}/room-ambience/${track}.m4a`, { method: 'HEAD' });
     assert.equal(response.status, 200, track);
     assert.equal(response.headers.get('Content-Type'), 'audio/mp4');

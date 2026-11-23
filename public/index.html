@@ -44,12 +44,21 @@
         <p>Arkadaşlarınla sanal çalışma odalarına katıl, odak sayacını ayarla ve kendi piksel avatarınla birlikte ders çalış.</p>
         <nav class="auth-links" aria-label="Yasal bilgiler">
           <a href="/privacy">Gizlilik politikası</a>
-          <a href="/terms">Kullanım koşulları</a>
+          <a class="secondary account-button account-terms" href="/terms">Kullanım koşulları</a>
         </nav>
       </section>
     </section>
   </main>
   <p id="notice" role="status"></p>
+  <dialog id="box-reward-dialog" class="reward-dialog" aria-labelledby="box-reward-title">
+    <h2 id="box-reward-title"></h2>
+    <div class="reward-stage" aria-hidden="true">
+      <div class="reward-stars"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="reward-chest"><img class="reward-base" alt=""><img class="reward-lid" alt=""></div>
+    </div>
+    <div class="reward-result" aria-live="polite" hidden></div>
+    <button class="primary" type="button"></button>
+  </dialog>
   <dialog id="verify-dialog" aria-labelledby="verify-title"><h2 id="verify-title" data-text="verify">Hâlâ masada mısın?</h2>
     <p><span data-text="verifyRemaining">Çalışma periyodunu doğrulamak için kalan süre</span> <b id="verify-time"></b>.</p>
     <div class="dialog-actions"><button class="primary" data-action="verify" data-text="here">Buradayım</button><button class="secondary" data-action="status" data-value="break" data-text="pause">Molaya geç</button></div></dialog>

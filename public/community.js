@@ -21,24 +21,25 @@ export function studyInviteButton(friend, t, escape, label = t('studyInvite')) {
     ${escape(label)}<small></small></button>`;
 }
 
-export function focusQuests(daily, weekly, t) {
+export function focusQuests(daily, weekly, t, expanded) {
   const dailyGoals = daily?.goals.map(goal => ({ ...goal, target: goal.minutes, progress: daily.minutes, unit: 'minutes' }));
   return [
     { goals: dailyGoals, title: 'dailyQuests', label: 'todayFocus' },
     { goals: weekly?.goals, title: 'weeklyQuests', label: 'weekFocus', reset: 'weeklyReset' },
-  ].filter(group => group.goals?.length).map(({ goals, title, label, reset }) => `<section class="card community-card daily-quests">
-    <h2>${t(title)}</h2>${reset ? `<p>${t(reset)}</p>` : ''}
+  ].filter(group => group.goals?.length).map(({ goals, title, label, reset }) => `<details class="card community-card quest-panel" data-disclosure="${title}" ${expanded.has(title) ? 'open' : ''}>
+    <summary class="disclosure-summary"><span>${t(title)}</span><small>${goals.filter(goal => goal.completed).length} / ${goals.length}</small></summary>
+    ${reset ? `<p class="quest-reset">${t(reset)}</p>` : ''}
     <div class="quest-grid">${goals.map(goal => {
       const amount = Math.min(goal.progress, goal.target);
       const unit = t(goal.unit === 'days' ? 'dayUnit' : 'minuteUnit');
-      const task = `${t(goal.unit === 'days' ? 'activeDays' : label)} · ${goal.target} ${unit}`;
+      const task = goal.id === 'streak-7' ? t('streakSeven') : `${t(goal.unit === 'days' ? 'activeDays' : label)} · ${goal.target} ${unit}`;
       return `<div class="quest">
         <div><strong>${task}</strong><span>+ ${goal.coins} ${t('coins')}</span></div>
         <progress aria-label="${task}" value="${amount}" max="${goal.target}"></progress>
         <small>${goal.completed ? '✓ ' + t('questCompleted') : `${amount} / ${goal.target} ${unit}`}</small>
       </div>`;
     }).join('')}</div>
-  </section>`).join('');
+  </details>`).join('');
 }
 
 export function friendsPanel(snapshot, friendCode, t, escape) {

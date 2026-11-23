@@ -47,13 +47,13 @@ export function informationPage(locale, path, title, description, content) {
 <link rel="alternate" hreflang="en" href="${canonical}?lang=en">
 <title>${title} | ${words[locale].app}</title>
 </head>
-<body class="notice-page"><main class="card account-card">
-  <nav class="notice-toolbar">
+<body class="notice-page"><main class="card account-card notice-card">
+  <nav class="notice-toolbar" aria-label="${locale === 'tr' ? 'Sayfa seçenekleri' : 'Page options'}">
     <a class="secondary account-back" href="/?lang=${locale}#profile"><span aria-hidden="true">←</span> ${words[locale].goBack}</a>
     <a class="secondary account-back" href="${path}?lang=${alternate}" lang="${alternate}">${alternate === 'tr' ? 'Türkçe' : 'English'}</a>
   </nav>
-  <div class="auth-heading"><img class="auth-emblem" src="/app-logo.png" width="45" height="45" alt=""><h1>${title}</h1></div>
-  ${content}
+  <div class="notice-heading"><img class="auth-emblem" src="/app-logo.png" width="45" height="45" alt=""><h1>${title}</h1></div>
+  <div class="notice-content">${content}</div>
 </main></body></html>`;
 }
 
@@ -70,8 +70,8 @@ export function privacyPage(requestedLanguage, env) {
   ${controller ? `<p><b>${text.controller}</b> ${escape(controller)}</p>` : ''}
   ${contact ? `<p><b>${text.contact}</b> <a href="mailto:${escape(contact)}">${escape(contact)}</a></p>` : ''}
   ${details ? `<p class="notice-details">${escape(details)}</p>` : ''}
-  <div class="notice-toolbar">
+  <div class="notice-actions">
     <a class="secondary account-button account-danger" href="/account-deletion?lang=${locale}">${text.remove}</a>
-    <a class="secondary account-button" href="/terms?lang=${locale}">${words[locale].terms}</a>
+    <a class="secondary account-button account-terms" href="/terms?lang=${locale}">${words[locale].terms}</a>
   </div>`);
 }

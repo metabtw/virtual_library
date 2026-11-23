@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { boxLabels, boxOdds } from '../../public/study-rewards';
-import { itemAssets } from './asset-art';
+import { boxLabels, boxOdds, canBuyFromShop } from '../../public/study-rewards';
+import { chestAssets, itemAssets } from './asset-art';
 import type { BoxTier, Item, ItemId, ItemKind, Snapshot } from './model';
 import type { Locale, Translation } from './strings';
-import { Button, Options, ui } from './ui';
+import { Button, Disclosure, Options, ui } from './ui';
 
 type Category = 'all' | ItemKind;
 
@@ -45,12 +45,6 @@ type GalleryProps = {
   action: (item: ItemId) => void;
 };
 
-const boxArt = {
-  basic: require('../assets/items/mysteryBox.png'),
-  epic: require('../assets/items/epicBox.png'),
-  legendary: require('../assets/items/legendaryBox.png'),
-};
-
 const boxPalettes = {
   basic: { backgroundColor: '#463129', borderColor: '#98654f' },
   epic: { backgroundColor: '#473256', borderColor: '#a075c1' },
@@ -58,7 +52,7 @@ const boxPalettes = {
 };
 
 function Boxes({ snapshot, owned, locale, t, pending, openBox }: Pick<GalleryProps, 'snapshot' | 'owned' | 'locale' | 't' | 'pending'> & {
-  openBox: (tier: BoxTier) => void;
+  openBox: (tier: BoxTier, price: number) => void;
 }) {
   const percent = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 2 });
   const items = new Map(snapshot.items.map(item => [item.id, item]));
@@ -72,19 +66,21 @@ function Boxes({ snapshot, owned, locale, t, pending, openBox }: Pick<GalleryPro
       const price = `${box.price} ${t.boxOpen}`;
       return <View key={box.id} style={[ui.card, boxPalettes[box.id]]}>
         <View style={styles.boxHeader}>
-          <Image source={boxArt[box.id]} style={styles.boxIcon} resizeMode="contain" accessible={false} />
+          <Image source={chestAssets[box.id]} style={styles.boxIcon} resizeMode="contain" accessible={false} />
           <Text accessibilityRole="header" style={[styles.name, { flexShrink: 1 }]}>{boxName}</Text>
         </View>
-        {odds.map(reward => {
-          const item = items.get(reward.item);
-          return <View key={reward.item} style={styles.boxOdds}>
-            <Image source={itemAssets[reward.item]} style={styles.prizeIcon} resizeMode="contain" accessible={false} />
-            <Text style={[ui.ink, { flex: 1 }]}>{item ? locale === 'tr' ? item.name : item.name_en : reward.item}</Text>
-            <Text style={ui.accent}>{reward.chance ? percent.format(reward.chance) : t.owned}</Text>
-          </View>;
-        })}
+        <Disclosure title={t.boxOdds} hint={`${odds.length} ${t.prizeOptions}`}>
+          {odds.map(reward => {
+            const item = items.get(reward.item);
+            return <View key={reward.item} style={styles.boxOdds}>
+              <Image source={itemAssets[reward.item]} style={styles.prizeIcon} resizeMode="contain" accessible={false} />
+              <Text style={[ui.ink, { flex: 1 }]}>{item ? locale === 'tr' ? item.name : item.name_en : reward.item}</Text>
+              <Text style={ui.accent}>{reward.chance ? percent.format(reward.chance) : t.owned}</Text>
+            </View>;
+          })}
+        </Disclosure>
         <Button accessibilityLabel={`${boxName} · ${price}`} disabled={pending || !available || (snapshot.profile?.coins ?? 0) < box.price}
-          onPress={() => openBox(box.id)}>{available ? price : t.collectionComplete}</Button>
+          onPress={() => openBox(box.id, box.price)}>{available ? price : t.collectionComplete}</Button>
       </View>;
     })}
   </>;
@@ -98,12 +94,12 @@ function ItemGrid({ items, inventory, owned, snapshot, t, locale, pending, actio
     {items.map(item => {
       const hasItem = owned.has(item.id);
       const equipped = owned.get(item.id) === true;
-      const chestOnly = item.kind === 'rare' && !inventory;
+      const chestOnly = !canBuyFromShop(item);
       const audio = item.kind === 'ambience';
       const wearable = item.kind === 'wearable' || item.kind === 'hair';
       const name = locale === 'tr' ? item.name : item.name_en;
       const afford = coins >= item.price;
-      return <View key={item.id} style={[styles.tile, compact && styles.full, item.kind === 'rare' && styles.rare,
+      return <View key={item.id} style={[styles.tile, compact && styles.full, chestOnly && styles.rare,
         equipped && styles.equipped]}>
         <ItemIllustration item={item} />
         <View style={styles.details}>
@@ -115,8 +111,7 @@ function ItemGrid({ items, inventory, owned, snapshot, t, locale, pending, actio
             {t.petName} {1 + (snapshot.pet?.xp ?? 0)} · {snapshot.pet?.upset ? t.petUpset : t.petHappy}
           </Text>}
         </View>
-        {chestOnly ? hasItem && <Text style={ui.small}>{t.owned}</Text>
-          : inventory && audio ? <Text style={ui.small}>{t.owned}</Text>
+        {inventory && audio ? <Text style={ui.small}>{t.owned}</Text>
           : <Button muted={inventory || hasItem || !afford}
               accessibilityLabel={`${name} · ${inventory ? equipped ? t.remove : wearable ? t.catalogWear : t.use
                 : hasItem ? t.owned : item.price + ' ' + t.coins}`}
@@ -136,15 +131,13 @@ export function Catalog({ snapshot, inventory, locale, t, pending, action, openB
   t: Translation;
   pending: boolean;
   action: (item: ItemId) => void;
-  openBox?: (tier: BoxTier) => void;
+  openBox?: (tier: BoxTier, price: number) => void;
 }) {
   const [category, setCategory] = useState<Category>('all');
   const owned = new Map(snapshot.inventory.map(entry => [entry.item, entry.placed]));
-  const choices = snapshot.items.filter(item => !inventory || owned.has(item.id));
+  const choices = snapshot.items.filter(item => inventory ? owned.has(item.id) : canBuyFromShop(item));
   const visible = category === 'all' ? choices : choices.filter(item => item.kind === category);
-  const regular = inventory ? visible : visible.filter(item => item.kind !== 'rare');
-  const prizes = inventory ? [] : visible.filter(item => item.kind === 'rare');
-  const box = prizes.length && snapshot.boxes?.length ? openBox : undefined;
+  const box = !inventory && (category === 'all' || category === 'rare') && snapshot.boxes?.length ? openBox : undefined;
   const grid = { inventory: !!inventory, owned, snapshot, t, locale, pending, action };
 
   return <>
@@ -152,16 +145,9 @@ export function Catalog({ snapshot, inventory, locale, t, pending, action, openB
     <Options<Category> label={t.catalogFilter} value={category}
       values={(Object.keys(categoryLabels) as Category[]).map(value => [value, t[categoryLabels[value]]])}
       onChange={setCategory} />
-    {!visible.length && <Text style={ui.small}>{inventory && !choices.length ? t.emptyInventory : t.catalogEmpty}</Text>}
+    {!visible.length && !box && <Text style={ui.small}>{inventory && !choices.length ? t.emptyInventory : t.catalogEmpty}</Text>}
     {box && <Boxes {...grid} openBox={box} />}
-    {!!regular.length && <ItemGrid {...grid} items={regular} />}
-    {!box && !!prizes.length && <>
-      <View style={styles.rewardHeader}>
-        <Text style={styles.rewardTitle}>{t.catalogChests}</Text>
-        <Text style={ui.small}>{t.chestCollectionInfo}</Text>
-      </View>
-      <ItemGrid {...grid} items={prizes} />
-    </>}
+    {!!visible.length && <ItemGrid {...grid} items={visible} />}
   </>;
 }
 
@@ -182,7 +168,6 @@ const styles = StyleSheet.create({
   details: { flexGrow: 1, gap: 4, paddingHorizontal: 2 },
   name: { color: '#fff0dc', fontSize: 14, fontWeight: '700' },
   soundIcon: { fontSize: 34, color: '#e7d9b1' },
-  rewardHeader: { borderLeftWidth: 3, borderLeftColor: '#d2a8ef', paddingLeft: 10, gap: 4, marginTop: 4 },
   rewardTitle: { fontSize: 18, fontWeight: '700', color: '#efd6ff' },
   rewardLabel: { color: '#e5bdfb', fontWeight: '600', fontSize: 12 },
   equippedLabel: { color: '#b9ecba', fontSize: 12, fontWeight: '700' },

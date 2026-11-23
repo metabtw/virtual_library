@@ -12,16 +12,20 @@ const googleEnabled = process.env.EXPO_PUBLIC_AUTH_GOOGLE === 'true';
 const privacyUrl = process.env.EXPO_PUBLIC_PRIVACY_URL;
 WebBrowser.maybeCompleteAuthSession();
 
+export function TermsButton({ locale, t }: { locale: Locale; t: Translation }) {
+  const terms = `https://virtualstudycrew.com/terms?lang=${locale}`;
+  return <Button tone="terms" onPress={() => void Linking.openURL(terms).catch(() => {})}>{t.terms}</Button>;
+}
+
 export function PolicyLinks({ locale, t }: { locale: Locale; t: Translation }) {
   let privacy: URL;
   try { privacy = new URL(privacyUrl || 'https://virtualstudycrew.com/privacy'); }
   catch { return null; }
   if (privacy.protocol !== 'https:') return null;
   privacy.searchParams.set('lang', locale);
-  const terms = `https://virtualstudycrew.com/terms?lang=${locale}`;
   return <>
     <Button muted onPress={() => void Linking.openURL(privacy.toString()).catch(() => {})}>{t.readPrivacy}</Button>
-    <Button muted onPress={() => void Linking.openURL(terms).catch(() => {})}>{t.terms}</Button>
+    <TermsButton locale={locale} t={t} />
   </>;
 }
 

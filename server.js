@@ -44,7 +44,7 @@ export const webFiles = new Map([
   ['/library.webp', ['public/library.webp', image]],
   ['/aurora.webp', ['mobile/assets/aurora.webp', image]],
   ...['rain', 'garden', 'stars'].map(theme => [`/room-themes/${theme}.webp`, [`mobile/assets/themes/${theme}.webp`, image]]),
-  ...['rain', 'fire', 'cafe', 'lofi', 'space', 'forest'].map(track =>
+  ...['rain', 'fire', 'cafe', 'lofi', 'space', 'forest', 'shore'].map(track =>
     [`/room-ambience/${track}.m4a`, [`mobile/assets/ambience/${track}.m4a`, audio]]),
 ]);
 
@@ -100,7 +100,7 @@ export function getWebConfig(env = process.env) {
   return { url: url.origin, key, google,
     ...(google && paired ? {
       firebaseGoogle: googleWeb.firebase,
-      ...(env.WEB_FIREBASE_AUTH_REDIRECT_URI === 'https://virtualstudycrew.com/__/auth/handler'
+      ...(env.WEB_FIREBASE_CUSTOM_AUTH_DOMAIN === 'virtualstudycrew.com'
         ? { firebaseGoogleDomain: 'virtualstudycrew.com' } : {}),
     } : {}),
     apple: env.EXPO_PUBLIC_AUTH_APPLE === 'true' };
