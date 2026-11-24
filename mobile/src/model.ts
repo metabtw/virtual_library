@@ -17,7 +17,7 @@ export type ItemKind = 'desk' | 'wearable' | 'hair' | 'rare' | 'ambience' | 'pet
 export type Item = { id: ItemId; name: string; name_en: string; price: number; kind: ItemKind; box_only?: boolean };
 export type ThemeChoice = 'auto' | 'classic' | 'rain' | 'garden' | 'stars';
 export type Pet = { xp: number; upset: boolean };
-export type Drop = { item: ItemId } | { coins: number };
+export type Drop = ({ item: ItemId } | { coins: number }) & { tier?: BoxTier };
 export type ReactionKind = 'coffee' | 'clap';
 export type DeskReaction = { id: string; kind: ReactionKind; name: string };
 export type CoffeeCup = { id: string; expiresAt: number };
@@ -27,7 +27,7 @@ export type Profile = { name: string; coins: number; room: string | null; status
 export type Room = { id: string; name: string; name_en: string; count: number; capacity: number; private?: boolean; owned?: boolean; invite?: string | null; targets?: string[]; minutes?: number };
 export type Focus = {
   start: number; end: number; checks: number; state: 'active' | 'completed' | 'invalid';
-  paused_at: number | null; next_check_at?: number | null; check_until?: number | null;
+  paused_at: number | null; next_check_at?: number | null; check_until?: number | null; disconnectDeadline?: number | null;
 };
 export type Friend = { id: string; name: string; code: string; shortCode?: string; status: 'accepted' | 'sent' | 'incoming'; inRoom?: boolean; inviteRetryAt?: number | null };
 export type StudyInvite = { id: string; name: string; room: string; room_en: string; private: boolean; expiresAt?: number };
@@ -47,6 +47,8 @@ export type Snapshot = {
   items: Item[];
   inventory: { item: ItemId; placed: boolean }[];
   session: Focus | null;
+  autoBreak?: { id: string; endsAt: number };
+  roomGoal?: import('../../public/study-rewards').RoomProgress;
   pet?: Pet | null;
   chests?: number;
   drop?: Drop | null;
@@ -76,7 +78,7 @@ export type Command = {
   join: { room: string };
   leave: undefined;
   status: { status: DeskStatus };
-  start: { duration: number };
+  start: { duration: number; breakMinutes: number };
   verify: undefined;
   buy: { item: ItemId };
   place: { item: ItemId };

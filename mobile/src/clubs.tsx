@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Image, Pressable, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { defaultRoomTheme } from '../../public/room-art';
-import { roomGoalMinutes } from '../../public/study-rewards';
+import { roomGoalMinutes, roomThemeUnlockMinutes } from '../../public/study-rewards';
 import type { Room } from './model';
 import type { Locale, Translation } from './strings';
 import { roomThemes } from './themes';
@@ -38,7 +38,7 @@ export function Directory({ rooms, current, pending, ownsPrivateRoom, coins, loc
     </View>
     {!visible.length && <Text style={ui.small}>{t.noRooms}</Text>}
     <View style={styles.roomGrid}>{visible.map(room => <View style={[ui.card, styles.roomCard, fontScale >= 1.55 && styles.full]} key={room.id}>
-      <Image source={roomThemes[defaultRoomTheme(room.id, (room.minutes ?? 0) >= roomGoalMinutes)].image}
+      <Image source={roomThemes[defaultRoomTheme(room.id, (room.minutes ?? 0) >= roomThemeUnlockMinutes)].image}
         accessibilityIgnoresInvertColors accessible={false} resizeMode="cover" style={styles.preview} />
       <View style={styles.roomTitle}>
         <Text numberOfLines={2} style={styles.name}>{locale === 'tr' ? room.name : room.name_en}</Text>
@@ -85,16 +85,15 @@ export function TargetEditor({ initial, save, pending, t }: {
   </View>;
 }
 
-export function RoomGoal({ minutes, t }: { minutes: number; t: Translation }) {
-  const progress = minutes % roomGoalMinutes;
-  return <View style={styles.goal}>
+export function RoomGoal({ progress, t }: { progress: number; t: Translation }) {
+  return <View><View style={styles.goal}>
     <Text style={styles.goalText}>🎁 {t.chestGoal}</Text>
     <View accessibilityRole="progressbar" accessibilityLabel={t.groupMinutes}
       accessibilityValue={{ min: 0, max: roomGoalMinutes, now: progress }} style={styles.progress}>
       <View style={{ height: '100%', width: `${progress / roomGoalMinutes * 100}%`, backgroundColor: '#efad71' }} />
     </View>
     <Text style={ui.accent}>{progress}/{roomGoalMinutes}</Text>
-  </View>;
+  </View><Text style={[ui.small, { marginTop: 5 }]}>{t.chestGoalInfo}</Text></View>;
 }
 
 const styles = StyleSheet.create({

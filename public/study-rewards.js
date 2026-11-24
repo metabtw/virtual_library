@@ -1,4 +1,12 @@
-export const roomGoalMinutes = 100;
+export const roomGoalMinutes = 180;
+export const roomThemeUnlockMinutes = 100;
+export const breakPresets = { '25': 5, '50': 10, '90': 15 };
+
+export function roomProgressMinutes(goal, now) {
+  const live = (goal?.live ?? []).reduce((sum, segment) =>
+    sum + Math.max(0, Math.min(now, segment.until) - segment.start), 0);
+  return Math.min(roomGoalMinutes, (goal?.settled ?? 0) + Math.floor(live / 60_000));
+}
 
 export const boxLabels = { basic: 'boxBasic', epic: 'boxEpic', legendary: 'boxLegendary' };
 

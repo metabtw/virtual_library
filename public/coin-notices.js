@@ -1,7 +1,7 @@
 export const coinReasonLabels = {
   welcome: 'coinWelcomeReason', focus: 'coinFocusReason', daily: 'coinDailyReason',
   weekly: 'coinWeeklyReason', referred: 'coinReferredReason', referral: 'coinReferralReason',
-  ad: 'coinAdReason', chest: 'coinChestReason',
+  ad: 'coinAdReason', chest: 'coinChestReason', ranking: 'coinRankingReason',
 };
 
 export function readCoinReceipts(serialized) {

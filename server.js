@@ -36,6 +36,8 @@ export const webFiles = new Map([
   ['/avatar-art.js', ['public/avatar-art.js', script]],
   ['/prop-art.js', ['public/prop-art.js', script]],
   ['/sprites.js', ['public/sprites.js', script]],
+  ['/study-games.js', ['public/study-games.js', script]],
+  ['/web-games.js', ['public/web-games.js', script]],
   ['/web-social.js', ['public/web-social.js', script]],
   ['/web-strings.js', ['public/web-strings.js', script]],
   ['/strings.js', ['public/strings.js', script]],

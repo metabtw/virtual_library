@@ -1,6 +1,6 @@
 import { defaultRoomTheme, roomBackdrop } from './room-art.js';
 import { webText } from './web-strings.js';
-import { premiumAmbience, roomGoalMinutes } from './study-rewards.js';
+import { premiumAmbience, roomThemeUnlockMinutes } from './study-rewards.js';
 
 const preferenceKey = 'library-room-preferences';
 
@@ -19,7 +19,7 @@ const isAvailable = (track, inventory) => !premiumAmbience.includes(track) || in
 
 export function resolveRoomTheme(choice, room) {
   if (choice !== 'auto') return choice;
-  return defaultRoomTheme(room?.id, (room?.minutes ?? 0) >= roomGoalMinutes);
+  return defaultRoomTheme(room?.id, (room?.minutes ?? 0) >= roomThemeUnlockMinutes);
 }
 
 function readPreferences(storage) {

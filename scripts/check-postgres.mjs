@@ -244,7 +244,7 @@ try {
   await action(departed, 'leave');
   assert.equal((await action(departed, 'joinCode', { code: privateRoom.invite })).profile.room, privateRoom.id);
   await action(departed, 'leave');
-  await db.query('insert into public.room_progress (room_id, minutes) values ($1,50)', [privateRoom.id]);
+  await db.query('insert into public.room_progress (room_id, minutes, cycle_minutes) values ($1,130,130)', [privateRoom.id]);
   await action(third, 'start', { duration: 50 });
   await shiftSession(third, 1200100);
   await action(third, 'verify');
@@ -254,7 +254,7 @@ try {
   assert.equal(await settle(), 1);
   assert.equal(await settle(), 0);
   const milestone = await action(third, 'state');
-  assert.equal(milestone.rooms.find(entry => entry.id === privateRoom.id).minutes, 100);
+  assert.equal(milestone.rooms.find(entry => entry.id === privateRoom.id).minutes, 180);
   assert.deepEqual(milestone.pet, { xp: 1, upset: false });
   assert.equal(milestone.chests, 1);
   assert.equal((await action(first, 'state')).chests, 1);
@@ -263,7 +263,7 @@ try {
 
   const opening = await action(third, 'openChest');
   assert.equal(opening.chests, 0);
-  assert.ok(milestone.boxes.find(box => box.id === 'basic').rewards.some(reward => reward.item === opening.drop.item));
+  assert.ok(milestone.boxes.find(box => box.id === opening.drop.tier).rewards.some(reward => reward.item === opening.drop.item));
   assert.equal((await action(third, 'openChest')).error, 'noChest');
   assert.equal((await action(third, 'openBox')).error, 'insufficientCoins');
   await db.query('update public.profiles set coins = 105 where id = $1', [third]);
@@ -370,7 +370,7 @@ try {
   }
   await db.query('insert into public.room_chests (room_id, milestone, user_id) values ($1, 999999, $2)', ['night', shopper]);
   const fallback = await action(shopper, 'openChest');
-  assert.deepEqual(fallback.drop, { coins: 10 });
+  assert.deepEqual(fallback.drop, { coins: 10, tier: 'basic' });
   assert.equal(fallback.profile.coins, balance + 10);
   const equipFox = await action(shopper, 'place', { item: 'arcticFox' });
   assert.ok(equipFox.inventory.some(entry => entry.item === 'arcticFox' && entry.placed));
@@ -381,8 +381,10 @@ try {
   const senderState = await action(first, 'state');
   const senderDesk = senderState.members.find(member => member.own).desk_ref;
   assert.equal((await action(first, 'react', { desk: senderDesk, kind: 'coffee' })).error, 'reactionUnavailable');
+  assert.equal((await action(first, 'react', { desk: recipientDesk, kind: 'coffee' })).error, 'insufficientCoins');
+  await db.query('update public.profiles set coins=1 where id=$1', [first]);
   const coffee = await action(first, 'react', { desk: recipientDesk, kind: 'coffee' });
-  assert.equal(coffee.profile.coins, senderState.profile.coins);
+  assert.equal(coffee.profile.coins, 0);
   assert.deepEqual(coffee.reactions, []);
   assert.equal((await action(first, 'react', { desk: recipientDesk, kind: 'clap' })).error, 'reactionSlowDown');
   assert.equal((await action(third, 'state')).reactions[0].kind, 'coffee');
@@ -464,7 +466,7 @@ try {
   assert.equal(sent.friends[0].shortCode, inviter.shortReaderCode);
   assert.equal(sent.friends[0].code, inviter.readerCode);
   const relation = sent.friends[0].id;
-  assert.equal((await action(invitee, 'addFriend', { code: inviter.readerCode })).friends[0].id, relation);
+  assert.equal((await action(invitee, 'addFriend', { code: inviter.readerCode })).error, 'friendPending');
   assert.equal(sent.friends[0].status, 'sent');
   assert.equal((await action(invitee, 'inviteFriend', { id: relation })).error, 'friendMissing');
   assert.equal((await action(outsider, 'answerFriend', { id: relation, answer: 'accept' })).error, 'friendMissing');
@@ -640,6 +642,10 @@ try {
   const quietDisabled = await action(receiverDeskUser, 'setDoNotDisturb', { enabled: false });
   assert.equal(quietDisabled.friends[0].status, 'incoming');
   const coffeeSend = await action(hostDeskUser, 'react', { desk: receiverDesk, kind: 'coffee' });
+  assert.equal(coffeeSend.profile.coins, deskRequest.profile.coins - 1);
+  assert.equal(coffeeSend.coinAwards.some(award => award.reason === 'coffee'), false);
+  await action(receiverDeskUser, 'answerFriend', { id: quietDisabled.friends[0].id, answer: 'accept' });
+  assert.equal((await action(hostDeskUser, 'addDeskFriend', { desk: receiverDesk })).error, 'alreadyFriends');
   const cupFromSender = coffeeSend.members.find(member => member.desk_ref === receiverDesk).coffeeCup;
   assert.ok(cupFromSender?.expiresAt > coffeeSend.now);
   const coffeeReceive = await action(receiverDeskUser, 'state');
@@ -656,6 +662,96 @@ try {
   await action(receiverDeskUser, 'leave');
   const privateDesk = (await action(receiverDeskUser, 'joinCode', { code: deskPrivateRoom.invite })).members.find(member => member.own).desk_ref;
   assert.equal((await action(hostDeskUser, 'addDeskFriend', { desk: privateDesk })).error, 'deskFriendUnavailable');
+
+  // Timed focus uses a five-minute room lease and can recover a check missed offline.
+  const clientConnection = { clientId: 'timer-fixture', generation: 0, foreground: true };
+  const timed = (name, payload = {}) => action(separateRoomUser, name, { ...clientConnection, ...payload });
+  const state = () => timed('state');
+  assert.equal((await timed('start', { duration: 5, breakMinutes: 0 })).error, 'invalidBreakMinutes');
+  const firstTimed = await timed('start', { duration: 5, breakMinutes: 3 });
+  assert.ok(firstTimed.session.disconnectDeadline >= firstTimed.now + 299990);
+  await shiftSession(separateRoomUser, 300100);
+  const autoBreak = await state();
+  assert.equal(autoBreak.session.state, 'completed');
+  assert.equal(autoBreak.profile.status, 'break');
+  assert.ok(autoBreak.autoBreak.endsAt > autoBreak.now + 175000);
+  assert.equal(autoBreak.dailyQuests.minutes, 5);
+  assert.equal(autoBreak.weeklyQuests.goals.find(goal => goal.unit === 'minutes').progress, 5);
+  assert.equal(autoBreak.roomGoal.settled, 5);
+  assert.equal((await timed('start', { duration: 5, breakMinutes: 3 })).error, 'breakInProgress');
+  await db.query(`update public.sessions set start_ms=start_ms-180000,end_ms=end_ms-180000 where id=$1`, [autoBreak.autoBreak.id]);
+  const returnToDesk = await state();
+  assert.equal(returnToDesk.autoBreak.id, autoBreak.autoBreak.id);
+  assert.ok(returnToDesk.autoBreak.endsAt <= returnToDesk.now);
+  assert.equal(returnToDesk.profile.status, 'desk');
+  assert.equal((await state()).autoBreak, undefined);
+
+  await db.query('update public.sessions set start_ms=start_ms-1800000,end_ms=end_ms-1800000 where id=$1', [autoBreak.autoBreak.id]);
+  const pendingReconnect = await timed('start', { duration: 25, breakMinutes: 5 });
+  await shiftSession(separateRoomUser, 22 * 60000);
+  await db.query(`update public.sessions set last_online_ms=public.library_time_ms()-125000 where user_id=$1 and state='active'`, [separateRoomUser]);
+  await settle();
+  const reconnected = await state();
+  assert.equal(reconnected.session.state, 'active');
+  assert.equal(reconnected.profile.room, pendingReconnect.profile.room);
+  assert.ok(reconnected.session.check_until > reconnected.now + 29000);
+  assert.equal((await timed('verify')).session.checks, 1);
+  assert.equal((await state()).roomGoal.live.length, 1);
+  await shiftSession(separateRoomUser, 3 * 60000 + 100);
+  const recoveredMinutes = await state();
+  assert.equal(recoveredMinutes.dailyQuests.minutes, 30);
+  assert.equal(recoveredMinutes.roomGoal.settled, 30);
+
+  await timed('leave');
+  await timed('join', { room: 'history' });
+  await timed('start', { duration: 25, breakMinutes: 5 });
+  await shiftSession(separateRoomUser, 1230400);
+  assert.equal((await state()).session.state, 'invalid');
+  assert.equal((await state()).roomGoal.settled, 30);
+  assert.deepEqual((await state()).roomGoal.live, []);
+
+  await timed('start', { duration: 25, breakMinutes: 5 });
+  await db.query(`update public.sessions set last_online_ms=public.library_time_ms()-300100 where user_id=$1 and state='active'`, [separateRoomUser]);
+  await db.query(`update public.room_members set seen=public.library_time_ms()-15100 where user_id=$1`, [separateRoomUser]);
+  await settle();
+  const offlineExpired = await state();
+  assert.equal(offlineExpired.profile.room, null);
+  assert.equal(offlineExpired.session.state, 'invalid');
+  assert.equal(offlineExpired.dailyQuests.minutes, 30);
+
+  const odds = await db.query(`select roll, public.room_chest_tier(roll) as tier from unnest(array[0,949,950,998,999]) roll`);
+  assert.deepEqual(odds.rows.map(row => row.tier), ['basic', 'basic', 'epic', 'epic', 'legendary']);
+  await db.query("insert into public.room_chests(room_id,milestone,user_id,tier) values ('history',999998,$1,'epic'),('history',999999,$1,'legendary')", [separateRoomUser]);
+  for (const tier of ['epic', 'legendary']) {
+    const reward = await timed('openChest');
+    assert.equal(reward.drop.tier, tier);
+    assert.ok(reward.boxes.find(box => box.id === tier).rewards.some(item => item.item === reward.drop.item));
+  }
+
+  // Settle the current fixture week as if it has finished, with a tied top pair.
+  await db.exec('begin');
+  try {
+    const { rows: [week] } = await db.query(`select date_trunc('week', clock_timestamp() at time zone 'Europe/Istanbul')::date::text as starts,
+      extract(epoch from (date_trunc('week', clock_timestamp() at time zone 'Europe/Istanbul') at time zone 'Europe/Istanbul'))::bigint * 1000 as ms`);
+    const readers = [hostDeskUser, receiverDeskUser, separateRoomUser, ranker];
+    for (const [position, user] of readers.entries()) {
+      await action(user, 'rankingVisibility', { visible: true });
+      await history(user, Number(week.ms) + (position + 1) * 60000, [180, 180, 150, 100][position]);
+    }
+    const winners = [hostDeskUser, receiverDeskUser, separateRoomUser];
+    const prior = (await db.query('select id::text, coins from public.profiles where id=any($1::uuid[])', [winners])).rows;
+    await db.query("select public.award_weekly_placements(($1::date + 7)::timestamp at time zone 'Europe/Istanbul' + interval '8 minutes')", [week.starts]);
+    await db.query("select public.award_weekly_placements(($1::date + 7)::timestamp at time zone 'Europe/Istanbul' + interval '12 minutes')", [week.starts]);
+    for (const [position, user] of winners.entries()) {
+      const latest = await action(user, 'state');
+      const prize = [10, 5, 3][position];
+      assert.equal(latest.profile.coins, prior.find(row => row.id === user).coins + prize);
+      assert.deepEqual(latest.coinAwards.filter(award => award.reason === 'ranking').map(award => award.amount), [prize]);
+    }
+    assert.equal((await action(ranker, 'state')).coinAwards.filter(award => award.reason === 'ranking').length, 0);
+  } finally {
+    await db.exec('rollback');
+  }
 
   await db.exec('set role authenticated');
   await db.query("select set_config('request.jwt.claim.sub', $1, false)", [ranker]);

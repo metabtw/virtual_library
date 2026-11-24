@@ -11,10 +11,11 @@ import { portrait, propImage, writingFrames } from './sprites.js';
 import { avatarOptions, avatarPresets, defaultAvatar, deskEquipment, dressedAvatar, hairStyles,
   hasPropArt, petAppearance, pickAvatarStyle, writingSize } from './avatar-art.js';
 import { createRoomPreferences } from './room-preferences.js';
-import { downloadStudyCard, messageFor, reactionArt } from './web-social.js';
+import { createStudyCardPreview, messageFor, reactionArt } from './web-social.js';
 import { webText } from './web-strings.js';
-import { adCooldownSeconds, boxArt, boxLabels, boxOdds, canBuyFromShop, roomGoalMinutes } from './study-rewards.js';
+import { adCooldownSeconds, boxArt, boxLabels, boxOdds, breakPresets, canBuyFromShop, roomGoalMinutes, roomProgressMinutes, roomThemeUnlockMinutes } from './study-rewards.js';
 import { focusQuests, friendsPanel, studyInviteButton, studyInvitations } from './community.js';
+import { mountGames } from './web-games.js';
 import { inviteWait, splitProfileCode } from './room-social.js';
 
 const client = config && createClient(config.url, config.key, {
@@ -31,6 +32,11 @@ const coinNotice = document.querySelector('#coin-notice');
 let coinReceipts = new Set();
 let coinNoticeUntil = 0;
 const seenCups = new Set();
+const connectionBanner = document.querySelector('#connection-banner');
+const breakBanner = document.querySelector('#break-banner');
+const cardDialog = document.querySelector('#study-card-dialog');
+let cardUrl;
+let renderedGames;
 const verification = document.querySelector('#verify-dialog');
 const reactionDialog = document.querySelector('#reaction-dialog');
 const inviteDialog = document.querySelector('#study-invite-dialog');
@@ -46,7 +52,7 @@ const shareCodeDialog = document.querySelector('#share-code-dialog');
 const shareCodeText = document.querySelector('#share-code-text');
 const shareCodeStatus = document.querySelector('#share-code-status');
 const languageToggle = document.querySelector('#language-toggle');
-const labels = { room: 'library', rooms: 'rooms', shop: 'shop', profile: 'profileInventory', ranking: 'leaderboard' };
+const labels = { room: 'library', rooms: 'rooms', shop: 'shop', profile: 'profileInventory', ranking: 'leaderboard', games: 'games' };
 const palette = ['#bd7050', '#789078', '#7988ab', '#ad7963'];
 const categories = {
   all: 'catalogAll', wearable: 'catalogClothes', hair: 'catalogHair', desk: 'catalogDesk',
@@ -81,6 +87,11 @@ let avatar = { ...defaultAvatar };
 let editing = false;
 let durationChoice = '50';
 let customDuration = '35';
+let customBreak = '5';
+let disconnected = false;
+let connectionExpired = false;
+let expiredLocally = false;
+let returnedBreak;
 let emailSentTo = '';
 let emailRetryAt = 0;
 let emailFeedback = '';
@@ -97,8 +108,11 @@ const escape = (value) => String(value ?? '').replace(/[&<>"']/g, character => (
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 })[character]);
 const duration = () => Number(durationChoice === 'custom' ? customDuration : durationChoice);
-const validDuration = () => Number.isInteger(duration()) && duration() >= 5 && duration() <= 180;
-const session = () => data?.session?.state === 'active' ? data.session : null;
+const breakLength = () => Number(durationChoice === 'custom' ? customBreak : breakPresets[durationChoice]);
+const validDuration = () => Number.isInteger(duration()) && duration() >= 5 && duration() <= 180
+  && Number.isInteger(breakLength()) && breakLength() >= 1 && breakLength() <= 60;
+const onBreak = () => data?.autoBreak?.endsAt > now();
+const session = () => !expiredLocally && data?.session?.state === 'active' ? data.session : null;
 const running = () => session()?.paused_at === null;
 const placed = () => data.inventory.filter(entry => entry.placed).map(entry => entry.item);
 const now = () => clock ? serverTimeAt(clock) : 0;
@@ -352,6 +366,7 @@ function syncPresence() {
 
 async function request(action, payload) {
   if (!userId || busy || deletionPage) return false;
+  if (disconnected && expiredLocally && action !== 'state') return false;
   const mutation = action !== 'state';
   if (!mutation && stateRequest) return false;
   if (mutation) { busy = true; revision++; }
@@ -364,7 +379,16 @@ async function request(action, payload) {
     const completed = data?.session?.state !== result.session?.state && result.session?.state === 'completed';
     if (completed) toast(t('reward'));
     if (data?.session?.state !== result.session?.state && result.session?.state === 'invalid') toast(t('invalid'));
+    const missedFriends = data?.profile?.doNotDisturb && !result.profile?.doNotDisturb
+      ? result.friends?.filter(friend => friend.status === 'incoming').length : 0;
     if (result.profile?.doNotDisturb && !data?.profile?.doNotDisturb) clearReactionNotice();
+    const lostRoom = disconnected && data?.profile?.room && !result.profile?.room && data.session?.disconnectDeadline;
+    disconnected = expiredLocally = false;
+    if (lostRoom) {
+      connectionExpired = true;
+      location.hash = 'rooms';
+    }
+    if (result.profile?.room) connectionExpired = false;
     data = result;
     clock = markServerTime(result.now);
     refreshing = false;
@@ -378,11 +402,13 @@ async function request(action, payload) {
         `${reactionArt[event.kind]} ${event.name} ${t(event.kind === 'coffee' ? 'coffeeReceived' : 'clapReceived')}`).join(' · '));
       notice.dataset.incomingReaction = 'true';
     }
-    if (result.drop) showBoxReward(result.drop, action === 'openChest' ? 'basic' : payload?.tier);
+    if (missedFriends) toast(t('newFriendCount').replace('{amount}', missedFriends));
+    if (result.drop) showBoxReward(result.drop, result.drop.tier ?? payload?.tier ?? 'basic');
     if (['target', 'place', 'profile', 'react', 'addDeskFriend', 'setDoNotDisturb'].includes(action)) trackPresence(presence, result.now);
     return true;
   } catch (error) {
-    if (version === revision && (mutation || !data)) {
+    if (version === revision && error.message === 'networkUnavailable' && data?.profile?.room) disconnected = true;
+    if (version === revision && (mutation || !data) && !disconnected) {
       const message = messageFor(error.message, t);
       if ((action === 'react' || action === 'addDeskFriend') && reactionDialog.open) {
         reactionDialog.querySelector('[data-desk-feedback]').textContent = message;
@@ -408,7 +434,9 @@ function reflectSession(next) {
   authReady = true;
   revision++;
   userId = id;
-  data = clock = ranking = rankingRequest = undefined;
+  data = clock = ranking = rankingRequest = returnedBreak = undefined;
+  disconnected = connectionExpired = expiredLocally = false;
+  if (cardDialog.open) cardDialog.close();
   busy = refreshing = editing = false;
   avatar = { ...defaultAvatar };
   draft.avatarName = draft.target = null;
@@ -545,7 +573,9 @@ function refreshDeskDialog() {
   reactionDialog.querySelector('h2').textContent = member.name;
   const friend = reactionDialog.querySelector('[data-action="addDeskFriend"]');
   friend.hidden = !room || !!room.private || Boolean(member.friendStatus);
-  for (const reaction of reactionDialog.querySelectorAll('[data-action="react"]')) reaction.disabled = !accepts;
+  for (const reaction of reactionDialog.querySelectorAll('[data-action="react"]')) {
+    reaction.disabled = !accepts || (reaction.dataset.value === 'coffee' && data.profile.coins < 1);
+  }
   const status = reactionDialog.querySelector('[data-desk-state]');
   const friendStates = { accepted: 'friendsWithPeer', sent: 'friendSent', incoming: 'friendIncoming' };
   const label = !accepts ? 'interactionUnavailable' : friendStates[member.friendStatus];
@@ -587,20 +617,23 @@ function roomView(room) {
   const preview = room ?? data.rooms[0];
   const name = preview ? escape(localName(preview)) : t('library');
   const paused = session() && !running();
-  const durationOptions = ['25', '50', '90'].map(value => [value, value + ' ' + t('minutes')]);
+  const duringBreak = onBreak();
+  const durationOptions = Object.entries(breakPresets).map(([value, length]) =>
+    [value, value + ' ' + t('focusAndBreak').replace('{break}', length)]);
   durationOptions.push(['custom', t('customDuration')]);
-  const controls = running()
+  const controls = duringBreak ? `<p>${t('breakInProgress')}</p>` : running()
     ? `<button class="primary" data-action="status" data-value="break">${t('pause')}</button>`
     : paused && room
       ? `<button class="primary" data-action="status" data-value="desk">▶ &nbsp; ${t('resume')}</button><button class="secondary" data-action="abandon">${t('abandon')}</button>`
       : room
         ? `<div class="status-group"><button data-action="status" data-value="desk" aria-pressed="${data.profile.status === 'desk'}">▣ ${t('desk')}</button><button data-action="status" data-value="break" aria-pressed="${data.profile.status === 'break'}">☕ ${t('break')}</button></div>
         <div class="period-settings">${picker('duration', t('periodDuration'), durationChoice, durationOptions)}
-        ${durationChoice === 'custom' ? `<label class="field custom-duration">${t('minutes')} <input id="custom-duration" type="number" inputmode="numeric" min="5" max="180" step="1" value="${escape(customDuration)}"><small>${t('duration')}</small></label>` : ''}
+        ${durationChoice === 'custom' ? `<label class="field custom-duration">${t('minutes')} <input id="custom-duration" type="number" inputmode="numeric" min="5" max="180" step="1" value="${escape(customDuration)}"><small>${t('duration')}</small></label>
+          <label class="field custom-duration">${t('breakDuration')} <input id="custom-break" type="number" inputmode="numeric" min="1" max="60" step="1" value="${escape(customBreak)}"><small>${t('breakDurationHelp')}</small></label>` : ''}
         </div>
         <button class="primary" data-action="start" ${validDuration() ? '' : 'disabled'}>▶ &nbsp; ${t('start')}</button>`
         : `<a class="primary" href="#rooms">${t('joinRoom')}</a>`;
-  const minutes = room?.minutes ?? 0;
+  const progress = roomProgressMinutes(data.roomGoal, now());
   const theme = roomPreferences.themeFor(room);
   const hasFriends = data.friends?.some(friend => friend.status === 'accepted');
   return `<div class="room-layout">
@@ -609,9 +642,9 @@ function roomView(room) {
       ${room && hasFriends && !running() ? `<button class="secondary invite-friends" data-action="invite-dialog"
         aria-label="${t('friendInvite')}" title="${t('friendInvite')}"><span aria-hidden="true">♙+</span><b>${t('friendInvite')}</b></button>` : ''}
     </div>
-    ${room ? `<div class="room-goal" title="${t('chestGoalInfo')}"><span>🎁 ${t('chestGoal')}</span>
-      <progress aria-label="${t('groupMinutes')}" max="${roomGoalMinutes}" value="${minutes % roomGoalMinutes}"></progress>
-      <b>${minutes % roomGoalMinutes}/${roomGoalMinutes}</b></div>` : ''}
+    ${room ? `<div class="room-goal"><span>🎁 ${t('chestGoal')}</span>
+      <progress aria-label="${t('groupMinutes')}" max="${roomGoalMinutes}" value="${progress}"></progress>
+      <b>${progress}/${roomGoalMinutes}</b><small class="room-goal-odds">${t('chestGoalInfo')}</small></div>` : ''}
     <div class="room-stage">
       <section class="scene" data-room-theme="${theme}" style="--room-art:url('${roomBackdrop(theme)}')" aria-labelledby="room-title">
         <div class="scene-top"><span><span class="dot"></span> <span id="room-count">${room?.count ?? 0}</span> / ${room?.capacity ?? 9} ${t('people')}</span><span>☾ &nbsp; ${t('quietRoom')}</span></div>
@@ -621,7 +654,7 @@ function roomView(room) {
     <div class="room-panel">
       <section class="controls" aria-labelledby="focus-title">
         <div class="timer"><div class="timer-ring" id="timer-ring"><b id="timer">50:00</b></div>
-          <div class="timer-copy"><h2 id="focus-title">${t('focus')}</h2><p>${t(running() ? 'focusing' : paused ? 'paused' : 'every20')}</p></div>
+          <div class="timer-copy"><h2 id="focus-title">${t(duringBreak ? 'autoBreak' : 'focus')}</h2><p>${duringBreak ? '' : t(running() ? 'focusing' : paused ? 'paused' : 'every20')}</p></div>
         </div>
         <div class="control-actions">${controls}${room && !running() ? `<button class="secondary" data-action="leave">${t('leave')}</button>` : ''}</div>
       </section>
@@ -658,7 +691,7 @@ function roomsView() {
   </div>
   ${studyInvitations(data, t, escape, locale)}
   <div class="room-grid room-list">${data.rooms.map(room => `<article class="card room-card" data-room-id="${escape(room.id)}">
-    <div class="room-preview"><img src="${roomBackdrop(defaultRoomTheme(room.id, (room.minutes ?? 0) >= roomGoalMinutes))}" alt="" width="384" height="128" loading="lazy"></div>
+    <div class="room-preview"><img src="${roomBackdrop(defaultRoomTheme(room.id, (room.minutes ?? 0) >= roomThemeUnlockMinutes))}" alt="" width="384" height="128" loading="lazy"></div>
     <div class="room-card-title"><h2>${escape(localName(room))}</h2>${room.private ? `<span class="private-badge">${t('privateBadge')}</span>` : ''}</div>
     ${room.targets?.length ? `<p class="room-targets">${escape(room.targets.join(' · '))}</p>` : ''}
     <p><span class="dot"></span> ${room.count} / ${room.capacity} ${t('people')}</p>
@@ -765,7 +798,7 @@ function profileView() {
   const targetOpen = content.querySelector('#study-target')?.open;
   return `<div class="heading${profile ? ' profile-heading' : ''}"><h1>${t(profile ? 'profileInventory' : 'newAvatar')}</h1>
     ${profile ? `<div class="profile-shortcuts">
-      <button class="secondary" data-action="study-card" aria-label="${t('downloadCard')}">${t('studyCardAction')}</button>
+      <button class="secondary" data-action="study-card">${t('studyCardAction')}</button>
       <a class="secondary" href="#ranking">${t('leaderboard')}</a>
     </div>` : ''}
   </div>
@@ -789,7 +822,11 @@ function profileView() {
         <button class="secondary">${t('saveTarget')}</button>
       </form>
     </details>
-    ${quietModeToggle()}
+    <section class="card study-totals" aria-label="${t('studyTotals')}">
+      <div><small>${t('focusToday')}</small><b>${data.dailyQuests?.minutes ?? 0} ${t('minuteUnit')}</b></div>
+      <div><small>${t('focusWeek')}</small><b>${data.weeklyQuests?.goals.find(goal => goal.unit === 'minutes')?.progress ?? 0} ${t('minuteUnit')}</b></div>
+    </section>
+    <div class="profile-quiet">${quietModeToggle()}</div>
     ${focusQuests(data.dailyQuests, data.weeklyQuests, t, expandedPanels)}${studyInvitations(data, t, escape, locale)}${friendsPanel(data, draft.friendCode, t, escape)}
     <h2 class="section-title">${t('inventory')}</h2><p class="equipment-note">${t('equipmentLimit')}</p>${catalog(true)}` : ''}
   <section class="card account-section" aria-labelledby="account-title">
@@ -818,7 +855,7 @@ function rankingView() {
   if (ranking.error) return `${header}<p>${messageFor(ranking.error, t)}</p><button class="secondary" data-action="ranking-retry">${t('retry')}</button>`;
   return `${header}<section class="card">
     <p>${escape(ranking.starts)} – ${escape(ranking.ends)} · ${t('istanbulTime')}</p>
-    <p>${t('rankingInfo')}</p>
+    <p>${t('rankingInfo')}</p><p class="ranking-prizes">${t('rankingPrizes')}</p>
     <button class="secondary" data-action="rankingVisibility" data-value="${!ranking.visible}">${t(ranking.visible ? 'rankingLeave' : 'rankingJoin')}</button>
     ${ranking.own ? `<p>${t('rankingPosition')} <b>${ranking.own.rank}</b> · ${ranking.own.minutes} ${t('minuteUnit')}</p>` : ''}
     ${ranking.rows.length ? `<ol class="ranking-list">${ranking.rows.map(row => `<li><span>${row.rank} · ${escape(row.name)}</span><b>${row.minutes} ${t('minuteUnit')}</b></li>`).join('')}</ol>`
@@ -846,6 +883,8 @@ function paint(signature, html) {
     const selector = active.id ? '#' + CSS.escape(active.id) : active.form?.id && `#${CSS.escape(active.form.id)} [name="${CSS.escape(active.name)}"]`;
     if (selector) restore = { selector, start: active.selectionStart, end: active.selectionEnd };
   }
+  renderedGames?.();
+  renderedGames = undefined;
   content.innerHTML = html();
   if (restore) {
     const input = content.querySelector(restore.selector);
@@ -865,7 +904,7 @@ function render() {
   languageToggle.disabled = lock;
   document.body.classList.toggle('focusing', lock);
   document.querySelector('#balance').textContent = data?.profile?.coins ?? 0;
-  const unread = (data?.friends?.filter(friend => friend.status === 'incoming').length ?? 0) + (data?.studyInvites?.length ?? 0);
+  const unread = data?.profile?.doNotDisturb ? 0 : (data?.friends?.filter(friend => friend.status === 'incoming').length ?? 0) + (data?.studyInvites?.length ?? 0);
   const notification = document.querySelector('#social-unread');
   notification.hidden = !unread;
   notification.textContent = unread || '';
@@ -884,8 +923,8 @@ function render() {
     updateEmailResend();
     return;
   }
-  const inRoom = Boolean(data.profile?.room);
-  const roomLocked = lock || (page === 'rooms' && inRoom);
+  const inRoom = !expiredLocally && Boolean(data.profile?.room);
+  const roomLocked = lock || (page === 'rooms' && inRoom && !onBreak());
   const view = !data.profile ? 'profile' : roomLocked ? 'room' : Object.hasOwn(labels, page) ? page : 'rooms';
   if (roomLocked && page !== 'room') history.replaceState(null, '', '#room');
   document.querySelector('#location').textContent = t(labels[view]);
@@ -894,16 +933,18 @@ function render() {
     else link.removeAttribute('aria-current');
   });
   if ((view !== 'room' || lock) && reactionDialog.open) reactionDialog.close();
-  const room = data.rooms.find(item => item.id === data.profile?.room);
+  const room = inRoom ? data.rooms.find(item => item.id === data.profile?.room) : undefined;
   const signature = JSON.stringify([view, view === 'room'
-    ? [room?.id, room?.minutes, room?.invite, data.profile?.status, data.session, durationChoice, data.inventory,
+    ? [room?.id, onBreak(), room?.minutes, room?.invite, data.profile?.status, data.session, durationChoice, data.inventory,
       data.friends?.some(friend => friend.status === 'accepted'), data.profile?.doNotDisturb]
-    : view === 'rooms' ? [data.rooms, data.studyInvites, data.profile.ownsPrivateRoom] : view === 'ranking' ? ranking
+    : view === 'rooms' ? [data.rooms, data.studyInvites, data.profile.ownsPrivateRoom] : view === 'ranking' ? ranking : view === 'games' ? null
       : [data.profile, data.inventory, data.items, data.dailyQuests, data.weeklyQuests, data.boxes,
         view === 'shop' ? [data.chests, data.adPlatforms?.web, openingAd] : [data.friends, data.studyInvites]], editing, locale,
   catalogCategory[view === 'profile' ? 'inventory' : view]]);
   paint(signature, () => view === 'room' ? roomView(room) : view === 'rooms' ? roomsView()
-    : view === 'profile' ? profileView() : view === 'ranking' ? rankingView() : shopView());
+    : view === 'profile' ? profileView() : view === 'ranking' ? rankingView()
+      : view === 'games' ? `<section id="games-view"><div class="heading"><h1>${t('games')}</h1></div></section>` : shopView());
+  if (view === 'games' && !renderedGames) renderedGames = mountGames(content.querySelector('#games-view'), locale);
   roomPreferences.sync(view === 'room' ? room : null, data.inventory);
   if (view === 'rooms') filterRooms();
   if (data.profile?.tourPending && !tourDialog.open && !lock) showTour(tourIndex);
@@ -950,13 +991,51 @@ function updateClock() {
   for (const cup of content.querySelectorAll('[data-coffee-until]')) {
     if (Number(cup.dataset.coffeeUntil) <= observed) cup.remove();
   }
-  const remain = active ? focusRemaining(active, pendingPauseAt ?? observed) : validDuration() ? duration() * 60000 : null;
+  const autoBreak = data?.autoBreak;
+  if (autoBreak && data.profile?.room && autoBreak.endsAt <= observed && returnedBreak !== autoBreak.id) {
+    returnedBreak = autoBreak.id;
+    if (cardDialog.open) cardDialog.close();
+    if (coinHelp.open) coinHelp.close();
+    if (shareCodeDialog.open) shareCodeDialog.close();
+    location.hash = 'room';
+    refreshState();
+    queueMicrotask(render);
+  }
+  breakBanner.hidden = !onBreak();
+  if (!breakBanner.hidden) {
+    breakBanner.querySelector('span').textContent = `${t('autoBreak')} · ${format(Math.ceil((autoBreak.endsAt - observed) / 1000))}`;
+  }
+  const deadline = data?.session?.disconnectDeadline;
+  const connectionLeft = deadline == null ? null : deadline - observed;
+  const timedOut = disconnected && connectionLeft !== null && connectionLeft <= 0;
+  if (timedOut && !expiredLocally) {
+    expiredLocally = true;
+    location.hash = 'rooms';
+    queueMicrotask(render);
+  }
+  connectionBanner.hidden = !connectionExpired && !(disconnected && data?.profile?.room);
+  if (!connectionBanner.hidden) {
+    const label = connectionExpired || timedOut ? t('connectionExpired')
+      : connectionLeft === null ? t('reconnecting')
+        : `${t('networkUnavailable')} ${t('reconnectIn')} · ${format(Math.ceil(connectionLeft / 1000))}`;
+    if (connectionBanner.textContent !== label) connectionBanner.textContent = label;
+  }
+  const progressBar = content.querySelector('.room-goal progress');
+  if (progressBar) {
+    const progress = roomProgressMinutes(data.roomGoal, observed);
+    if (progressBar.value !== progress) {
+      progressBar.value = progress;
+      progressBar.nextElementSibling.textContent = `${progress}/${roomGoalMinutes}`;
+    }
+  }
+  const remain = onBreak() ? autoBreak.endsAt - observed
+    : timedOut ? 0 : active ? focusRemaining(active, pendingPauseAt ?? observed) : validDuration() ? duration() * 60000 : null;
   const timer = document.querySelector('#timer');
   if (timer) {
     timer.textContent = remain === null ? '–:–' : format(Math.ceil(remain / 1000));
     document.querySelector('#timer-ring').style.setProperty('--progress', active ? Math.min(1, remain / (active.end - active.start)) : 1);
   }
-  const remainingCheck = refreshing ? 0 : verificationRemaining(active, observed);
+  const remainingCheck = refreshing || disconnected ? 0 : verificationRemaining(active, observed);
   if (remainingCheck) {
     document.querySelector('#verify-time').textContent = Math.ceil(remainingCheck / 1000) + ' ' + t('seconds');
     verification.querySelector('[data-value="break"]').disabled = !running() || pendingPauseAt !== undefined;
@@ -1059,8 +1138,9 @@ document.addEventListener('input', event => {
     field.value = isReferral || prefix === 'SK' ? suffix : '';
     if (isReferral) updateReferralPrefix(prefix);
   }
-  if (field.id === 'custom-duration') {
-    customDuration = field.value;
+  if (field.id === 'custom-duration' || field.id === 'custom-break') {
+    if (field.id === 'custom-break') customBreak = field.value;
+    else customDuration = field.value;
     document.querySelector('[data-action="start"]').disabled = !validDuration();
     updateClock();
   }
@@ -1082,7 +1162,7 @@ function updateReferralPrefix(prefix) {
 
 document.addEventListener('click', event => {
   const roomsLink = event.target.closest('nav a[href="#rooms"]');
-  if (roomsLink && data?.profile?.room && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+  if (roomsLink && data?.profile?.room && !expiredLocally && !onBreak() && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
     event.preventDefault();
     void leaveRoom();
     return;
@@ -1278,9 +1358,19 @@ document.addEventListener('click', async event => {
   if (action === 'ranking-retry') { ranking = undefined; render(); return; }
   if (action === 'study-card') {
     button.disabled = true;
+    const profile = { ...data.profile, avatar: dressedAvatar(data.profile.avatar, placed()) };
+    const actor = userId;
     try {
       const summary = await invokeLibrary(client, 'studySummary');
-      await downloadStudyCard(summary, { ...data.profile, avatar: dressedAvatar(data.profile.avatar, placed()) }, locale);
+      const preview = await createStudyCardPreview(summary, profile, locale);
+      if (actor !== userId || running()) return;
+      if (cardUrl) URL.revokeObjectURL(cardUrl);
+      cardUrl = URL.createObjectURL(preview.blob);
+      cardDialog.querySelector('img').src = cardUrl;
+      const download = cardDialog.querySelector('[download]');
+      download.href = cardUrl;
+      download.download = preview.filename;
+      if (!cardDialog.open) cardDialog.showModal();
     } catch { toast(t('downloadFailed')); }
     finally { button.disabled = false; }
     return;
@@ -1300,7 +1390,7 @@ document.addEventListener('click', async event => {
   }
   if (action === 'abandon' && !confirm(t('abandonConfirm'))) return;
   const payload = {
-    join: { room: value }, status: { status: value }, start: { duration: duration() },
+    join: { room: value }, status: { status: value }, start: { duration: duration(), breakMinutes: breakLength() },
     openBox: { tier: value, price: Number(button.dataset.price) }, buy: { item: value }, place: { item: value }, react: { desk: selectedDesk?.desk_ref, kind: value },
     addDeskFriend: { desk: selectedDesk?.desk_ref },
     rankingVisibility: { visible: value === 'true' },
@@ -1325,7 +1415,16 @@ document.addEventListener('click', async event => {
 
 roomPreferences.attach(document, () => busy || running());
 translateChrome();
+cardDialog.addEventListener('close', () => {
+  if (cardUrl) URL.revokeObjectURL(cardUrl);
+  cardDialog.querySelector('img').removeAttribute('src');
+  cardUrl = undefined;
+});
 window.addEventListener('hashchange', render);
+window.addEventListener('offline', () => {
+  if (data?.profile?.room) { disconnected = true; updateClock(); }
+});
+window.addEventListener('online', refreshState);
 document.addEventListener('visibilitychange', () => {
   roomConnection.advance();
   if (document.hidden) void sendRoomPresence('background');

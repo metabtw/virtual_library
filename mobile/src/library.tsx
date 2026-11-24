@@ -6,7 +6,7 @@ import { Alert, AppState, BackHandler, Image, ImageBackground, Modal, Platform, 
 import { avatarOptions, avatarPresets, defaultAvatar, hairStyles, pickAvatarStyle } from '../../public/avatar-art';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../../public/focus-clock';
 import { displayDeskStatuses, recordDeskStatus, type DeskUpdates } from '../../public/desk-status';
-import { roomGoalMinutes } from '../../public/study-rewards';
+import { breakPresets, roomProgressMinutes, roomThemeUnlockMinutes } from '../../public/study-rewards';
 import { library, notifyRoomPresence, roomConnection, supabase } from './api';
 import type { Avatar, BoxTier, Command, Drop, Focus, ItemId, Profile, Snapshot } from './model';
 import { RoomScene, Sprite } from './scene';
@@ -27,6 +27,7 @@ import { presetAssets } from './asset-art';
 import { TermsButton } from './auth';
 import { AccountSheet, type AccountPanel } from './account-sheets';
 import { LoadingScreen, TourSheet } from './arrival';
+import { Games } from './games';
 import { ShopRewards } from './ads';
 import { FocusQuests, FriendInviteButton, FriendsPanel, ProfileCodeField, ProfileCodes, StudyInvitations } from './community';
 import type { ProfileCodePrefix } from '../../public/room-social';
@@ -35,6 +36,10 @@ type Action = { [K in keyof Command]: { name: K; payload?: Command[K] } }[keyof 
 
 const styleFields = ['hair', 'hair_color', 'skin_tone', 'beard', 'outfit'] as const;
 const minute = 60000;
+function formatTime(ms: number) {
+  const seconds = Math.max(0, Math.ceil(ms / 1000));
+  return [Math.floor(seconds / 60), seconds % 60].map(part => String(part).padStart(2, '0')).join(':');
+}
 
 function AvatarEditor({ profile, onSave, pending, t, locale }: {
   profile: Profile | null; onSave: (data: Command['profile']) => void;
@@ -139,34 +144,36 @@ const profileStyles = StyleSheet.create({
   heroAction: { flexGrow: 1 },
 });
 
-function Period({ focus, remaining, pending, onAction, t, canStart }: {
-  focus: Focus | null; remaining: number; pending: boolean; onAction: (action: Action) => void;
+function Period({ focus, remaining, breakRemaining, pending, onAction, t, canStart }: {
+  focus: Focus | null; remaining: number; breakRemaining: number; pending: boolean; onAction: (action: Action) => void;
   t: Translation; canStart: boolean;
 }) {
-  const preferred = usePreferences(s => s.duration);
-  const remember = usePreferences(s => s.setDuration);
-  const [duration, setDuration] = useState(preferred);
-  const chooseDuration = (value: string) => {
-    setDuration(value);
-    if (/^\d{1,3}$/.test(value) && Number(value) >= 5 && Number(value) <= 180) remember(value);
-  };
-  const value = Number(duration);
-  const valid = /^\d{1,3}$/.test(duration) && value >= 5 && value <= 180;
-  const seconds = focus ? Math.max(0, Math.ceil(remaining / 1000)) : valid ? value * 60 : 0;
-  const time = [Math.floor(seconds / 60), seconds % 60].map(part => String(part).padStart(2, '0')).join(':');
+  const { duration, durationChoice, customBreak, setDuration, setDurationChoice, setCustomBreak } = usePreferences();
+  const choice = durationChoice ?? (Object.hasOwn(breakPresets, duration) ? duration : 'custom');
+  const custom = choice === 'custom';
+  const value = Number(custom ? duration : choice);
+  const breakMinutes = custom ? Number(customBreak) : breakPresets[choice];
+  const valid = Number.isInteger(value) && value >= 5 && value <= 180
+    && Number.isInteger(breakMinutes) && breakMinutes >= 1 && breakMinutes <= 60;
+  const time = formatTime(breakRemaining || (focus ? remaining : valid ? value * minute : 0));
+  const presets = Object.entries(breakPresets).map(([value, length]): [string, string] =>
+    [value, value + ' ' + t.focusAndBreak.replace('{break}', String(length))]);
   const paused = focus?.paused_at != null;
   return <View style={ui.card}>
     <View style={ui.row}>
-      <Text style={ui.heading}>{t.focus}</Text>
+      <Text style={ui.heading}>{breakRemaining > 0 ? t.autoBreak : t.focus}</Text>
       <Text style={ui.timer}>{time}</Text>
     </View>
-    {focus ? <Button disabled={pending || (paused && !canStart)} onPress={() =>
+    {breakRemaining > 0 ? <Text style={ui.small}>{t.breakInProgress}</Text> : focus ? <Button disabled={pending || (paused && !canStart)} onPress={() =>
       onAction({ name: 'status', payload: { status: paused ? 'desk' : 'break' } })}>
       {paused ? t.resume : t.pause}
     </Button> : <>
-      <Options label={t.focus} value={duration} values={['25', '50', '90'].map(value => [value, value])} onChange={chooseDuration} />
-      <Field label={t.duration} keyboardType="number-pad" value={duration} onChangeText={chooseDuration} maxLength={3} />
-      <Button disabled={pending || !valid || !canStart} onPress={() => onAction({ name: 'start', payload: { duration: value } })}>
+      <Options label={t.focus} value={choice} values={[...presets, ['custom', t.customDuration]]} onChange={setDurationChoice} />
+      {custom && <>
+        <Field label={t.duration} keyboardType="number-pad" value={duration} onChangeText={setDuration} maxLength={3} />
+        <Field label={t.breakDuration + ' · ' + t.breakDurationHelp} keyboardType="number-pad" value={customBreak} onChangeText={setCustomBreak} maxLength={2} />
+      </>}
+      <Button disabled={pending || !valid || !canStart} onPress={() => onAction({ name: 'start', payload: { duration: value, breakMinutes } })}>
         {t.start}
       </Button>
     </>}
@@ -187,6 +194,9 @@ export function Library({ id }: { id: string }) {
   const [foreground, setForeground] = useState((AppState.currentState ?? 'active') === 'active');
   const [refreshAfter, setRefreshAfter] = useState(0);
   const lastServerTime = useRef(0);
+  const returnedBreak = useRef<string | undefined>(undefined);
+  const lostConnection = useRef(false);
+  const [connectionExpired, setConnectionExpired] = useState(false);
   const [pendingPauseAt, setPendingPauseAt] = useState<number>();
   const [peer, setPeer] = useState<string>();
   const [rankingOpen, setRankingOpen] = useState(false);
@@ -207,6 +217,7 @@ export function Library({ id }: { id: string }) {
   const key = ['library', id] as const;
   const query = useQuery({
     queryKey: key, queryFn: () => library('state'),
+    retry: (count, error) => error.message !== 'networkUnavailable' && count < 2,
     refetchInterval: query => {
       const room = query.state.data?.profile?.room;
       return room && room !== presenceReadyRoom ? 1000 : 5000;
@@ -222,12 +233,38 @@ export function Library({ id }: { id: string }) {
   const clock = useMemo(() => serverSample === undefined ? undefined : markServerTime(serverSample, query.dataUpdatedAt),
     [serverSample, query.dataUpdatedAt]);
   useEffect(() => { lastServerTime.current = serverSample ?? 0; }, [serverSample]);
-  const localRoom = snapshot?.profile?.room;
-  const focus = snapshot?.session?.state === 'active' ? snapshot.session : null;
-  const running = focus?.paused_at === null;
-  const effectivePage = running || ((page === 'room' || page === 'rooms') && localRoom) ? 'room' : page === 'room' ? 'rooms' : page;
   const observed = clock ? serverTimeAt(clock, moment) : 0;
-  const remainingCheck = foreground && (serverSample ?? 0) > refreshAfter ? verificationRemaining(focus, observed) : 0;
+  const networkOffline = query.error?.message === 'networkUnavailable';
+  const disconnectDeadline = snapshot?.session?.disconnectDeadline;
+  const expiredLocally = networkOffline && disconnectDeadline != null && observed >= disconnectDeadline;
+  const localRoom = expiredLocally ? null : snapshot?.profile?.room;
+  const focus = !expiredLocally && snapshot?.session?.state === 'active' ? snapshot.session : null;
+  const running = focus?.paused_at === null;
+  const autoBreak = snapshot?.autoBreak;
+  const breakRemaining = Math.max(0, (autoBreak?.endsAt ?? 0) - observed);
+  const effectivePage = running || (page === 'rooms' && localRoom && !breakRemaining) ? 'room'
+    : page === 'room' && !localRoom ? 'rooms' : page;
+  const remainingCheck = foreground && !networkOffline && (serverSample ?? 0) > refreshAfter ? verificationRemaining(focus, observed) : 0;
+  useEffect(() => {
+    if (networkOffline) {
+      if (disconnectDeadline != null) lostConnection.current = true;
+      if (expiredLocally) setPage('rooms');
+    } else if (lostConnection.current) {
+      lostConnection.current = false;
+      if (!localRoom) { setConnectionExpired(true); setPage('rooms'); }
+    }
+    if (localRoom && !networkOffline) setConnectionExpired(false);
+  }, [networkOffline, disconnectDeadline, expiredLocally, localRoom, setPage]);
+  useEffect(() => {
+    if (!autoBreak || breakRemaining || !localRoom || returnedBreak.current === autoBreak.id) return;
+    returnedBreak.current = autoBreak.id;
+    setRankingOpen(false);
+    setCardOpen(false);
+    setInviteOpen(false);
+    setPeer(undefined);
+    setPage('room');
+    void queryClient.invalidateQueries({ queryKey: ['library', id] }, { cancelRefetch: false });
+  }, [autoBreak, breakRemaining, localRoom, setPage, queryClient, id]);
   const verify = remainingCheck > 0;
   useReminder(alerts, focus?.next_check_at ?? null, clock, t, reminderRevision);
   useEffect(() => {
@@ -296,6 +333,8 @@ export function Library({ id }: { id: string }) {
     },
     mutationFn: ({ name, payload }: Action) => library(name, payload),
     onSuccess: (data, action) => {
+      const newlyVisible = snapshot?.profile?.doNotDisturb && !data.profile?.doNotDisturb
+        ? data.friends?.filter(friend => friend.status === 'incoming').length : 0;
       queryClient.setQueryData(key, data);
       setMoment(performance.now());
       if (action.name === 'profile') {
@@ -307,7 +346,13 @@ export function Library({ id }: { id: string }) {
       if (action.name === 'start') trackUsage('focus_started');
       if (action.name === 'verify') trackUsage('focus_confirmed');
       if (action.name === 'leave') { setInviteOpen(false); setPage('rooms'); }
-      if (data.drop) setPrize({ drop: data.drop, tier: action.name === 'openBox' ? action.payload?.tier ?? 'basic' : 'basic' });
+      if (data.drop) setPrize({ drop: data.drop, tier: data.drop.tier ?? (action.name === 'openBox' ? action.payload?.tier : 'basic') ?? 'basic' });
+      if (newlyVisible) {
+        incomingReaction.current = true;
+        setReactionMessage(t.newFriendCount.replace('{amount}', String(newlyVisible)));
+        clearTimeout(reactionTimeout.current);
+        reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
+      }
       if (action.name === 'react' || action.name === 'addDeskFriend') {
         setPeer(undefined);
         incomingReaction.current = false;
@@ -337,7 +382,7 @@ export function Library({ id }: { id: string }) {
 
   const inviteClock = snapshot?.studyInvites?.some(invite => (invite.expiresAt ?? 0) > observed)
     || snapshot?.friends?.some(friend => (friend.inviteRetryAt ?? 0) > observed);
-  const clockInterval = focus ? 200 : inviteClock || (effectivePage === 'shop' && (snapshot?.adRetryAt ?? 0) > observed) ? 1000 : 0;
+  const clockInterval = focus || breakRemaining > 0 ? 200 : snapshot?.roomGoal?.live.length || inviteClock || (effectivePage === 'shop' && (snapshot?.adRetryAt ?? 0) > observed) ? 1000 : 0;
   useEffect(() => {
     if (!clockInterval) return;
     const timer = setInterval(() => setMoment(performance.now()), clockInterval);
@@ -396,14 +441,14 @@ export function Library({ id }: { id: string }) {
 
   const profile = snapshot.profile;
   const room = snapshot.rooms.find(room => room.id === localRoom);
-  const aurora = (room?.minutes ?? 0) >= roomGoalMinutes;
+  const aurora = (room?.minutes ?? 0) >= roomThemeUnlockMinutes;
   const friends = snapshot.friends ?? [];
   const accepted = friends.filter(friend => friend.status === 'accepted');
-  const unread = friends.filter(friend => friend.status === 'incoming').length + (snapshot.studyInvites?.length ?? 0);
+  const unread = profile?.doNotDisturb ? 0 : friends.filter(friend => friend.status === 'incoming').length + (snapshot.studyInvites?.length ?? 0);
   const prizeId = prize && 'item' in prize.drop ? prize.drop.item : undefined;
   const prizeItem = snapshot.items.find(item => item.id === prizeId);
   const label = (item: { name: string; name_en: string }) => locale === 'tr' ? item.name : item.name_en;
-  const pending = mutation.isPending || signingOut;
+  const pending = mutation.isPending || signingOut || networkOffline;
   function act(action: Action) {
     if (pending) return;
     if (running && action.name === 'status' && action.payload?.status === 'break') setPendingPauseAt(observed);
@@ -433,6 +478,10 @@ export function Library({ id }: { id: string }) {
     answer={(id, answer) => act({ name: 'answerStudyInvite', payload: { id, answer } })} />;
 
   return <>
+      {(connectionExpired || expiredLocally || (networkOffline && localRoom)) && <Text style={[ui.card, ui.warning, { margin: 8 }]} accessibilityLiveRegion="polite">
+        {connectionExpired || expiredLocally ? t.connectionExpired : disconnectDeadline == null ? t.reconnecting
+          : t.networkUnavailable + ' ' + t.reconnectIn + ' · ' + formatTime(disconnectDeadline - observed)}
+      </Text>}
     <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
       <View style={ui.row}>
         <View style={[ui.row, { flexShrink: 1 }]}>
@@ -441,6 +490,10 @@ export function Library({ id }: { id: string }) {
         </View>
         {profile && <Text style={ui.balance}>{profile.coins} {t.coins}</Text>}
       </View>
+      {breakRemaining > 0 && <View style={[ui.card, ui.row]}>
+        <Text style={ui.accent}>{t.autoBreak} · {formatTime(breakRemaining)}</Text>
+        <Button compact muted onPress={() => setPage('room')}>{t.backToRoom}</Button>
+      </View>}
       {reactionMessage !== '' && <Text accessibilityLiveRegion="polite" style={ui.accent}>{reactionMessage}</Text>}
       {actionError !== '' && <Text accessibilityLiveRegion="polite" style={ui.warning}>{actionError}</Text>}
       {!profile ? <AvatarEditor profile={null} onSave={payload => act({ name: 'profile', payload })} pending={pending} t={t} locale={locale} /> :
@@ -461,7 +514,7 @@ export function Library({ id }: { id: string }) {
             <Text style={ui.small}>{room.count}/{room.capacity}</Text>
             {!running && !!accepted.length && <Button muted accessibilityLabel={t.friendInvite} onPress={() => setInviteOpen(true)}>♙+</Button>}
           </View>}
-          {room && <RoomGoal minutes={room.minutes ?? 0} t={t} />}
+          {room && <RoomGoal progress={roomProgressMinutes(snapshot.roomGoal, observed)} t={t} />}
           <RoomScene room={localRoom ?? null} members={roomMembers} now={snapshot.now}
             aurora={aurora} theme={theme} t={t} onDeskPress={running ? undefined : member => {
               setActionError('');
@@ -476,8 +529,8 @@ export function Library({ id }: { id: string }) {
           </>}
           {snapshot.session?.state === 'invalid' && <Text style={ui.warning}>{t.invalid}</Text>}
           <Period focus={focus} remaining={focus ? focusRemaining(focus, pendingPauseAt ?? observed) : 0}
-            t={t} pending={pending} canStart={Boolean(room)} onAction={act} />
-          {!focus && room && <View style={ui.card}>
+            t={t} pending={pending} canStart={Boolean(room)} breakRemaining={breakRemaining} onAction={act} />
+          {!focus && room && !breakRemaining && <View style={ui.card}>
             <Options label={label(room)} values={([['desk', t.desk], ['break', t.break]] as const)}
               value={profile.status ?? 'desk'} onChange={status => act({ name: 'status', payload: { status } })} />
           </View>}
@@ -489,7 +542,7 @@ export function Library({ id }: { id: string }) {
           <FocusQuests daily={snapshot.dailyQuests} weekly={snapshot.weeklyQuests} t={t} />
           <Catalog snapshot={snapshot} t={t} locale={locale} pending={pending}
             action={item => act({ name: 'buy', payload: { item } })}
-            openBox={(tier, price) => act({ name: 'openBox', payload: { tier, price } })} /></> :
+            openBox={(tier, price) => act({ name: 'openBox', payload: { tier, price } })} /></> : effectivePage === 'games' ? <Games locale={locale} t={t} /> :
           <>
             <View style={profileStyles.header}>
               <Text accessibilityRole="header" style={profileStyles.title}>{t.profileInventory}</Text>
@@ -503,8 +556,14 @@ export function Library({ id }: { id: string }) {
                 onEdit={() => setEditing(true)} onLeave={requestLeave} />}
             <TargetEditor initial={profile.target ?? ''} pending={pending} t={t} save={target => act({ name: 'target', payload: { target } })} />
             <FocusQuests daily={snapshot.dailyQuests} weekly={snapshot.weeklyQuests} t={t} />
+            <View style={[ui.card, { flexDirection: 'row', gap: 12 }]} accessibilityLabel={t.studyTotals}>
+              <View style={{ flex: 1 }}><Text style={ui.small}>{t.focusToday}</Text>
+                <Text style={ui.accent}>{snapshot.dailyQuests?.minutes ?? 0} {t.minuteUnit}</Text></View>
+              <View style={{ flex: 1 }}><Text style={ui.small}>{t.focusWeek}</Text>
+                <Text style={ui.accent}>{snapshot.weeklyQuests?.goals.find(goal => goal.unit === 'minutes')?.progress ?? 0} {t.minuteUnit}</Text></View>
+            </View>
             {invitations}
-            {quietToggle}
+            <View style={{ marginTop: 6 }}>{quietToggle}</View>
             <FriendsPanel profile={profile} friends={friends} pending={pending} now={observed} t={t}
               add={code => act({ name: 'addFriend', payload: { code } })}
               answer={(id, answer) => act({ name: 'answerFriend', payload: { id, answer } })}
@@ -538,8 +597,8 @@ export function Library({ id }: { id: string }) {
       </>}
     </ScrollView>
     {profile && <View style={ui.nav}>
-      {(['rooms', 'room', 'shop', 'profile'] as const).map(tab =>
-        <Pressable key={tab} accessibilityRole="tab" disabled={running} onPress={() => tab === 'rooms' && localRoom ? requestLeave() : setPage(tab)}
+      {(['rooms', 'room', 'shop', 'games', 'profile'] as const).map(tab =>
+        <Pressable key={tab} accessibilityRole="tab" disabled={running} onPress={() => tab === 'rooms' && localRoom && !breakRemaining ? requestLeave() : setPage(tab)}
           accessibilityState={{ selected: tab === effectivePage, disabled: running }} style={[ui.navTab, tab === effectivePage && ui.navActive, running && { opacity: .46 }]}>
           <Text style={[ui.navText, tab === effectivePage && ui.accent]}>{t[tab]}{tab === 'profile' && unread > 0 ? ` · ${unread}` : ''}</Text>
         </Pressable>)}
@@ -570,7 +629,7 @@ export function Library({ id }: { id: string }) {
       <View style={ui.modal}><View style={ui.card}>
         <Text style={ui.heading}>{selectedPeer?.name}</Text>
         {selectedPeer?.acceptsInteractions === false && <Text style={ui.small}>{t.interactionUnavailable}</Text>}
-        {(['coffee', 'clap'] as const).map(kind => <Button key={kind} disabled={pending || selectedPeer?.acceptsInteractions === false} onPress={() => {
+        {(['coffee', 'clap'] as const).map(kind => <Button key={kind} disabled={pending || selectedPeer?.acceptsInteractions === false || (kind === 'coffee' && (profile?.coins ?? 0) < 1)} onPress={() => {
           if (selectedPeer?.desk_ref) act({ name: 'react', payload: { desk: selectedPeer.desk_ref, kind } });
         }}>{kind === 'coffee' ? t.coffeeReaction : t.clapReaction}</Button>)}
         {room && !room.private && selectedPeer?.desk_ref && !selectedPeer.friendStatus &&

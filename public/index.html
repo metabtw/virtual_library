@@ -30,6 +30,7 @@
       <a href="#rooms"><i aria-hidden="true">⌂</i><span data-text="rooms">Odalar</span></a>
       <a href="#room"><i aria-hidden="true">▤</i><span data-text="library">Kütüphane</span></a>
       <a href="#shop"><i aria-hidden="true">♧</i><span data-text="shop">Mağaza</span></a>
+      <a href="#games"><i aria-hidden="true">◇</i><span data-text="games">Oyunlar</span></a>
       <a href="#profile"><i aria-hidden="true">♙</i><span data-text="profileNav">Profil &amp; Envanter</span><span id="social-unread" hidden></span></a>
     </nav>
     <div class="sidebar-footer"><span class="dot"></span> <span data-text="libraryOpen">Kütüphane açık</span></div>
@@ -38,6 +39,8 @@
     <header><span class="breadcrumb"><img class="breadcrumb-logo" src="/app-logo.png" width="24" height="24" alt=""><strong data-text="app">Virtual Study Crew</strong> <span>›</span> <b id="location">Kütüphane</b></span>
       <div class="header-tools"><button class="secondary" id="language-toggle" type="button" aria-label="Switch to English" lang="en">EN</button>
         <div class="wallet"><span aria-hidden="true">◉</span> <b id="balance">0</b> <span class="wallet-unit" data-text="coins">jeton</span></div></div></header>
+    <p id="connection-banner" class="connection-banner" role="status" hidden></p>
+    <div id="break-banner" class="break-banner" hidden><span></span><a href="#room" data-text="backToRoom">Odaya dön</a></div>
     <section id="content" aria-label="Kütüphane">
       <section class="card account-card">
         <h1>Virtual Study Crew</h1>
@@ -115,5 +118,13 @@
     <small role="status" id="share-code-status"></small>
   </dialog>
   <script type="module" src="/app.js"></script>
+  <dialog id="study-card-dialog" aria-labelledby="study-card-title">
+    <h2 id="study-card-title" data-text="studyCard">Günün çalışma kartı</h2>
+    <img alt="" class="study-card-preview">
+    <div class="dialog-actions">
+      <a class="primary" download data-text="downloadCard">Çalışma kartını indir</a>
+      <form method="dialog"><button class="secondary" data-text="done">Kapat</button></form>
+    </div>
+  </dialog>
 </body>
 </html>

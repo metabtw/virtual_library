@@ -27,6 +27,7 @@ export function LeaderboardModal({ user, close, t, pending, changeVisibility }: 
         </> : list && <>
           <Text style={ui.small}>{list.starts} – {list.ends} · {t.istanbulTime}</Text>
           <Text style={ui.small}>{t.rankingInfo}</Text>
+          <Text style={ui.accent}>{t.rankingPrizes}</Text>
           <Button muted disabled={pending} onPress={() => changeVisibility(!list.visible)}>
             {list.visible ? t.rankingLeave : t.rankingJoin}
           </Button>
@@ -105,7 +106,7 @@ export function StudyCardModal({ user, profile, equipment, close, t }: {
         </ScrollView>}
       {shareError && <Text accessibilityLiveRegion="polite" style={ui.warning}>{t.shareError}</Text>}
       <Button disabled={!summary.data || !avatarLoaded || !backgroundLoaded || !logoLoaded || sharing} onPress={() => void share()}>
-        {sharing ? t.loading : t.shareCard}
+        {sharing ? t.loading : t.downloadCard}
       </Button>
       <Button muted disabled={sharing} onPress={close}>{t.done}</Button>
     </View></View>

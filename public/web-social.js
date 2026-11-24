@@ -8,7 +8,7 @@ export function messageFor(code, translate) {
   return message === code ? translate('server') : message;
 }
 
-export async function downloadStudyCard(summary, profile, locale) {
+export async function createStudyCardPreview(summary, profile, locale) {
   const t = key => webText(locale, key);
   const canvas = document.createElement('canvas');
   canvas.width = 720;
@@ -51,10 +51,5 @@ export async function downloadStudyCard(summary, profile, locale) {
 
   const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
   if (!blob) throw new Error('cardUnavailable');
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'virtual-study-crew-' + summary.date + '.png';
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return { blob, filename: 'virtual-study-crew-' + summary.date + '.png' };
 }

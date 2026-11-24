@@ -1,9 +1,11 @@
 export async function invokeLibrary(client, action, payload) {
   if (!client) throw new Error('missingConfig');
   const { data, error } = await client.functions.invoke('library', {
+    ...(action === 'state' ? { timeout: 8_000 } : {}),
     body: { action, payload },
   });
   if (error) {
+    if (error.name === 'FunctionsFetchError') throw new Error('networkUnavailable');
     const failure = await error.context?.json?.().catch(() => null);
     throw new Error(typeof failure?.error === 'string' ? failure.error : 'server');
   }

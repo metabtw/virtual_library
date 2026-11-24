@@ -1,4 +1,8 @@
 export const roomGoalMinutes: number;
+export const roomThemeUnlockMinutes: number;
+export const breakPresets: Readonly<Record<string, number>>;
+export type RoomProgress = { settled: number; live: { start: number; until: number }[] };
+export function roomProgressMinutes(goal: RoomProgress | undefined, now: number): number;
 export const boxLabels: { basic: 'boxBasic'; epic: 'boxEpic'; legendary: 'boxLegendary' };
 export const boxArt: { basic: 'mysteryBox'; epic: 'epicBox'; legendary: 'legendaryBox' };
 export const premiumAmbience: readonly string[];
