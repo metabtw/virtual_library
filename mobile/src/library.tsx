@@ -482,6 +482,9 @@ export function Library({ id }: { id: string }) {
         {connectionExpired || expiredLocally ? t.connectionExpired : disconnectDeadline == null ? t.reconnecting
           : t.networkUnavailable + ' ' + t.reconnectIn + ' · ' + formatTime(disconnectDeadline - observed)}
       </Text>}
+    {reactionMessage !== '' && <Text accessibilityLiveRegion="polite" style={[ui.card, ui.accent, { margin: 8 }]}>
+      {reactionMessage}
+    </Text>}
     <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
       <View style={ui.row}>
         <View style={[ui.row, { flexShrink: 1 }]}>
@@ -494,7 +497,6 @@ export function Library({ id }: { id: string }) {
         <Text style={ui.accent}>{t.autoBreak} · {formatTime(breakRemaining)}</Text>
         <Button compact muted onPress={() => setPage('room')}>{t.backToRoom}</Button>
       </View>}
-      {reactionMessage !== '' && <Text accessibilityLiveRegion="polite" style={ui.accent}>{reactionMessage}</Text>}
       {actionError !== '' && <Text accessibilityLiveRegion="polite" style={ui.warning}>{actionError}</Text>}
       {!profile ? <AvatarEditor profile={null} onSave={payload => act({ name: 'profile', payload })} pending={pending} t={t} locale={locale} /> :
         effectivePage === 'rooms' ? <>

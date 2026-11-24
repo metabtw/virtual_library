@@ -679,6 +679,10 @@ try {
   assert.equal(autoBreak.weeklyQuests.goals.find(goal => goal.unit === 'minutes').progress, 5);
   assert.equal(autoBreak.roomGoal.settled, 5);
   assert.equal((await timed('start', { duration: 5, breakMinutes: 3 })).error, 'breakInProgress');
+  await timed('roomPresence', { mode: 'background', room: autoBreak.profile.room });
+  const { rows: [retained] } = await db.query('select seen::bigint + 15000 as until, away_tag from public.room_members where user_id=$1', [separateRoomUser]);
+  assert.ok(Number(retained.until) >= autoBreak.autoBreak.endsAt, 'changing browser tabs during a break keeps the desk');
+  assert.match(retained.away_tag, /^away/);
   await db.query(`update public.sessions set start_ms=start_ms-180000,end_ms=end_ms-180000 where id=$1`, [autoBreak.autoBreak.id]);
   const returnToDesk = await state();
   assert.equal(returnToDesk.autoBreak.id, autoBreak.autoBreak.id);
