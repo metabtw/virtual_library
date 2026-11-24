@@ -19,6 +19,7 @@ const audio = 'audio/mp4';
 export const webFiles = new Map([
   ['/', ['public/index.html', html]],
   ['/account-deletion', ['public/index.html', html]],
+  ['/games.css', ['public/games.css', css]],
   ['/styles.css', ['public/styles.css', css]],
   ['/favicon.png', ['public/favicon.png', 'image/png']],
   ['/app-logo.png', ['public/app-logo.png', 'image/png']],
@@ -37,6 +38,8 @@ export const webFiles = new Map([
   ['/prop-art.js', ['public/prop-art.js', script]],
   ['/sprites.js', ['public/sprites.js', script]],
   ['/study-games.js', ['public/study-games.js', script]],
+  ['/game-scenes.js', ['public/game-scenes.js', script]],
+  ['/game-art.png', ['public/game-art.png', 'image/png']],
   ['/web-games.js', ['public/web-games.js', script]],
   ['/web-social.js', ['public/web-social.js', script]],
   ['/web-strings.js', ['public/web-strings.js', script]],

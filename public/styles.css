@@ -1043,21 +1043,3 @@ dialog {max-height:calc(100dvh - 24px);overflow:auto}
 .study-totals b,.ranking-prizes {color:var(--accent)}
 .profile-quiet {margin:14px 0}
 .study-card-preview {display:block;max-width:100%;height:min(60dvh,560px);margin:0 auto;object-fit:contain}
-.game-choices,.game-actions,.game-top {display:flex;align-items:center;flex-wrap:wrap;gap:8px}
-.game-top {justify-content:space-between}
-.game-choices {margin-bottom:14px}
-.game-choices button[aria-pressed=true] {color:var(--accent);border-color:var(--accent)}
-.game-card {max-width:680px;margin-inline:auto}
-.game-actions {justify-content:center}
-.game-actions button {min-width:44px;min-height:44px}
-.game-score {display:block;color:var(--accent);font-weight:700;min-height:24px}
-.game-arena {position:relative;width:100%;height:clamp(220px,47vh,350px);overflow:hidden;touch-action:none;margin:8px 0 12px;border-radius:12px;background:linear-gradient(#2a243f,#342625);border:1px solid var(--line)}
-.game-book {position:absolute;display:block;height:6%;border:2px solid #342433;border-radius:3px;box-shadow:inset 0 -4px #0004,inset 6px 0 #fff3}
-.moving-book {top:5%}
-.game-merge {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr));height:auto;aspect-ratio:1;max-width:344px;margin-inline:auto;padding:8px;gap:5px}
-.merge-tile {display:grid;align-content:center;justify-items:center;text-align:center;min-width:0;overflow:hidden;background:var(--tile-color);color:#211a27;border-radius:5px;font-size:clamp(8px,2vw,11px)}
-.merge-tile[data-level="0"] {background:#ffffff0a}
-.merge-tile b {font-size:clamp(16px,5vw,26px);line-height:1}
-.game-plane {position:absolute;z-index:1;left:17%;width:23px;height:17px;margin-top:-8px;background:#ffdca6;clip-path:polygon(0 0,100% 50%,0 100%,25% 50%)}
-.glide-shelf {position:absolute;width:6%;background:repeating-linear-gradient(0deg,#653943 0 9px,#865648 9px 12px);border-inline:2px solid #b08061}
-.glide-orb {position:absolute;width:12px;height:12px;border-radius:50%;margin:-6px;background:#ffdc8d;box-shadow:0 0 16px 3px #ffcca17d}

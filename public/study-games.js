@@ -9,7 +9,8 @@ const gameCopy = {
       glide: 'Yükselmek için basılı tut, alçalmak için bırak. Işık kürelerini topla. Raflara 5 defa çarparsan uçuş biter.',
     },
     restart: 'Yeniden başla', drop: 'Kitabı bırak', lift: 'Yükselmek için bas', score: 'Puan', books: 'Kitap',
-    hits: 'Temas', ended: 'Tur tamamlandı', start: 'Uçuşa başla',
+    hits: 'Temas', ended: 'Tur tamamlandı', start: 'Uçuşa başla', aligned: 'Tam hizalı!',
+    controls: 'Oyun kontrolleri', chapters: { tower: 'Kitapları hizala', merge: 'Eşyaları birleştir', glide: 'Işıkları topla' },
     directions: { left: 'Sola', up: 'Yukarı', down: 'Aşağı', right: 'Sağa' },
     items: ['', 'Kağıt', 'Defter', 'Kitap', 'Ansiklopedi', 'Kahve', 'Mürekkep', 'Kristal', 'Yıldız', 'Ay', 'Kütüphane'],
   },
@@ -21,15 +22,14 @@ const gameCopy = {
       glide: 'Hold to rise and release to glide down. Collect light orbs. Your flight ends after 5 bumps into the shelves.',
     },
     restart: 'Restart', drop: 'Drop book', lift: 'Hold to rise', score: 'Score', books: 'Books',
-    hits: 'Bumps', ended: 'Round complete', start: 'Start flight',
+    hits: 'Bumps', ended: 'Round complete', start: 'Start flight', aligned: 'Perfect stack!',
+    controls: 'Game controls', chapters: { tower: 'Line up the books', merge: 'Combine items', glide: 'Collect the lights' },
     directions: { left: 'Left', up: 'Up', down: 'Down', right: 'Right' },
     items: ['', 'Paper', 'Notebook', 'Book', 'Encyclopedia', 'Coffee', 'Ink', 'Crystal', 'Star', 'Moon', 'Library'],
   },
 };
 
 export const gameText = locale => gameCopy[locale === 'en' ? 'en' : 'tr'];
-export const mergeIcons = ['', '▤', '▥', '▧', '▣', '☕', '✒', '◆', '✦', '☽', '⌂'];
-export const bookColors = ['#edac70', '#a493d0', '#7eb6aa', '#cf8398', '#8faacd'];
 
 export function newTower() {
   return { books: [{ x: 29, width: 42 }], x: 0, width: 42, direction: 1, done: false };
@@ -59,7 +59,10 @@ export function dropBook(tower) {
 
 function placeTile(board, random) {
   const empty = board.flatMap((tile, index) => tile ? [] : [index]);
-  if (empty.length) board[empty[Math.floor(random() * empty.length)]] = random() < 0.9 ? 1 : 2;
+  if (!empty.length) return null;
+  const index = empty[Math.floor(random() * empty.length)];
+  board[index] = random() < 0.9 ? 1 : 2;
+  return index;
 }
 
 export function newMerge(random = Math.random) {
@@ -75,25 +78,30 @@ export function slideMerge(game, direction, random = Math.random) {
   const vertical = direction === 'up' || direction === 'down';
   const reversed = direction === 'right' || direction === 'down';
   let score = game.score;
+  const travel = [];
+  const combinations = [];
   for (let line = 0; line < 4; line++) {
     const slots = Array.from({ length: 4 }, (_, index) => vertical ? line + index * 4 : line * 4 + index);
     if (reversed) slots.reverse();
-    const tiles = slots.map(slot => board[slot]).filter(Boolean);
+    const tiles = slots.filter(slot => board[slot]).map(slot => ({ slot, level: board[slot] }));
     const merged = [];
     for (let index = 0; index < tiles.length; index++) {
-      const item = tiles[index];
-      if (item === tiles[index + 1]) {
-        index++;
-        merged.push(item + 1);
-        score += 2 ** (item + 1);
-      } else merged.push(item);
+      const { slot, level } = tiles[index];
+      const to = slots[merged.length];
+      travel.push({ from: slot, to, level });
+      if (level === tiles[index + 1]?.level) {
+        travel.push({ from: tiles[++index].slot, to, level });
+        combinations.push(to);
+        merged.push(level + 1);
+        score += 2 ** (level + 1);
+      } else merged.push(level);
     }
     slots.forEach((slot, index) => { board[slot] = merged[index] ?? 0; });
   }
   if (board.every((value, index) => value === game.board[index])) return game;
-  placeTile(board, random);
+  const spawned = placeTile(board, random);
   const done = board.every((value, index) => value && ((index % 4 === 3 || board[index + 1] !== value) && board[index + 4] !== value));
-  return { board, score, done };
+  return { board, score, done, motion: { travel, combinations, spawned } };
 }
 
 export function newGlide() {
@@ -104,11 +112,13 @@ export function newGlide() {
   ] };
 }
 
+export const glideSpeed = hits => 21 * (5 - hits) / 5;
+
 export function tickGlide(game, held, seconds, random = Math.random) {
   if (!game.active || game.hits >= 5) return game;
   const velocity = Math.max(-46, Math.min(38, game.velocity + (held ? -108 : 69) * seconds));
   const y = Math.max(5, Math.min(95, game.y + velocity * seconds));
-  const speed = 21 * (5 - game.hits) / 5;
+  const speed = glideSpeed(game.hits);
   let hits = game.hits;
   let score = game.score;
   let farthest = Math.max(...game.gates.map(gate => gate.x)) - speed * seconds;
