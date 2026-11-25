@@ -12,7 +12,7 @@ import { library, notifyRoomPresence, roomConnection, supabase } from './api';
 import type { Avatar, BoxTier, Command, Drop, Focus, ItemId, Profile, Snapshot } from './model';
 import { RoomScene, Sprite } from './scene';
 import { allowReminders, hasExactReminderSettings, openExactReminderSettings, syncRemoteReminders,
-  removeRemoteReminders, useReminder } from './reminders';
+  clearPlanReminders, removeRemoteReminders, usePlanReminders, useReminder } from './reminders';
 import { hasAnalytics, setUsageMeasurement, trackUsage } from './telemetry';
 import { message, usePreferences, words, type Locale, type Translation } from './strings';
 import { Button, Field, Options, ui } from './ui';
@@ -272,6 +272,9 @@ export function Library({ id }: { id: string }) {
     void queryClient.invalidateQueries({ queryKey: ['library', id] }, { cancelRefetch: false });
   }, [autoBreak, breakRemaining, localRoom, setPage, queryClient, id]);
   const verify = remainingCheck > 0;
+  const localPlanAlerts = alerts && snapshot === undefined
+    ? undefined : alerts && Boolean(snapshot?.profile) && !snapshot?.plannerRemote;
+  usePlanReminders(id, localPlanAlerts, foreground, t, reminderRevision);
   useReminder(alerts, focus?.next_check_at ?? null, clock, t, reminderRevision);
   useEffect(() => {
     if (localRoom && AppState.currentState === 'background') void notifyRoomPresence(localRoom, 'background');
@@ -428,6 +431,7 @@ export function Library({ id }: { id: string }) {
     if (!accountDeleted && localRoom) await notifyRoomPresence(localRoom, 'disconnect');
     await removeRemoteReminders(accountDeleted).catch(() => {});
     setAlerts(false);
+    await clearPlanReminders().catch(() => {});
     setUsage(false);
     setUsageMeasurement(false);
     const { error } = await supabase!.auth.signOut({ scope: 'local' });

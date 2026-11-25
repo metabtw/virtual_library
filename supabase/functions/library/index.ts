@@ -67,5 +67,5 @@ Deno.serve(async (request) => {
   if (typeof result?.awarded === 'number' && result.awarded > 0) {
     EdgeRuntime.waitUntil(deliverRewards(admin).catch(() => console.error('reward_delivery_unavailable')));
   }
-  return reply(result?.profile ? { ...result, adPlatforms: adPlatforms() } : result);
+  return reply(result?.profile ? { ...result, adPlatforms: adPlatforms(), plannerRemote: Boolean(Deno.env.get('EXPO_PUSH_ACCESS_TOKEN')) } : result);
 });

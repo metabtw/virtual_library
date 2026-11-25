@@ -25,6 +25,7 @@ export function StudyPlanner({ id, locale, t }: { id: string; locale: Locale; t:
       edit(undefined);
       setSuccess(true);
       void cache.invalidateQueries({ queryKey: ['library', id] });
+      void cache.invalidateQueries({ queryKey: ['planner-reminders', id] });
     },
   });
   const minutes = (count: number) => `${count} ${t.minuteUnit}`;

@@ -54,6 +54,7 @@ export type Snapshot = {
   drop?: Drop | null;
   reactions?: DeskReaction[];
   coinAwards?: CoinAward[];
+  plannerRemote?: boolean;
   todayPlans?: { id: string; topic: string; minutes: number; reminderAt: number | null }[];
   dailyQuests?: DailyQuests;
   weeklyQuests?: WeeklyQuests;
