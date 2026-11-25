@@ -5,6 +5,7 @@ import { Alert, AppState, BackHandler, Image, ImageBackground, Modal, Platform, 
   useWindowDimensions, View } from 'react-native';
 import { avatarOptions, avatarPresets, defaultAvatar, hairStyles, pickAvatarStyle } from '../../public/avatar-art';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../../public/focus-clock';
+import { defaultRoomTheme } from '../../public/room-art';
 import { displayDeskStatuses, recordDeskStatus, type DeskUpdates } from '../../public/desk-status';
 import { breakPresets, roomProgressMinutes, roomThemeUnlockMinutes } from '../../public/study-rewards';
 import { library, notifyRoomPresence, roomConnection, supabase } from './api';
@@ -21,13 +22,13 @@ import { Catalog } from './catalog';
 import { CoinNotice } from './coin-notice';
 import { ChestReward } from './chest-reward';
 import { dressedAvatar } from './cosmetics';
-import { roomThemes, ThemePicker } from './themes';
+import { resolveTheme, roomThemes, ThemePicker } from './themes';
 import { LeaderboardModal, StudyCardModal } from './study';
 import { presetAssets } from './asset-art';
 import { TermsButton } from './auth';
 import { AccountSheet, type AccountPanel } from './account-sheets';
-import { LoadingScreen, TourSheet } from './arrival';
-import { Games } from './games';
+import { LoadingScreen, PageLoading, TourSheet } from './arrival';
+import { gameImages, Games } from './games';
 import { ShopRewards } from './ads';
 import { FocusQuests, FriendInviteButton, FriendsPanel, ProfileCodeField, ProfileCodes, StudyInvitations } from './community';
 import type { ProfileCodePrefix } from '../../public/room-social';
@@ -605,6 +606,14 @@ export function Library({ id }: { id: string }) {
           <Text style={[ui.navText, tab === effectivePage && ui.accent]}>{t[tab]}{tab === 'profile' && unread > 0 ? ` · ${unread}` : ''}</Text>
         </Pressable>)}
     </View>}
+    <PageLoading page={profile ? effectivePage : 'newProfile'} label={t.loading} blocked={running || verify}
+      assets={() => [
+        require('../../public/app-logo.png'),
+        ...(effectivePage === 'games' ? gameImages : effectivePage === 'room'
+          ? [roomThemes[resolveTheme(theme, localRoom ?? null, aurora)].image]
+          : effectivePage === 'rooms'
+            ? snapshot.rooms.slice(0, 4).map(entry => roomThemes[defaultRoomTheme(entry.id)].image) : []),
+      ]} />
     {rankingOpen && !running && !verify && <LeaderboardModal user={id} t={t} close={() => setRankingOpen(false)}
       pending={pending} changeVisibility={visible => act({ name: 'rankingVisibility', payload: { visible } })} />}
     {cardOpen && profile && !running && !verify && <StudyCardModal user={id} profile={profile}

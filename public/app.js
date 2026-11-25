@@ -15,7 +15,10 @@ import { createStudyCardPreview, messageFor, reactionArt } from './web-social.js
 import { webText } from './web-strings.js';
 import { adCooldownSeconds, boxArt, boxLabels, boxOdds, breakPresets, canBuyFromShop, roomGoalMinutes, roomProgressMinutes, roomThemeUnlockMinutes } from './study-rewards.js';
 import { focusQuests, friendsPanel, studyInviteButton, studyInvitations } from './community.js';
-import { mountGames } from './web-games.js';
+import { gameBackdropUrls, mountGames } from './web-games.js';
+import { preloadImage, waitForPage } from './page-loading.js';
+import { pageMetadata, siteHref, sitePages } from './site-pages.js';
+import { createWebAnalytics } from './web-analytics.js';
 import { inviteWait, splitProfileCode } from './room-social.js';
 
 const client = config && createClient(config.url, config.key, {
@@ -26,6 +29,10 @@ let authReady = !client;
 let tourIndex = 0;
 const deletionPage = location.pathname === '/account-deletion';
 const content = document.querySelector('#content');
+const pageLoader = document.querySelector('#page-transition');
+let currentView;
+let pageTransition = 0;
+let gamesWarmed = false;
 const tourDialog = document.querySelector('#onboarding-dialog');
 const notice = document.querySelector('#notice');
 const coinNotice = document.querySelector('#coin-notice');
@@ -63,6 +70,8 @@ const seenReactions = new Set();
 const roomConnection = createRoomConnection();
 let locale = initialLanguage();
 const t = key => webText(locale, key);
+const metrics = createWebAnalytics(config?.analyticsId);
+const description = document.querySelector('meta[name="description"]');
 const roomPreferences = createRoomPreferences({ translate: t });
 
 let userId;
@@ -467,6 +476,18 @@ function reflectSession(next) {
   if (id && !deletionPage) void request('state');
 }
 
+function featureLinks() {
+  return `<nav class="feature-links" aria-label="${t('featureLinks')}">${Object.entries(sitePages).map(([path, page]) =>
+    `<a class="secondary" href="${siteHref(path, locale)}">${page[locale].title}</a>`).join('')}</nav>`;
+}
+
+function updatePageMetadata(view) {
+  const meta = pageMetadata(view, locale);
+  if (document.title !== meta.title) document.title = meta.title;
+  if (description.content !== meta.description) description.content = meta.description;
+  metrics.page(view === 'deletion' ? undefined : view === 'home' ? '/' : '/#' + view, meta.title);
+}
+
 function signInView() {
   if (!client) return `<section class="card account-card">${deletionPage ? backToProfile() : ''}
     <h1>${t('app')}</h1><p>${t('missingConfig')}</p><div class="auth-links"><a class="secondary account-button account-data" href="${privacyHref()}">${t('readPrivacy')}</a>${termsButton()}</div></section>`;
@@ -493,6 +514,8 @@ function signInView() {
     <div class="auth-links"><a class="secondary account-button account-data" href="${privacyHref()}">${t('readPrivacy')}</a>
     ${termsButton()}
     ${deletionPage ? backToProfile() : `<a class="secondary account-button account-danger" href="${deletionHref()}">${t('deletionPage')}</a>`}</div>
+    ${deletionPage ? '' : metrics.control(t('webMeasurement'))}
+    ${deletionPage ? '' : featureLinks()}
   </section>`;
 }
 
@@ -678,16 +701,22 @@ function roomsView() {
   <div class="room-tools">
     <label class="room-search"><span aria-hidden="true">⌕</span>
       <input type="search" id="room-search" placeholder="${t('searchTarget')}" aria-label="${t('searchTarget')}" value="${escape(roomSearch)}"></label>
-    <div class="room-grid room-actions private-actions">
-      ${roomTool('create-private-room', t('openPrivateRoom'), data.profile.ownsPrivateRoom
-        ? `<p class="room-owned" role="status">${t('privateRoomOwned')}</p>`
-        : `<form class="stacked" id="create-room-form"><label class="field">${t('roomName')}
-          <input name="roomName" value="${escape(draft.roomName)}" required minlength="2" maxlength="32"></label>
-          <button class="primary">${t('createRoom')}</button></form>`)}
-      ${roomTool('join-private-room', t('joinCode'), `<form class="stacked" id="join-room-form">
-        <label class="field">${t('inviteCode')} <input name="invite" value="${escape(draft.invite)}" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6"></label>
-        <button class="secondary">${t('joinCode')}</button></form>`)}
-    </div>
+    ${roomTool('private-rooms', t('privateRooms'), `<div class="private-room-forms">
+      <section>
+        <h3>${t('openPrivateRoom')}</h3>
+        ${data.profile.ownsPrivateRoom ? `<p class="room-owned" role="status">${t('privateRoomOwned')}</p>`
+          : `<form class="stacked" id="create-room-form"><label class="field">${t('roomName')}
+            <input name="roomName" value="${escape(draft.roomName)}" required minlength="2" maxlength="32"></label>
+            <button class="primary">${t('createRoom')}</button></form>`}
+      </section>
+      <section>
+        <h3>${t('joinCode')}</h3>
+        <form class="stacked" id="join-room-form">
+          <label class="field">${t('inviteCode')} <input name="invite" value="${escape(draft.invite)}" required inputmode="numeric" pattern="[0-9]{6}" maxlength="6"></label>
+          <button class="secondary">${t('joinCode')}</button>
+        </form>
+      </section>
+    </div>`)}
   </div>
   ${studyInvitations(data, t, escape, locale)}
   <div class="room-grid room-list">${data.rooms.map(room => `<article class="card room-card" data-room-id="${escape(room.id)}">
@@ -835,6 +864,7 @@ function profileView() {
       <a class="secondary account-button account-data" href="${privacyHref()}">${t('myData')}</a>
       <button class="secondary account-button account-sign-out" data-action="sign-out">${t('signOut')}</button>
       ${termsButton()}
+      ${metrics.control(t('webMeasurement'))}
       <a class="secondary account-button account-danger" href="${deletionHref()}">${t('deleteAccount')}</a>
     </div>
   </section>`;
@@ -895,6 +925,41 @@ function paint(signature, html) {
   lastScene = undefined;
 }
 
+function finishPageTransition() {
+  pageTransition++;
+  pageLoader.hidden = true;
+  content.inert = false;
+  content.removeAttribute('aria-busy');
+}
+
+function loadPage(view, room) {
+  if (currentView === view) return;
+  const previous = currentView;
+  currentView = view;
+  if (!previous) return;
+
+  const images = ['/app-logo.png'];
+  if (view === 'games') images.push(...gameBackdropUrls);
+  if (view === 'room') images.push(roomBackdrop(roomPreferences.themeFor(room)));
+  if (view === 'profile') images.push('/library.webp');
+  if (view === 'rooms') images.push(...data.rooms.slice(0, 4).map(entry => roomBackdrop(defaultRoomTheme(entry.id))));
+  const preparation = images.map(preloadImage);
+  if (view === 'ranking' && !ranking) preparation.push(loadRanking());
+  if (running()) {
+    finishPageTransition();
+    return;
+  }
+  const transition = ++pageTransition;
+  pageLoader.innerHTML = loadingScreen();
+  pageLoader.hidden = false;
+  content.inert = true;
+  content.setAttribute('aria-busy', 'true');
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  void waitForPage(preparation).then(() => {
+    if (transition === pageTransition) finishPageTransition();
+  });
+}
+
 function render() {
   if (!authReady) { paint('auth-loading', loadingScreen); return; }
   const page = location.hash.slice(1);
@@ -903,6 +968,7 @@ function render() {
   sidebar.inert = lock || !userId || deletionPage;
   languageToggle.disabled = lock;
   document.body.classList.toggle('focusing', lock);
+  if (lock && !pageLoader.hidden) finishPageTransition();
   document.querySelector('#balance').textContent = data?.profile?.coins ?? 0;
   const unread = data?.profile?.doNotDisturb ? 0 : (data?.friends?.filter(friend => friend.status === 'incoming').length ?? 0) + (data?.studyInvites?.length ?? 0);
   const notification = document.querySelector('#social-unread');
@@ -914,9 +980,12 @@ function render() {
     if (shareCodeDialog.open) shareCodeDialog.close();
   }
   if (!userId || deletionPage || !data) {
+    currentView = undefined;
+    if (!pageLoader.hidden) finishPageTransition();
     roomPreferences.sync(null);
     if (verification.open) verification.close();
     const signIn = !userId;
+    updatePageMetadata(deletionPage ? 'deletion' : 'home');
     document.querySelector('#location').textContent = t(signIn ? 'signIn' : deletionPage ? 'deletionPage' : 'library');
     paint(JSON.stringify([signIn, deletionPage, emailSentTo, emailFeedback, Boolean(data), locale]),
       signIn ? signInView : deletionPage ? deletionView : loadingScreen);
@@ -934,6 +1003,16 @@ function render() {
   });
   if ((view !== 'room' || lock) && reactionDialog.open) reactionDialog.close();
   const room = inRoom ? data.rooms.find(item => item.id === data.profile?.room) : undefined;
+  updatePageMetadata(view);
+  loadPage(view, room);
+  if (!gamesWarmed && data.profile) {
+    gamesWarmed = true;
+    const warm = () => {
+      if (!navigator.connection?.saveData && navigator.onLine) gameBackdropUrls.forEach(preloadImage);
+    };
+    if (window.requestIdleCallback) window.requestIdleCallback(warm, { timeout: 3000 });
+    else setTimeout(warm, 1800);
+  }
   const signature = JSON.stringify([view, view === 'room'
     ? [room?.id, onBreak(), room?.minutes, room?.invite, data.profile?.status, data.session, durationChoice, data.inventory,
       data.friends?.some(friend => friend.status === 'accepted'), data.profile?.doNotDisturb]
@@ -1367,9 +1446,12 @@ document.addEventListener('click', async event => {
       if (cardUrl) URL.revokeObjectURL(cardUrl);
       cardUrl = URL.createObjectURL(preview.blob);
       cardDialog.querySelector('img').src = cardUrl;
-      const download = cardDialog.querySelector('[download]');
+      const download = document.createElement('a');
+      download.className = 'primary';
       download.href = cardUrl;
       download.download = preview.filename;
+      download.textContent = t('downloadCard');
+      cardDialog.querySelector('[data-card-download]').replaceChildren(download);
       if (!cardDialog.open) cardDialog.showModal();
     } catch { toast(t('downloadFailed')); }
     finally { button.disabled = false; }
@@ -1418,6 +1500,7 @@ translateChrome();
 cardDialog.addEventListener('close', () => {
   if (cardUrl) URL.revokeObjectURL(cardUrl);
   cardDialog.querySelector('img').removeAttribute('src');
+  cardDialog.querySelector('[data-card-download]').replaceChildren();
   cardUrl = undefined;
 });
 window.addEventListener('hashchange', render);

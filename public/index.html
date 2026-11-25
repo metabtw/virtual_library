@@ -20,6 +20,7 @@
   <meta property="og:image:height" content="960">
   <meta property="og:image:alt" content="Gece manzaralı piksel sanat çalışma odası">
   <meta name="twitter:card" content="summary_large_image">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Virtual Study Crew","url":"https://virtualstudycrew.com/","applicationCategory":"ProductivityApplication","operatingSystem":"Web browser","inLanguage":["tr","en"]}</script>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/room-preferences.css">
   <link rel="stylesheet" href="/games.css">
@@ -46,6 +47,11 @@
       <section class="card account-card">
         <h1>Virtual Study Crew</h1>
         <p>Arkadaşlarınla sanal çalışma odalarına katıl, odak sayacını ayarla ve kendi piksel avatarınla birlikte ders çalış.</p>
+        <nav class="feature-links" aria-label="Özellikler">
+          <a class="secondary" href="/odalar">Sanal çalışma odaları</a>
+          <a class="secondary" href="/odak-zamanlayici">Odak zamanlayıcısı</a>
+          <a class="secondary" href="/oyunlar">Mola oyunları</a>
+        </nav>
         <nav class="auth-links" aria-label="Yasal bilgiler">
           <a class="secondary account-button account-data" href="/privacy">Gizlilik politikası</a>
           <a class="secondary account-button account-terms" href="/terms">Kullanım koşulları</a>
@@ -53,6 +59,7 @@
       </section>
     </section>
   </main>
+  <div id="page-transition" hidden></div>
   <div id="coin-notice" role="status" aria-live="polite" aria-atomic="true"></div>
   <p id="notice" role="status"></p>
   <dialog class="action-sheet" id="action-confirmation" aria-labelledby="action-confirm-title">
@@ -123,7 +130,7 @@
     <h2 id="study-card-title" data-text="studyCard">Günün çalışma kartı</h2>
     <img alt="" class="study-card-preview">
     <div class="dialog-actions">
-      <a class="primary" download data-text="downloadCard">Çalışma kartını indir</a>
+      <div data-card-download></div>
       <form method="dialog"><button class="secondary" data-text="done">Kapat</button></form>
     </div>
   </dialog>

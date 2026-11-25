@@ -16,6 +16,9 @@ test('builds the static Vercel site and keeps browser configuration public', asy
     EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_build_test',
     SUPABASE_ACCESS_TOKEN: 'private-admin-value',
     PRIVACY_DETAILS_EN: 'Retention < 30 days',
+    GA_MEASUREMENT_ID: 'G-INTEGRATION01',
+    GOOGLE_SITE_VERIFICATION: 'test_google-123',
+    BING_SITE_VERIFICATION: 'TESTBING1234',
   };
   await buildWeb(output, env);
   const file = name => join(output, name);
@@ -27,6 +30,7 @@ test('builds the static Vercel site and keeps browser configuration public', asy
     url: googleWeb.supabaseOrigin,
     key: env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     google: true,
+    analyticsId: env.GA_MEASUREMENT_ID,
     firebaseGoogle: googleWeb.firebase,
     apple: false,
   });
@@ -36,6 +40,28 @@ test('builds the static Vercel site and keeps browser configuration public', asy
   assert.match(await read('index.html'), /rel="canonical" href="https:\/\/virtualstudycrew\.com\/"/);
   assert.match(await read('robots.txt'), /Sitemap: https:\/\/virtualstudycrew\.com\/sitemap\.xml/);
   assert.match(await read('sitemap.xml'), /<loc>https:\/\/virtualstudycrew\.com\/<\/loc>/);
+  const index = await read('index.html');
+  assert.match(index, /name="google-site-verification" content="test_google-123"/);
+  assert.match(index, /name="msvalidate.01" content="TESTBING1234"/);
+  assert.doesNotMatch(index, /googletagmanager[.]com/);
+  const sitemap = await read('sitemap.xml');
+  const urls = ['odalar', 'odak-zamanlayici', 'oyunlar'];
+  const titles = new Set();
+  const descriptions = new Set();
+  for (const path of urls) {
+    const canonical = 'https://virtualstudycrew.com/' + path;
+    assert.ok(sitemap.includes('<loc>' + canonical + '</loc>'));
+    const feature = await read(path + '.html');
+    assert.ok(feature.includes('rel="canonical" href="' + canonical + '"'));
+    assert.match(feature, /metrics[.]page/);
+    titles.add(feature.match(/<title>([^<]+)<\/title>/)[1]);
+    descriptions.add(feature.match(/name="description" content="([^"]+)"/)[1]);
+    const english = await read(path + '-en.html');
+    assert.ok(english.includes('lang="en"'));
+    assert.ok(english.includes('rel="canonical" href="' + canonical + '?lang=en"'));
+  }
+  assert.equal(titles.size, urls.length);
+  assert.equal(descriptions.size, urls.length);
   for (const name of ['favicon.png', 'app-logo.png', 'apple-touch-icon.png', 'study-room-preview.jpg']) {
     assert.ok((await stat(file(name))).size > 0);
   }
@@ -58,7 +84,11 @@ test('builds the static Vercel site and keeps browser configuration public', asy
   assert.equal(getWebConfig({ ...env, WEB_FIREBASE_AUTH_REDIRECT_URI: 'https://virtualstudycrew.com/__/auth/handler' }).firebaseGoogleDomain,
     undefined);
 
-  await buildWeb(output, { ...env, WEB_AUTH_GOOGLE: 'false' });
+  await buildWeb(output, {
+    ...env, WEB_AUTH_GOOGLE: 'false', GOOGLE_SITE_VERIFICATION: '<script>', GA_MEASUREMENT_ID: 'not-an-id',
+  });
+  assert.doesNotMatch(await read('index.html'), /name="google-site-verification"/);
+  assert.doesNotMatch(await read('config.js'), /analyticsId/);
   await assert.rejects(stat(file('firebase-google-sdk.js')), { code: 'ENOENT' });
   await assert.rejects(buildWeb(output, { ...env, EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_secret_private' }),
     /EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);

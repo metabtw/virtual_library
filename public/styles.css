@@ -685,11 +685,6 @@ progress {height:7px;accent-color:#e9b275}
 .room-card p {font-size:12px;margin:0 0 3px}
 .room-targets {display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .room-card button {width:100%;padding:8px 6px;white-space:normal;overflow-wrap:anywhere}
-.room-actions .card {min-width:0;gap:7px;margin:0;padding:clamp(9px,2vw,16px)}
-.room-actions .room-owned {justify-content:center}
-.room-actions .room-owned p {margin:0}
-.room-actions :is(button,input) {font-size:12px}
-.room-actions button {white-space:normal;overflow-wrap:anywhere}
 .room-search {margin-bottom:10px}
 .community-card {width:100%;gap:10px;margin:12px 0}
 .community-card h2,.community-card p {margin:0}
@@ -966,9 +961,6 @@ dialog {max-height:calc(100dvh - 24px);overflow:auto}
 .room-search {position:relative;display:block;width:100%;max-width:30rem;margin:0}
 .room-search span {position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--accent);font-size:21px;pointer-events:none}
 .room-search input {width:100%;min-height:46px;padding-left:40px}
-.room-actions .room-tool {display:block;padding:6px 12px}
-.room-tool > form {margin:6px 0 8px}
-.room-tool > .room-owned {margin:0 0 8px}
 .room-card .room-preview {aspect-ratio:3/1;overflow:hidden;border-radius:10px;background:#31233a}
 .room-preview img {width:100%;height:100%;display:block;object-fit:cover;object-position:50% 34%}
 
@@ -1043,3 +1035,28 @@ dialog {max-height:calc(100dvh - 24px);overflow:auto}
 .study-totals b,.ranking-prizes {color:var(--accent)}
 .profile-quiet {margin:14px 0}
 .study-card-preview {display:block;max-width:100%;height:min(60dvh,560px);margin:0 auto;object-fit:contain}
+
+.room-tool {display:block;padding:6px 12px 10px}
+.private-room-forms {
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:stretch;
+}
+.private-room-forms section {
+  min-width:0;display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--line);
+  background:#221a2460;border-radius:12px;
+}
+.private-room-forms h3 {margin:0;font-size:.94rem}
+.private-room-forms .stacked {margin:0;flex:1;display:flex;flex-direction:column;width:100%}
+.private-room-forms .stacked input {display:block;width:100%;min-width:0}
+.private-room-forms button {width:100%;min-height:44px;margin-top:auto;white-space:normal;overflow-wrap:anywhere}
+@media (max-width:650px) { .private-room-forms {grid-template-columns:1fr} }
+#page-transition .startup-screen {z-index:40}
+
+.feature-links {display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.feature-links a {text-align:center}
+.feature-cover {display:block;width:100%;height:auto;aspect-ratio:2;object-fit:cover;border-radius:12px}
+.feature-entry {justify-self:start;text-decoration:none}
+
+.analytics-preference {min-height:40px}
+.analytics-preference[aria-checked=true] {color:#bce4aa;border-color:#94c480}
+.analytics-preference::after {content:"○";margin-left:8px}
+.analytics-preference[aria-checked=true]::after {content:"●"}

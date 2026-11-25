@@ -8,6 +8,8 @@ import { build } from 'esbuild';
 import googleWeb from './google-web-config.json' with { type: 'json' };
 import { privacyPage } from './privacy-page.js';
 import { termsPage } from './terms-page.js';
+import { addSiteVerification, analyticsMeasurementId, featurePage } from './feature-pages.js';
+import { sitePages } from './public/site-pages.js';
 import { themedBackdrops } from './public/room-art.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -25,6 +27,7 @@ export const webFiles = new Map([
   ['/app-logo.png', ['public/app-logo.png', 'image/png']],
   ['/apple-touch-icon.png', ['public/apple-touch-icon.png', 'image/png']],
   ['/study-room-preview.jpg', ['public/study-room-preview.jpg', 'image/jpeg']],
+  ['/31a5a3923ac9f414cad6839fb4e04d4a.txt', ['public/31a5a3923ac9f414cad6839fb4e04d4a.txt', 'text/plain; charset=utf-8']],
   ['/robots.txt', ['public/robots.txt', 'text/plain; charset=utf-8']],
   ['/sitemap.xml', ['public/sitemap.xml', 'application/xml; charset=utf-8']],
   ['/room-preferences.css', ['public/room-preferences.css', css]],
@@ -32,6 +35,9 @@ export const webFiles = new Map([
   ['/account-dialogs.js', ['public/account-dialogs.js', script]],
   ['/onboarding.js', ['public/onboarding.js', script]],
   ['/room-art.js', ['public/room-art.js', script]],
+  ['/site-pages.js', ['public/site-pages.js', script]],
+  ['/web-analytics.js', ['public/web-analytics.js', script]],
+  ['/page-loading.js', ['public/page-loading.js', script]],
   ['/app.js', ['public/app.js', script]],
   ['/google-sign-in.js', ['public/google-sign-in.js', script]],
   ['/avatar-art.js', ['public/avatar-art.js', script]],
@@ -107,7 +113,9 @@ export function getWebConfig(env = process.env) {
   }
   const paired = url.origin === googleWeb.supabaseOrigin;
   const google = env.WEB_AUTH_GOOGLE !== 'false' && (paired || env.WEB_AUTH_GOOGLE === 'true' || env.EXPO_PUBLIC_AUTH_GOOGLE === 'true');
+  const analyticsId = analyticsMeasurementId(env);
   return { url: url.origin, key, google,
+    ...(analyticsId ? { analyticsId } : {}),
     ...(google && paired ? { firebaseGoogle: googleWeb.firebase } : {}),
     apple: env.EXPO_PUBLIC_AUTH_APPLE === 'true' };
 }
@@ -140,6 +148,7 @@ export function createWebServer({ config = getWebConfig(), bundle = new Uint8Arr
     }).end(request.method === 'HEAD' ? undefined : content);
     if (request.method === 'GET' || request.method === 'HEAD') {
       if (pathname === '/healthz') return write('application/json; charset=utf-8', JSON.stringify({ ok: Boolean(config) }), config ? 200 : 503);
+      if (Object.hasOwn(sitePages, pathname)) return write(html, featurePage(pathname, searchParams.get('lang'), config?.analyticsId));
       if (pathname === '/terms') return write(html, termsPage(searchParams.get('lang')));
       if (pathname === '/privacy') return write(html, privacyPage(searchParams.get('lang'), env));
       if (pathname === '/config.js') return write(script, `export const config = ${JSON.stringify(config)};`);
@@ -154,7 +163,7 @@ export function createWebServer({ config = getWebConfig(), bundle = new Uint8Arr
             const media = audioResponse(content, request.method === 'GET' ? request.headers.range : undefined);
             return write(type, media.content, media.status, media.headers);
           }
-          return write(type, content);
+          return write(type, pathname === '/' ? addSiteVerification(content.toString(), env) : content);
         } catch {
           response.writeHead(500).end();
           return;

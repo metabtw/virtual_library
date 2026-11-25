@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Image, Modal, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Asset } from 'expo-asset';
+import { waitForPage } from '../../public/page-loading';
 import { loadingPixels, tourSteps } from '../../public/onboarding';
 import { roomThemes } from './themes';
 import type { Translation } from './strings';
@@ -29,6 +31,29 @@ export function LoadingScreen({ label }: { label: string }) {
     </View>
     <Text style={ui.small}>{label}</Text>
   </View>;
+}
+
+export function PageLoading({ page, blocked, assets, label }: {
+  page: string; blocked: boolean; assets: () => number[]; label: string;
+}) {
+  const lastPage = useRef(page);
+  const getAssets = useRef(assets);
+  getAssets.current = assets;
+  const [showing, setShowing] = useState(false);
+  useLayoutEffect(() => {
+    const changed = lastPage.current !== page;
+    lastPage.current = page;
+    setShowing(changed && !blocked);
+    if (!changed || blocked) return;
+    let mounted = true;
+    const tasks = getAssets.current().map(module => Asset.fromModule(module).downloadAsync());
+    void waitForPage(tasks).then(() => { if (mounted) setShowing(false); });
+    return () => { mounted = false; };
+  }, [blocked, page]);
+  if (!showing || blocked) return null;
+  return <Modal transparent visible animationType="none" onRequestClose={() => {}} accessibilityViewIsModal>
+    <LoadingScreen label={label} />
+  </Modal>;
 }
 
 export function TourSheet({ t, finish, pending, error }: { t: Translation; finish: () => void; pending: boolean; error: string }) {

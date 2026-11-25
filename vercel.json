@@ -23,6 +23,12 @@
       "destination": "/terms-en.html"
     },
     { "source": "/terms", "destination": "/terms.html" },
+    {"source": "/odalar", "has": [{"type": "query", "key": "lang", "value": "en"}], "destination": "/odalar-en.html"},
+    {"source": "/odalar", "destination": "/odalar.html"},
+    {"source": "/odak-zamanlayici", "has": [{"type": "query", "key": "lang", "value": "en"}], "destination": "/odak-zamanlayici-en.html"},
+    {"source": "/odak-zamanlayici", "destination": "/odak-zamanlayici.html"},
+    {"source": "/oyunlar", "has": [{"type": "query", "key": "lang", "value": "en"}], "destination": "/oyunlar-en.html"},
+    {"source": "/oyunlar", "destination": "/oyunlar.html"},
     { "source": "/healthz", "destination": "/healthz.json" }
   ],
   "headers": [

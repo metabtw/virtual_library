@@ -1,8 +1,10 @@
-import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { privacyPage } from '../privacy-page.js';
 import { termsPage } from '../terms-page.js';
+import { addSiteVerification, featurePage } from '../feature-pages.js';
+import { sitePages } from '../public/site-pages.js';
 import { bundleFirebaseGoogle, bundleSupabase, getWebConfig, loadWebEnvironment, webFiles } from '../server.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -17,14 +19,15 @@ export async function buildWeb(output, env = process.env) {
   await rm(output, { recursive: true, force: true });
   await mkdir(output, { recursive: true });
 
-  const assets = [...webFiles.entries()].filter(([route]) => route !== '/account-deletion');
+  const assets = [...webFiles.entries()].filter(([route]) => route !== '/account-deletion' && route !== '/');
   await Promise.all(assets.map(async ([route, [file]]) => {
-    const target = resolve(output, route === '/' ? 'index.html' : route.slice(1));
+    const target = resolve(output, route.slice(1));
     await mkdir(dirname(target), { recursive: true });
     await copyFile(resolve(root, file), target);
   }));
 
   const pages = new Map([
+    ['index.html', addSiteVerification(await readFile(resolve(root, 'public/index.html'), 'utf8'), env)],
     ['config.js', `export const config = ${JSON.stringify(config)};`],
     ['supabase-web.js', supabase],
     ['healthz.json', JSON.stringify({ ok: true })],
@@ -33,6 +36,10 @@ export async function buildWeb(output, env = process.env) {
     ['terms.html', termsPage('tr')],
     ['terms-en.html', termsPage('en')],
   ]);
+  for (const path of Object.keys(sitePages)) {
+    pages.set(path.slice(1) + '.html', featurePage(path, 'tr', config.analyticsId));
+    pages.set(path.slice(1) + '-en.html', featurePage(path, 'en', config.analyticsId));
+  }
   if (firebase) pages.set('firebase-google-sdk.js', firebase);
   await Promise.all([...pages].map(([name, content]) => writeFile(resolve(output, name), content)));
 }

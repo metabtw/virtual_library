@@ -16,7 +16,7 @@ export function Directory({ rooms, current, pending, ownsPrivateRoom, coins, loc
   const [search, searchFor] = useState('');
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
-  const { fontScale } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
   const query = search.trim().toLocaleLowerCase(locale);
   const visible = rooms.filter(room =>
     [room.name, room.name_en, ...(room.targets ?? [])].some(value => value.toLocaleLowerCase(locale).includes(query)));
@@ -24,16 +24,22 @@ export function Directory({ rooms, current, pending, ownsPrivateRoom, coins, loc
     <TextInput accessibilityLabel={t.searchTarget} placeholder={t.searchTarget} placeholderTextColor="#b9a2b7"
       style={ui.input} value={search} onChangeText={searchFor} maxLength={48} />
     <View style={ui.card}>
-      <Disclosure title={t.openPrivateRoom}>
-        {ownsPrivateRoom ? <Text style={ui.small}>{t.privateRoomOwned}</Text> : <>
-          <Field label={t.roomName} value={name} onChangeText={setName} maxLength={32} />
-          <Button disabled={pending || coins < 10 || name.trim().length < 2} onPress={() => create(name.trim())}>{t.createRoom}</Button>
-        </>}
-      </Disclosure>
-      <Disclosure title={t.joinCode}>
-        <Field label={t.inviteCode} value={code} onChangeText={value => setCode(value.replace(/\D/g, ''))}
-          maxLength={6} keyboardType="number-pad" />
-        <Button muted disabled={pending || code.length !== 6} onPress={() => enter(code)}>{t.joinCode}</Button>
+      <Disclosure title={t.privateRooms}>
+        <View style={[styles.privateForms, width >= 670 && fontScale < 1.35 && styles.wideForms]}>
+          <View style={styles.privateForm}>
+            <Text style={ui.heading}>{t.openPrivateRoom}</Text>
+            {ownsPrivateRoom ? <Text style={ui.small}>{t.privateRoomOwned}</Text> : <>
+              <Field label={t.roomName} value={name} onChangeText={setName} maxLength={32} />
+              <Button disabled={pending || coins < 10 || name.trim().length < 2} onPress={() => create(name.trim())}>{t.createRoom}</Button>
+            </>}
+          </View>
+          <View style={styles.privateForm}>
+            <Text style={ui.heading}>{t.joinCode}</Text>
+            <Field label={t.inviteCode} value={code} onChangeText={value => setCode(value.replace(/\D/g, ''))}
+              maxLength={6} keyboardType="number-pad" />
+            <Button muted disabled={pending || code.length !== 6} onPress={() => enter(code)}>{t.joinCode}</Button>
+          </View>
+        </View>
       </Disclosure>
     </View>
     {!visible.length && <Text style={ui.small}>{t.noRooms}</Text>}
@@ -97,6 +103,10 @@ export function RoomGoal({ progress, t }: { progress: number; t: Translation }) 
 }
 
 const styles = StyleSheet.create({
+  privateForms: { gap: 9 },
+  wideForms: { flexDirection: 'row', alignItems: 'stretch' },
+  privateForm: { flex: 1, minWidth: 0, gap: 8, borderRadius: 10, padding: 10,
+    borderWidth: 1, borderColor: '#66495b', backgroundColor: '#261d2a' },
   targetToggle: { minHeight: 44 },
   roomGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   roomCard: { width: '48.5%', gap: 6, padding: 9, minWidth: 0 },

@@ -2,7 +2,7 @@
 
 
 const tr = {
-  app: 'Virtual Study Crew', rooms: 'Odalar', room: 'Oda', shop: 'Mağaza', profile: 'Profil',
+  app: 'Virtual Study Crew', privateRooms: 'Özel odalar', featureLinks: 'Özellikler', webMeasurement: 'Web kullanım ölçümüne izin ver', rooms: 'Odalar', room: 'Oda', shop: 'Mağaza', profile: 'Profil',
   profileInventory: 'Profil ve Envanter',
   email: 'E-posta', code: 'Giriş kodu', sendEmail: 'Giriş e-postası gönder', resend: 'Yeni e-posta gönder',
   signInTitle: 'Kütüphaneye giriş', emailPrompt: 'Giriş e-postası almak için adresini yaz.',
@@ -143,7 +143,7 @@ const tr = {
 
 /** @type {Record<keyof typeof tr, string>} */
 const en = {
-  app: 'Virtual Study Crew', rooms: 'Rooms', room: 'Room', shop: 'Shop', profile: 'Profile',
+  app: 'Virtual Study Crew', privateRooms: 'Private rooms', featureLinks: 'Features', webMeasurement: 'Allow website usage measurement', rooms: 'Rooms', room: 'Room', shop: 'Shop', profile: 'Profile',
   profileInventory: 'Profile and Inventory',
   email: 'Email', code: 'Sign-in code', sendEmail: 'Send sign-in email', resend: 'Resend email',
   signInTitle: 'Sign in to the library', emailPrompt: 'Enter your address to get a sign-in email.',

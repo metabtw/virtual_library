@@ -2,6 +2,8 @@ import { atlasColumns, atlasRows, createGameRound, gameArt } from './game-scenes
 import { roomBackdrop } from './room-art.js';
 import { gameIds, gameText } from './study-games.js';
 
+export const gameBackdropUrls = ['/library.webp', '/game-art.png', ...gameIds.map(id => roomBackdrop(gameArt[id].room))];
+
 const arrows = { left: '←', up: '↑', down: '↓', right: '→' };
 const keys = { ArrowLeft: 'left', ArrowUp: 'up', ArrowDown: 'down', ArrowRight: 'right' };
 const texture = index => `${(index % atlasColumns) * 100 / (atlasColumns - 1)}% ${Math.floor(index / atlasColumns) * 100 / (atlasRows - 1)}%`;
@@ -34,7 +36,6 @@ export function mountGames(host, locale) {
     const art = gameArt[id];
     panel.style.setProperty('--game-edge', art.edge);
     panel.style.setProperty('--game-ink', art.accent);
-    panel.style.setProperty('--game-image', `url('${roomBackdrop(art.room)}')`);
     host.querySelectorAll('[data-game]').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.game === id));
     });
@@ -43,7 +44,9 @@ export function mountGames(host, locale) {
       <button class="secondary game-restart" type="button" data-game-restart>${t.restart}</button></div>
       <div class="game-console">
         <div class="game-arena game-${id}" tabindex="0" aria-label="${t.titles[id]}">
-          <div class="game-backdrop" aria-hidden="true"></div>
+          <div class="game-backdrop" aria-hidden="true">
+            <img class="game-room-art" alt="" src="${roomBackdrop(art.room)}" decoding="async">
+          </div>
           ${id === 'merge' ? `<div class="game-board-grid" aria-hidden="true">${'<i></i>'.repeat(16)}</div>` : ''}
           ${id === 'tower' ? '<div class="game-guide-line" aria-hidden="true" hidden></div>' : ''}
           <div class="game-world"></div>
@@ -72,6 +75,12 @@ export function mountGames(host, locale) {
       impact: panel.querySelector('[data-impact-count]'), rings: panel.querySelectorAll('.game-impact-rings i'),
       action: panel.querySelector('[data-game-action]'),
     };
+    const backdrop = arena.querySelector('.game-room-art');
+    const setFallback = () => { backdrop.hidden = true; };
+    const restore = () => { backdrop.hidden = false; };
+    backdrop.addEventListener('error', setFallback);
+    backdrop.addEventListener('load', restore);
+    if (backdrop.complete && !backdrop.naturalWidth) setFallback();
     paint();
     animation = requestAnimationFrame(frame);
   }
@@ -194,6 +203,10 @@ export function mountGames(host, locale) {
   host.addEventListener('pointercancel', releasePointer, { signal });
   host.addEventListener('lostpointercapture', releasePointer, { signal });
   window.addEventListener('blur', releasePointer, { signal });
+  window.addEventListener('online', () => {
+    const backdrop = ui.backdrop.querySelector('.game-room-art');
+    if (backdrop.hidden) backdrop.src = roomBackdrop(gameArt[selected].room) + '?reconnect=1';
+  }, { signal });
   reduceMotion.addEventListener('change', paint, { signal });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) releasePointer();

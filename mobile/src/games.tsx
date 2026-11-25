@@ -10,6 +10,14 @@ import { roomThemes } from './themes';
 import { Button, ui } from './ui';
 
 const atlas = require('../../public/game-art.png');
+export const gameImages: number[] = [atlas, roomThemes.classic.image, ...gameIds.map(id => roomThemes[gameArt[id].room].image)];
+
+function GameBackground({ id }: { id: GameId }) {
+  const [fallback, setFallback] = useState(false);
+  const image = roomThemes[fallback ? 'classic' : gameArt[id].room].image;
+  return <Image source={image} resizeMode="cover" accessible={false} style={styles.cover}
+    onError={fallback ? undefined : () => setFallback(true)} />;
+}
 const arrows = { left: '←', up: '↑', down: '↓', right: '→' } as const;
 const grid = Array.from({ length: 16 }, (_, index) => index);
 type Copy = ReturnType<typeof gameText>;
@@ -27,7 +35,7 @@ export function Games({ locale, t }: { locale: Locale; t: Translation }) {
       return <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected: selected === id }}
         accessibilityLabel={copy.titles[id]} onPress={() => setSelected(id)}
         style={[styles.choice, selected === id && { borderColor: art.accent }]}>
-        <Image source={roomThemes[art.room].image} resizeMode="cover" accessible={false} style={styles.cover} />
+        <GameBackground id={id} />
         <View style={styles.coverShade} />
         <View style={[styles.choiceIcon, { borderColor: art.edge }]}><Texture art={art.icon} /></View>
         <View style={styles.choiceCopy}>
@@ -130,7 +138,7 @@ function GameConsole({ id, copy, restart, wide }: { id: GameId; copy: Copy; rest
   const scene = <>
     <View style={[styles.full, { left: '-3%', right: '-3%', transform: [{ translateX: (snapshot.shift ?? 0) * 5 }] }]}
       pointerEvents="none">
-      <Image source={roomThemes[art.room].image} style={styles.cover} resizeMode="cover" accessible={false} />
+      <GameBackground id={id} />
       <View style={[styles.full, styles.shade, id === 'merge' && styles.boardShade]} />
     </View>
     {id === 'merge' && <View style={styles.full} pointerEvents="none">
@@ -142,7 +150,7 @@ function GameConsole({ id, copy, restart, wide }: { id: GameId; copy: Copy; rest
       backgroundColor: snapshot.guide.aligned ? '#ffc87944' : '#ffc57b15',
       borderColor: snapshot.guide.aligned ? '#ffe2a4' : '#d49c69b8',
     }]} />}
-    <View style={styles.full} pointerEvents="none">
+    <View style={[styles.full, styles.world]} pointerEvents="none">
       {snapshot.nodes.map(node => <PixelPiece key={node.key} node={node} text={copy.items[Math.min(node.level ?? 0, copy.items.length - 1)]} />)}
     </View>
     {snapshot.notice && <Text pointerEvents="none" style={styles.precision}>{copy.aligned}</Text>}
@@ -234,7 +242,7 @@ const styles = StyleSheet.create({
   piece: { position: 'absolute' },
   guide: { position: 'absolute', borderWidth: 1, borderStyle: 'dashed', borderRadius: 4 },
   precision: {
-    position: 'absolute', right: '5%', top: '6%', paddingVertical: 3, paddingHorizontal: 7, borderWidth: 1,
+    position: 'absolute', zIndex: 2, right: '5%', top: '6%', paddingVertical: 3, paddingHorizontal: 7, borderWidth: 1,
     borderColor: '#c69168', borderRadius: 6, backgroundColor: '#2a1b2fe9', color: '#ffe0ad', fontSize: 11, fontWeight: '700',
   },
   emptyCell: {
@@ -244,7 +252,8 @@ const styles = StyleSheet.create({
   tile: { borderRadius: 5, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, gap: 1 },
   tileArt: { width: '61%', maxWidth: 44, aspectRatio: 1 },
   tileLabel: { flexShrink: 1, fontSize: 9, color: '#fff0dc', fontWeight: '600', textAlign: 'center' },
-  result: { backgroundColor: '#211726b8', justifyContent: 'center', alignItems: 'center' },
+  world: { zIndex: 1 },
+  result: { zIndex: 5, elevation: 5, backgroundColor: '#211726b8', justifyContent: 'center', alignItems: 'center' },
   resultNote: {
     gap: 6, alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 14,
     borderWidth: 1, borderRadius: 10, backgroundColor: '#332439ed',
