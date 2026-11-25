@@ -737,12 +737,15 @@ try {
   try {
     const { rows: [week] } = await db.query(`select date_trunc('week', clock_timestamp() at time zone 'Europe/Istanbul')::date::text as starts,
       extract(epoch from (date_trunc('week', clock_timestamp() at time zone 'Europe/Istanbul') at time zone 'Europe/Istanbul'))::bigint * 1000 as ms`);
-    const readers = [hostDeskUser, receiverDeskUser, separateRoomUser, ranker];
+    const readers = [931, 932, 933, 934].map(suffix => '00000000-0000-4000-a000-000000000' + suffix);
+    await db.exec('update public.profiles set leaderboard_visible=false');
     for (const [position, user] of readers.entries()) {
+      await db.query('insert into auth.users values ($1)', [user]);
+      await action(user, 'profile', { ...basic, name: 'Sıralama okuru ' + position });
       await action(user, 'rankingVisibility', { visible: true });
       await history(user, Number(week.ms) + (position + 1) * 60000, [180, 180, 150, 100][position]);
     }
-    const winners = [hostDeskUser, receiverDeskUser, separateRoomUser];
+    const winners = readers.slice(0, 3);
     const prior = (await db.query('select id::text, coins from public.profiles where id=any($1::uuid[])', [winners])).rows;
     await db.query("select public.award_weekly_placements(($1::date + 7)::timestamp at time zone 'Europe/Istanbul' + interval '8 minutes')", [week.starts]);
     await db.query("select public.award_weekly_placements(($1::date + 7)::timestamp at time zone 'Europe/Istanbul' + interval '12 minutes')", [week.starts]);
@@ -752,7 +755,7 @@ try {
       assert.equal(latest.profile.coins, prior.find(row => row.id === user).coins + prize);
       assert.deepEqual(latest.coinAwards.filter(award => award.reason === 'ranking').map(award => award.amount), [prize]);
     }
-    assert.equal((await action(ranker, 'state')).coinAwards.filter(award => award.reason === 'ranking').length, 0);
+    assert.equal((await action(readers[3], 'state')).coinAwards.filter(award => award.reason === 'ranking').length, 0);
   } finally {
     await db.exec('rollback');
   }
