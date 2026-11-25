@@ -2,6 +2,17 @@
 
 
 const tr = {
+  planner: 'Çalışma planı ve takvim', plannerAdd: 'Çalışma ekle', plannerSave: 'Kaydet', plannerTopic: 'Ne çalışacaksın?', plannerMinutes: 'Hedef süre (dakika)',
+  plannerQuestionToggle: 'Soru çözümü ekle', plannerQuestions: 'Hedef soru sayısı (isteğe bağlı)', plannerLogged: 'Ek çalışılan süre (dakika)', plannerSolved: 'Çözülen soru',
+  plannerNotes: 'Notlar', plannerReminder: 'Hatırlatma saati (İstanbul)', plannerEmpty: 'Bu gün için plan veya çalışma kaydı yok.',
+  plannerHistory: 'Tamamlanan oturumlar', plannerUntitled: 'Konu kaydedilmemiş', plannerPrevious: 'Önceki ay', plannerNext: 'Sonraki ay',
+  plannerToday: 'Bugün', plannerRemove: 'Kaydı sil', plannerRemoveConfirm: 'Bu plan ve el ile girdiğin bilgiler silinecek. Sayaçla çalıştığın süre takvimde kalır.',
+  plannerEdit: 'Planı düzenle', plannerInvalid: 'Konu, tarih ve sayısal alanları kontrol et.', plannerMissing: 'Çalışma planı bulunamadı. Listeyi yenile.',
+  plannerDayFull: 'Bir güne en fazla 30 çalışma eklenebilir.', plannerReady: 'Çalışma planı kaydedildi.',
+  plannerPrivate: 'Takvim ve notlarını yalnızca sen görürsün. Oda aramasında görünen hedefi aşağıdan ayrı değiştirebilirsin.',
+  plannerChoose: 'Bugünün planına bağla', plannerUnlinked: 'Plan seçme', plannerRemindNow: 'Çalışma planının saati geldi',
+  plannerReminderHelp: 'Saatler İstanbul saatine göre. Sekme görünürken web uyarısı alırsın. Mobilde uygulama bildirimlerini açarak hatırlatma alabilirsin.',
+  plannerRecorded: 'Sayaçla çalışılan', plannerQuestionUnit: 'soru', plannerWeekdays: 'Pt,Sa,Ça,Pe,Cu,Ct,Pa',
   app: 'Virtual Study Crew', privateRooms: 'Özel odalar', featureLinks: 'Özellikler', webMeasurement: 'Web kullanım ölçümüne izin ver', rooms: 'Odalar', room: 'Oda', shop: 'Mağaza', profile: 'Profil',
   profileInventory: 'Profil ve Envanter',
   email: 'E-posta', code: 'Giriş kodu', sendEmail: 'Giriş e-postası gönder', resend: 'Yeni e-posta gönder',
@@ -143,6 +154,17 @@ const tr = {
 
 /** @type {Record<keyof typeof tr, string>} */
 const en = {
+  planner: 'Study plan and calendar', plannerAdd: 'Add study', plannerSave: 'Save', plannerTopic: 'What will you study?', plannerMinutes: 'Target time (minutes)',
+  plannerQuestionToggle: 'Include question practice', plannerQuestions: 'Question target (optional)', plannerLogged: 'Extra study time (minutes)', plannerSolved: 'Questions solved',
+  plannerNotes: 'Notes', plannerReminder: 'Reminder time (Istanbul)', plannerEmpty: 'There is no plan or study record for this day.',
+  plannerHistory: 'Completed sessions', plannerUntitled: 'No topic recorded', plannerPrevious: 'Previous month', plannerNext: 'Next month',
+  plannerToday: 'Today', plannerRemove: 'Delete entry', plannerRemoveConfirm: 'This removes the plan and your manual entries. Timed sessions stay on the calendar.',
+  plannerEdit: 'Edit plan', plannerInvalid: 'Check the topic, date and numbers.', plannerMissing: 'The study plan could not be found. Refresh the list.',
+  plannerDayFull: 'You can add up to 30 entries per day.', plannerReady: 'Study plan saved.',
+  plannerPrivate: 'Your calendar and notes are private. You can change the target visible in room search separately below.',
+  plannerChoose: 'Link to a plan for today', plannerUnlinked: 'No plan', plannerRemindNow: 'A study plan is due',
+  plannerReminderHelp: 'Times use Istanbul time. Web reminders show while the tab is visible. Enable app notifications to get mobile reminders.',
+  plannerRecorded: 'Timer study time', plannerQuestionUnit: 'questions', plannerWeekdays: 'Mo,Tu,We,Th,Fr,Sa,Su',
   app: 'Virtual Study Crew', privateRooms: 'Private rooms', featureLinks: 'Features', webMeasurement: 'Allow website usage measurement', rooms: 'Rooms', room: 'Room', shop: 'Shop', profile: 'Profile',
   profileInventory: 'Profile and Inventory',
   email: 'Email', code: 'Sign-in code', sendEmail: 'Send sign-in email', resend: 'Resend email',

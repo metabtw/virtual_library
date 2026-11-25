@@ -13,7 +13,7 @@ const auth = createClient(url, anonKey, { auth: { persistSession: false, autoRef
 const actions = new Set([
   'state', 'profile', 'join', 'leave', 'status', 'start', 'verify', 'buy', 'place',
   'startAccountDeletion', 'deleteAccount', 'finishTour', 'pushRegister', 'pushRemove', 'target', 'createRoom', 'joinCode',
-  'openBox', 'openChest', 'abandon', 'studySummary', 'leaderboard', 'rankingVisibility', 'react',
+  'openBox', 'openChest', 'abandon', 'studySummary', 'studyPlanner', 'leaderboard', 'rankingVisibility', 'react',
   'addFriend', 'addDeskFriend', 'setDoNotDisturb', 'answerFriend', 'removeFriend', 'inviteFriend', 'answerStudyInvite', 'adStart', 'roomPresence',
 ]);
 

@@ -16,6 +16,7 @@ import { allowReminders, hasExactReminderSettings, openExactReminderSettings, sy
 import { hasAnalytics, setUsageMeasurement, trackUsage } from './telemetry';
 import { message, usePreferences, words, type Locale, type Translation } from './strings';
 import { Button, Field, Options, ui } from './ui';
+import { StudyPlanner } from './planner';
 import { Directory, Invite, PrivateBadge, RoomGoal, TargetEditor } from './clubs';
 import { Ambience } from './ambience';
 import { Catalog } from './catalog';
@@ -145,9 +146,9 @@ const profileStyles = StyleSheet.create({
   heroAction: { flexGrow: 1 },
 });
 
-function Period({ focus, remaining, breakRemaining, pending, onAction, t, canStart }: {
+function Period({ focus, remaining, breakRemaining, pending, onAction, t, canStart, plans }: {
   focus: Focus | null; remaining: number; breakRemaining: number; pending: boolean; onAction: (action: Action) => void;
-  t: Translation; canStart: boolean;
+  t: Translation; canStart: boolean; plans: Snapshot['todayPlans'];
 }) {
   const { duration, durationChoice, customBreak, setDuration, setDurationChoice, setCustomBreak } = usePreferences();
   const choice = durationChoice ?? (Object.hasOwn(breakPresets, duration) ? duration : 'custom');
@@ -157,6 +158,8 @@ function Period({ focus, remaining, breakRemaining, pending, onAction, t, canSta
   const valid = Number.isInteger(value) && value >= 5 && value <= 180
     && Number.isInteger(breakMinutes) && breakMinutes >= 1 && breakMinutes <= 60;
   const time = formatTime(breakRemaining || (focus ? remaining : valid ? value * minute : 0));
+  const [chosen, choose] = useState('');
+  const planId = plans?.some(plan => plan.id === chosen) ? chosen : '';
   const presets = Object.entries(breakPresets).map(([value, length]): [string, string] =>
     [value, value + ' ' + t.focusAndBreak.replace('{break}', String(length))]);
   const paused = focus?.paused_at != null;
@@ -174,7 +177,9 @@ function Period({ focus, remaining, breakRemaining, pending, onAction, t, canSta
         <Field label={t.duration} keyboardType="number-pad" value={duration} onChangeText={setDuration} maxLength={3} />
         <Field label={t.breakDuration + ' · ' + t.breakDurationHelp} keyboardType="number-pad" value={customBreak} onChangeText={setCustomBreak} maxLength={2} />
       </>}
-      <Button disabled={pending || !valid || !canStart} onPress={() => onAction({ name: 'start', payload: { duration: value, breakMinutes } })}>
+      {!!plans?.length && canStart && <Options label={t.plannerChoose} value={planId}
+        values={[[ '', t.plannerUnlinked ], ...plans.map(plan => [plan.id, plan.topic] as const)]} onChange={choose} />}
+      <Button disabled={pending || !valid || !canStart} onPress={() => onAction({ name: 'start', payload: { duration: value, breakMinutes, planId: planId || undefined } })}>
         {t.start}
       </Button>
     </>}
@@ -532,7 +537,7 @@ export function Library({ id }: { id: string }) {
           </>}
           {snapshot.session?.state === 'invalid' && <Text style={ui.warning}>{t.invalid}</Text>}
           <Period focus={focus} remaining={focus ? focusRemaining(focus, pendingPauseAt ?? observed) : 0}
-            t={t} pending={pending} canStart={Boolean(room)} breakRemaining={breakRemaining} onAction={act} />
+            t={t} pending={pending} canStart={Boolean(room)} plans={snapshot.todayPlans} breakRemaining={breakRemaining} onAction={act} />
           {!focus && room && !breakRemaining && <View style={ui.card}>
             <Options label={label(room)} values={([['desk', t.desk], ['break', t.break]] as const)}
               value={profile.status ?? 'desk'} onChange={status => act({ name: 'status', payload: { status } })} />
@@ -557,6 +562,7 @@ export function Library({ id }: { id: string }) {
             {editing ? <AvatarEditor profile={profile} onSave={payload => act({ name: 'profile', payload })} pending={pending} t={t} locale={locale} /> :
               <ProfileOverview profile={profile} accountId={id} equipment={equipped} pending={pending} t={t}
                 onEdit={() => setEditing(true)} onLeave={requestLeave} />}
+            <StudyPlanner id={id} locale={locale} t={t} />
             <TargetEditor initial={profile.target ?? ''} pending={pending} t={t} save={target => act({ name: 'target', payload: { target } })} />
             <FocusQuests daily={snapshot.dailyQuests} weekly={snapshot.weeklyQuests} t={t} />
             <View style={[ui.card, { flexDirection: 'row', gap: 12 }]} accessibilityLabel={t.studyTotals}>

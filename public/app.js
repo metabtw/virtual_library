@@ -17,6 +17,7 @@ import { adCooldownSeconds, boxArt, boxLabels, boxOdds, breakPresets, canBuyFrom
 import { focusQuests, friendsPanel, studyInviteButton, studyInvitations } from './community.js';
 import { gameBackdropUrls, mountGames } from './web-games.js';
 import { preloadImage, waitForPage } from './page-loading.js';
+import { mountPlanner } from './web-planner.js';
 import { pageMetadata, siteHref, sitePages } from './site-pages.js';
 import { createWebAnalytics } from './web-analytics.js';
 import { inviteWait, splitProfileCode } from './room-social.js';
@@ -44,6 +45,10 @@ const breakBanner = document.querySelector('#break-banner');
 const cardDialog = document.querySelector('#study-card-dialog');
 let cardUrl;
 let renderedGames;
+let planner;
+let plannerLocale;
+let chosenPlan = '';
+const reminderIds = new Set();
 const verification = document.querySelector('#verify-dialog');
 const reactionDialog = document.querySelector('#reaction-dialog');
 const inviteDialog = document.querySelector('#study-invite-dialog');
@@ -399,6 +404,7 @@ async function request(action, payload) {
     }
     if (result.profile?.room) connectionExpired = false;
     data = result;
+    if (completed) planner?.refresh();
     clock = markServerTime(result.now);
     refreshing = false;
     syncPresence();
@@ -443,6 +449,10 @@ function reflectSession(next) {
   authReady = true;
   revision++;
   userId = id;
+  planner?.close();
+  planner = undefined;
+  chosenPlan = '';
+  reminderIds.clear();
   data = clock = ranking = rankingRequest = returnedBreak = undefined;
   disconnected = connectionExpired = expiredLocally = false;
   if (cardDialog.open) cardDialog.close();
@@ -654,6 +664,9 @@ function roomView(room) {
         ${durationChoice === 'custom' ? `<label class="field custom-duration">${t('minutes')} <input id="custom-duration" type="number" inputmode="numeric" min="5" max="180" step="1" value="${escape(customDuration)}"><small>${t('duration')}</small></label>
           <label class="field custom-duration">${t('breakDuration')} <input id="custom-break" type="number" inputmode="numeric" min="1" max="60" step="1" value="${escape(customBreak)}"><small>${t('breakDurationHelp')}</small></label>` : ''}
         </div>
+        ${data.todayPlans?.length ? `<label class="field planner-select">${t('plannerChoose')}
+          <select id="focus-plan"><option value="">${t('plannerUnlinked')}</option>${data.todayPlans.map(plan =>
+            `<option value="${escape(plan.id)}" ${plan.id === chosenPlan ? 'selected' : ''}>${escape(plan.topic)}</option>`).join('')}</select></label>` : ''}
         <button class="primary" data-action="start" ${validDuration() ? '' : 'disabled'}>▶ &nbsp; ${t('start')}</button>`
         : `<a class="primary" href="#rooms">${t('joinRoom')}</a>`;
   const progress = roomProgressMinutes(data.roomGoal, now());
@@ -844,7 +857,7 @@ function profileView() {
     </dl>
     <div class="profile-hero-actions"><button class="secondary" data-action="edit">${t('editAvatar')}</button>
     ${profile.room ? `<button class="secondary" data-action="leave">${t('leave')}</button>` : ''}</div></div>`}</section>
-  ${profile ? `<details id="study-target" class="card target-editor private-actions" ${targetOpen ? 'open' : ''}>
+  ${profile ? `<div data-study-planner></div><details id="study-target" class="card target-editor private-actions" ${targetOpen ? 'open' : ''}>
       <summary>${t('studyTarget')}</summary>
       <form id="target-form" class="stacked"><label class="field">${t('target')}
         <input name="target" maxlength="48" placeholder="${t('targetHint')}" value="${escape(draft.target ?? profile.target)}"></label>
@@ -915,7 +928,22 @@ function paint(signature, html) {
   }
   renderedGames?.();
   renderedGames = undefined;
+  const plannerHost = content.querySelector('[data-study-planner]');
   content.innerHTML = html();
+  const nextPlannerHost = content.querySelector('[data-study-planner]');
+  if (plannerHost && nextPlannerHost && planner && plannerLocale === locale) nextPlannerHost.replaceWith(plannerHost);
+  else {
+    planner?.close();
+    planner = undefined;
+    if (nextPlannerHost) {
+      plannerLocale = locale;
+      planner = mountPlanner(nextPlannerHost, { t, locale, escape,
+        request: payload => invokeLibrary(client, 'studyPlanner', payload),
+        confirm: (...args) => accountDialogs.confirm(...args),
+        saved: () => { toast(t('plannerReady')); refreshState(); },
+      });
+    }
+  }
   if (restore) {
     const input = content.querySelector(restore.selector);
     input?.focus({ preventScroll: true });
@@ -1014,7 +1042,7 @@ function render() {
     else setTimeout(warm, 1800);
   }
   const signature = JSON.stringify([view, view === 'room'
-    ? [room?.id, onBreak(), room?.minutes, room?.invite, data.profile?.status, data.session, durationChoice, data.inventory,
+    ? [room?.id, onBreak(), room?.minutes, room?.invite, data.profile?.status, data.session, durationChoice, data.inventory, data.todayPlans,
       data.friends?.some(friend => friend.status === 'accepted'), data.profile?.doNotDisturb]
     : view === 'rooms' ? [data.rooms, data.studyInvites, data.profile.ownsPrivateRoom] : view === 'ranking' ? ranking : view === 'games' ? null
       : [data.profile, data.inventory, data.items, data.dailyQuests, data.weeklyQuests, data.boxes,
@@ -1472,7 +1500,7 @@ document.addEventListener('click', async event => {
   }
   if (action === 'abandon' && !confirm(t('abandonConfirm'))) return;
   const payload = {
-    join: { room: value }, status: { status: value }, start: { duration: duration(), breakMinutes: breakLength() },
+    join: { room: value }, status: { status: value }, start: { duration: duration(), breakMinutes: breakLength(), planId: data.todayPlans?.some(plan => plan.id === chosenPlan) ? chosenPlan : undefined },
     openBox: { tier: value, price: Number(button.dataset.price) }, buy: { item: value }, place: { item: value }, react: { desk: selectedDesk?.desk_ref, kind: value },
     addDeskFriend: { desk: selectedDesk?.desk_ref },
     rankingVisibility: { visible: value === 'true' },
@@ -1502,6 +1530,9 @@ cardDialog.addEventListener('close', () => {
   cardDialog.querySelector('img').removeAttribute('src');
   cardDialog.querySelector('[data-card-download]').replaceChildren();
   cardUrl = undefined;
+});
+content.addEventListener('change', event => {
+  if (event.target.id === 'focus-plan') chosenPlan = event.target.value;
 });
 window.addEventListener('hashchange', render);
 window.addEventListener('offline', () => {
@@ -1539,3 +1570,20 @@ setInterval(() => {
   if (!document.hidden && performance.now() - lastRead >= interval) void request('state');
 }, 1000);
 setInterval(updateClock, 200);
+setInterval(() => {
+  if (!data?.profile || document.hidden || running()) return;
+  for (const plan of data.todayPlans ?? []) {
+    const due = plan.reminderAt;
+    const key = plan.id + ':' + due;
+    if (!due || due > now() || now() - due > 20 * 60000 || reminderIds.has(key)) continue;
+    reminderIds.add(key);
+    const marker = 'vsc-plan-reminder-' + userId;
+    try {
+      const seen = JSON.parse(localStorage.getItem(marker) ?? '[]');
+      if (seen.includes(key)) continue;
+      localStorage.setItem(marker, JSON.stringify([...seen.slice(-79), key]));
+    } catch {}
+    toast(t('plannerRemindNow') + ' · ' + plan.topic);
+    break;
+  }
+}, 4000);

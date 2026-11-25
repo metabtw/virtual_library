@@ -3,7 +3,7 @@ import { words } from './public/strings.js';
 const labels = {
   tr: {
     title: 'Gizlilik politikası',
-    intro: 'Virtual Study Crew, hesabını yönetmek için e-posta adresini ve giriş sağlayıcını işler. Görünen adın, avatarın, çalışma hedefin, oda durumun, oturumların ve jeton işlemlerin hizmeti sunmak için saklanır.',
+    intro: 'Virtual Study Crew, hesabını yönetmek için e-posta adresini ve giriş sağlayıcını işler. Görünen adın, avatarın, çalışma hedefin, oda durumun, oturumların ve jeton işlemlerin hizmeti sunmak için saklanır. Takvim planların, çalışma notların ve soru kayıtların hesabına bağlı olarak özel tutulur.',
     people: 'Odadaki katılımcılar görünen adını, avatarını, oda durumunu ve paylaştığın çalışma hedefini görebilir. Haftalık sıralamaya katılırsan görünen adın ve doğrulanmış çalışma süren listelenir.',
     social: 'Arkadaşlık istekleri, çalışma davetleri, kullanıcı kodları ve ödül işlemleri ilgili özellikleri sunmak için işlenir. Ödüllü reklamı açtığında sağlayıcıya rastgele bir işlem kodu iletilir.',
     optional: 'Cihaz bildirimi ve kullanım ölçümü tercihe bağlıdır. Bildirimleri açarsan cihaz belirteci kaydedilir. Webde izin verirsen Google Analytics, ziyaret ettiğin sayfalar ve tarayıcı bilgileri üzerinden site kullanımını ölçer. Tercihini giriş ekranında veya profilinde değiştirebilirsin. Hata izleme yapılandırılmışsa uygulamanın çalışmasıyla ilgili hata kayıtları işlenir.',
@@ -15,7 +15,7 @@ const labels = {
   },
   en: {
     title: 'Privacy policy',
-    intro: 'Virtual Study Crew processes your email address and sign-in provider to manage your account. Your display name, avatar, study target, room status, sessions, and coin transactions are stored to provide the service.',
+    intro: 'Virtual Study Crew processes your email address and sign-in provider to manage your account. Your display name, avatar, study target, room status, sessions, and coin transactions are stored to provide the service. Calendar plans, notes, and question totals stay private to your account.',
     people: 'Room participants can see your display name, avatar, room status, and shared study target. If you join the weekly ranking, your display name and verified study time are listed.',
     social: 'Friend requests, study invitations, user codes, and reward transactions are processed to provide these features. Starting a rewarded ad passes a random transaction code to the provider.',
     optional: 'Device notifications and usage measurement are optional. Enabling notifications registers a device token. If you opt in on the website, Google Analytics measures usage from pages you visit and browser information. You can change your choice on the sign-in screen or your profile. When error monitoring is configured, error reports are processed to maintain the application.',

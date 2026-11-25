@@ -1,3 +1,4 @@
+import type { StudyCalendar } from '../../public/study-planner';
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
@@ -45,6 +46,7 @@ export const notifyRoomPresence = (room: string, mode: 'background' | 'disconnec
   invoke<{ ok: boolean }>('roomPresence', { ...roomConnection.payload(), room, mode }).catch(() => {});
 export const requestAccountDeletion = () => invoke<{ challenge: string; expiresAt: number }>('startAccountDeletion');
 export const deleteAccount = (challenge: string, code: string) => invoke<{ deleted: boolean }>('deleteAccount', { challenge, code });
+export const studyPlanner = (payload: object) => invoke<StudyCalendar>('studyPlanner', payload);
 export const studySummary = () => invoke<StudySummary>('studySummary');
 export const leaderboard = () => invoke<Leaderboard>('leaderboard');
 export const openRewardedAd = (platform: 'android' | 'ios') => invoke<{ attempt: string; unit: string }>('adStart', { platform });

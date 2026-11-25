@@ -101,3 +101,26 @@ export async function deliverRewards(admin: SupabaseClient) {
   const results = await Promise.allSettled([sendRewards(admin, accessToken), confirmReceipts(admin, accessToken)]);
   for (const result of results) if (result.status === 'rejected') throw result.reason;
 }
+
+type StudyReminder = { plan_id: string; token: string; due: string; attempts: number; locale: 'tr' | 'en' };
+
+export async function deliverStudyReminders(admin: SupabaseClient) {
+  const accessToken = Deno.env.get('EXPO_PUSH_ACCESS_TOKEN');
+  if (!accessToken) return;
+  const { data, error } = await admin.rpc('claim_study_reminders');
+  if (error) throw Error('Could not claim study reminders');
+  const reminders = (data ?? []) as StudyReminder[];
+  if (!reminders.length) return;
+  const tickets = await expoRequest<PushResult[]>('send', accessToken, reminders.map(entry => ({
+    to: entry.token, sound: 'default', channelId: 'focus', title: 'Virtual Study Crew',
+    body: entry.locale === 'en' ? 'A study plan is due. Open your calendar.' : 'Çalışma planının saati geldi. Takvimini aç.',
+  })));
+  await Promise.all(reminders.map(async (entry, index) => {
+    const ticket = Array.isArray(tickets) && tickets.length === reminders.length ? tickets[index] : undefined;
+    const finished = ticket?.status === 'ok' || (ticket?.status === 'error' && ticket.details?.error !== 'MessageRateExceeded');
+    if (!finished) return; // The lease retries transient failures while the reminder is relevant.
+    const { error: failure } = await admin.from('study_reminder_delivery').update({ sent: true })
+      .eq('plan_id', entry.plan_id).eq('token', entry.token).eq('due', entry.due).eq('attempts', entry.attempts);
+    if (failure) throw Error('Could not store study reminder result');
+  }));
+}

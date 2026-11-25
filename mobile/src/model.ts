@@ -54,6 +54,7 @@ export type Snapshot = {
   drop?: Drop | null;
   reactions?: DeskReaction[];
   coinAwards?: CoinAward[];
+  todayPlans?: { id: string; topic: string; minutes: number; reminderAt: number | null }[];
   dailyQuests?: DailyQuests;
   weeklyQuests?: WeeklyQuests;
   boxes?: RewardBox[];
@@ -78,7 +79,7 @@ export type Command = {
   join: { room: string };
   leave: undefined;
   status: { status: DeskStatus };
-  start: { duration: number; breakMinutes: number };
+  start: { duration: number; breakMinutes: number; planId?: string };
   verify: undefined;
   buy: { item: ItemId };
   place: { item: ItemId };

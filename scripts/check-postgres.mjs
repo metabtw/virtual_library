@@ -826,6 +826,54 @@ try {
   const closedRoom = (await db.query('select owner_id, name, name_en from public.rooms where id = $1', [privateRoom.id])).rows[0];
   assert.deepEqual(closedRoom, { owner_id: null, name: 'Kapalı özel oda', name_en: 'Closed private room' });
 
+  const plannerPeople = ['941', '942'].map(suffix => '00000000-0000-4000-a000-000000000' + suffix);
+  const [organizer, otherOrganizer] = plannerPeople;
+  for (const user of plannerPeople) {
+    await db.query('insert into auth.users values ($1)', [user]);
+    await action(user, 'profile', { ...basic, name: 'Takvim okuru' });
+  }
+  const { rows: [plannerDate] } = await db.query(`select
+    (clock_timestamp() at time zone 'Europe/Istanbul')::date::text as today,
+    date_trunc('month', clock_timestamp() at time zone 'Europe/Istanbul')::date::text as month_start,
+    ((clock_timestamp() at time zone 'Europe/Istanbul')::date+1)::text as tomorrow`);
+  const plannerMonth = plannerDate.month_start.slice(0,7);
+  const draft = { month: plannerMonth, op: 'save', day: plannerDate.today, topic: 'Türev',
+    minutes: 25, questions: 30, solved: 12, logged_minutes: 4, notes: 'Özel not', reminder: '19:30' };
+  const added = await action(organizer, 'studyPlanner', draft);
+  assert.equal(added.plans?.length, 1, JSON.stringify(added));
+  const planId = added.plans[0].id;
+  assert.equal(added.plans[0].reminder, '19:30:00');
+  assert.equal(added.plans[0].questions, 30);
+  const futurePlan = await action(organizer, 'studyPlanner', {
+    ...draft, day: plannerDate.tomorrow, month: plannerDate.tomorrow.slice(0,7), topic: 'İntegral', solved: 0, logged_minutes: 0,
+  });
+  assert.ok(futurePlan.plans.some(plan => plan.topic === 'İntegral'));
+  assert.equal((await action(otherOrganizer, 'studyPlanner', { month: plannerMonth })).plans.length, 0);
+  assert.equal((await action(otherOrganizer, 'studyPlanner', { ...draft, id: planId })).error, 'plannerMissing');
+  assert.equal((await action(organizer, 'studyPlanner', { ...draft, reminder: '25:00' })).error, 'plannerInvalid');
+  assert.equal((await action(organizer, 'studyPlanner', { ...draft, id: planId, solved: 18 })).plans.find(plan=>plan.id===planId).solved, 18);
+  await action(organizer, 'join', { room: 'history' });
+  assert.equal((await action(otherOrganizer,'start',{ duration:5,planId })).error,'plannerMissing');
+  assert.equal((await action(organizer,'start',{ duration:5,planId })).session.state,'active');
+  await shiftSession(organizer,300100);
+  assert.equal((await action(organizer,'state')).session.state,'completed');
+  const focusHistory = await action(organizer,'studyPlanner',{month:plannerMonth});
+  assert.equal(focusHistory.sessions[0].topic,'Türev');
+  assert.equal(focusHistory.sessions[0].minutes,5);
+  assert.equal(focusHistory.sessions[0].planId,planId);
+  assert.equal((await action(otherOrganizer,'state')).todayPlans.length,0);
+
+  await db.query("insert into public.push_devices(token,user_id,locale) values ('ExpoPushToken[planner-fixture]', $1,'tr')", [organizer]);
+  await db.query(`update public.study_plans set day=((clock_timestamp() at time zone 'Europe/Istanbul')-interval '2 minutes')::date,
+    reminder=((clock_timestamp() at time zone 'Europe/Istanbul')-interval '2 minutes')::time(0) where id=$1`, [planId]);
+  const queuedPlan = (await db.query('select * from public.claim_study_reminders()')).rows.find(row => row.plan_id===planId);
+  assert.equal(queuedPlan?.token, 'ExpoPushToken[planner-fixture]');
+  assert.equal((await db.query('select * from public.claim_study_reminders()')).rows.some(row => row.plan_id===planId),false);
+  const removed = await action(organizer,'studyPlanner',{month:plannerMonth,op:'remove',id:planId});
+  assert.equal(removed.plans.some(plan=>plan.id===planId),false);
+  assert.equal(removed.sessions[0].topic,'Türev');
+  assert.equal(removed.sessions[0].planId,null);
+
   console.log('Postgres: rooms, activity, RLS, focus, coins, daily quests, chests, profile codes, referrals, friends, study invites, signed-ad settlement, push leases, shop, pets, ranking and account deletion passed.');
 } finally {
   await db.close();

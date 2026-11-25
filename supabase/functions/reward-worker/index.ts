@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { createClient } from 'npm:@supabase/supabase-js@2.106.2';
-import { deliverRewards } from '../_shared/rewards.ts';
+import { deliverRewards, deliverStudyReminders } from '../_shared/rewards.ts';
 
 const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 const encoder = new TextEncoder();
@@ -18,7 +18,7 @@ Deno.serve(async request => {
     return new Response(null, { status: 500 });
   }
   try {
-    await deliverRewards(admin);
+    await Promise.all([deliverRewards(admin), deliverStudyReminders(admin)]);
   } catch {
     console.error('reward_delivery_unavailable');
     return new Response(null, { status: 503 });

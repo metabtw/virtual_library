@@ -37,6 +37,8 @@ export const webFiles = new Map([
   ['/room-art.js', ['public/room-art.js', script]],
   ['/site-pages.js', ['public/site-pages.js', script]],
   ['/web-analytics.js', ['public/web-analytics.js', script]],
+  ['/study-planner.js', ['public/study-planner.js', script]],
+  ['/web-planner.js', ['public/web-planner.js', script]],
   ['/page-loading.js', ['public/page-loading.js', script]],
   ['/app.js', ['public/app.js', script]],
   ['/google-sign-in.js', ['public/google-sign-in.js', script]],
