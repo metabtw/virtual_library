@@ -219,10 +219,12 @@ try {
   const joined = await action(third, 'joinCode', { code: privateRoom.invite });
   assert.equal(joined.profile.room, privateRoom.id);
   assert.equal(joined.rooms.find(entry => entry.id === privateRoom.id).invite, null);
-  await action(third, 'target', { target: 'Matematik Vize' });
+  await db.query("update public.profiles set target='Matematik Vize' where id=$1", [third]);
+  assert.equal((await action(third, 'target', { target: 'Yeni hedef' })).error, 'targetRemoved');
   const shared = await action(first, 'state');
-  assert.deepEqual(shared.rooms.find(entry => entry.id === privateRoom.id).targets, ['Matematik Vize']);
-  assert.equal(shared.members.find(entry => entry.target === 'Matematik Vize').own, false);
+  assert.equal(shared.rooms.find(entry => entry.id === privateRoom.id).targets, undefined);
+  assert.ok(shared.members.every(entry => entry.target === undefined));
+  assert.equal((await action(third,'state')).profile.target,undefined);
 
   await db.exec('set role authenticated');
   await db.query("select set_config('request.jwt.claim.sub', $1, false)", [outsider]);
@@ -873,6 +875,35 @@ try {
   assert.equal(removed.plans.some(plan=>plan.id===planId),false);
   assert.equal(removed.sessions[0].topic,'Türev');
   assert.equal(removed.sessions[0].planId,null);
+
+  // Owners retain their room and code, even while it is listed publicly.
+  await action(organizer,'leave');
+  const made = await action(organizer,'createRoom',{name:'Açık çalışma grubu'});
+  const owned = made.rooms.find(room=>room.owned);
+  const visibility = { room: owned.id, public: true };
+  assert.equal((await action(otherOrganizer,'roomVisibility',visibility)).error,'roomOwnerRequired');
+  assert.equal((await action(organizer,'roomVisibility',{...visibility, public:'true'})).error,'roomVisibilityInvalid');
+  assert.equal((await action(otherOrganizer,'join',{room:owned.id})).error,'inviteRequired');
+  assert.equal((await action(organizer,'roomVisibility',visibility)).rooms.find(room=>room.id===owned.id).private,false);
+  assert.equal((await action(otherOrganizer,'state')).rooms.find(room=>room.id===owned.id).invite,null);
+  assert.equal((await action(otherOrganizer,'join',{room:owned.id})).profile.room,owned.id);
+  const reclosed = await action(organizer,'roomVisibility',{...visibility,public:false});
+  assert.equal(reclosed.rooms.find(room=>room.id===owned.id).invite,owned.invite);
+  assert.equal((await action(otherOrganizer,'state')).profile.room,owned.id);
+  const unknown = '00000000-0000-4000-a000-000000000943';
+  await db.query('insert into auth.users values ($1)',[unknown]);
+  await action(unknown,'profile',basic);
+  assert.equal((await action(unknown,'state')).rooms.some(room=>room.id===owned.id),false);
+  assert.equal((await action(unknown,'join',{room:owned.id})).error,'inviteRequired');
+  assert.equal((await action(unknown,'joinCode',{code:owned.invite})).profile.room,owned.id);
+  await action(organizer,'roomVisibility',visibility);
+  await action(organizer,'leave');
+  const ownsPublicRoom = await action(organizer,'state');
+  assert.equal(ownsPublicRoom.profile.ownsPrivateRoom,true);
+  assert.equal((await action(organizer,'roomVisibility',{...visibility,public:false})).error,'roomMissing');
+  assert.equal((await action(organizer,'createRoom',{name:'İkinci oda'})).error,'privateRoomOwned');
+  await db.query('delete from auth.users where id=$1',[organizer]);
+  assert.equal((await action(unknown,'state')).rooms.some(room=>room.id===owned.id),false);
 
   console.log('Postgres: rooms, activity, RLS, focus, coins, daily quests, chests, profile codes, referrals, friends, study invites, signed-ad settlement, push leases, shop, pets, ranking and account deletion passed.');
 } finally {

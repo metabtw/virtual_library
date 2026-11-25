@@ -15,9 +15,9 @@ import { allowReminders, hasExactReminderSettings, openExactReminderSettings, sy
   clearPlanReminders, removeRemoteReminders, usePlanReminders, useReminder } from './reminders';
 import { hasAnalytics, setUsageMeasurement, trackUsage } from './telemetry';
 import { message, usePreferences, words, type Locale, type Translation } from './strings';
-import { Button, Field, Options, ui } from './ui';
+import { Button, Disclosure, Field, Options, ui } from './ui';
 import { StudyPlanner } from './planner';
-import { Directory, Invite, PrivateBadge, RoomGoal, TargetEditor } from './clubs';
+import { Directory, Invite, PrivateBadge, RoomGoal } from './clubs';
 import { Ambience } from './ambience';
 import { Catalog } from './catalog';
 import { CoinNotice } from './coin-notice';
@@ -123,7 +123,6 @@ function ProfileOverview({ profile, accountId, equipment, pending, t, onEdit, on
       <Sprite avatar={dressedAvatar(profile.avatar, equipment)} width={avatarWidth} pose="standing" />
       <View style={profileStyles.details}>
         <Text style={ui.heading}>{profile.name}</Text>
-        {!!profile.target && <Text numberOfLines={2} style={ui.small}>{profile.target}</Text>}
         <ProfileCodes profile={profile} accountId={accountId} t={t} />
         <View style={profileStyles.heroActions}>
           <View style={profileStyles.heroAction}><Button compact muted disabled={pending} onPress={onEdit}>{t.editAvatar}</Button></View>
@@ -135,6 +134,9 @@ function ProfileOverview({ profile, accountId, equipment, pending, t, onEdit, on
 }
 
 const profileStyles = StyleSheet.create({
+  quiet: { minHeight: 36, alignSelf: 'flex-end', borderRadius: 8, borderWidth: 1, borderColor: '#694d5d',
+    backgroundColor: '#251b28', paddingHorizontal: 9, justifyContent: 'center' },
+  quietActive: { borderColor: '#ab7cb7', backgroundColor: '#513764' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { flex: 1, color: '#fff0dc', fontSize: 24, fontWeight: '700', fontFamily: Platform.select({ ios: 'Georgia', default: 'serif' }) },
   shortcuts: { flex: 1.55, flexDirection: 'row', gap: 5 },
@@ -326,6 +328,17 @@ export function Library({ id }: { id: string }) {
     clearTimeout(reactionTimeout.current);
     reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
   }, [snapshot?.reactions, snapshot?.profile?.doNotDisturb, t]);
+  const lastFocusState = useRef<Snapshot['session'] | undefined>(undefined);
+  useEffect(() => {
+    const latest = snapshot?.session;
+    const previous = lastFocusState.current;
+    lastFocusState.current = latest;
+    if (previous?.state !== 'active' || latest?.state !== 'invalid' || !snapshot?.profile?.room) return;
+    incomingReaction.current = false;
+    setReactionMessage(t.invalid);
+    clearTimeout(reactionTimeout.current);
+    reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
+  }, [snapshot?.session, snapshot?.profile?.room, t.invalid]);
   useEffect(() => () => clearTimeout(reactionTimeout.current), []);
   useEffect(() => {
     setUsageMeasurement(usage);
@@ -376,7 +389,7 @@ export function Library({ id }: { id: string }) {
         reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
       }
       if (action.name === 'rankingVisibility') void queryClient.invalidateQueries({ queryKey: ['leaderboard', id] });
-      if (['place', 'target', 'profile', 'react', 'addDeskFriend', 'setDoNotDisturb'].includes(action.name)) {
+      if (['place', 'profile', 'react', 'addDeskFriend', 'setDoNotDisturb'].includes(action.name)) {
         const channel = presence.current;
         void channel?.track({ changed: data.now }).then(result => {
           if (presence.current === channel) {
@@ -464,7 +477,7 @@ export function Library({ id }: { id: string }) {
     if (running && action.name === 'status' && action.payload?.status === 'break') setPendingPauseAt(observed);
     mutation.mutate(action);
   }
-  const leaveCopy = room?.owned && room.count <= 1 ? t.leaveConfirm + '\n\n' + t.privateRoomClosing : t.leaveConfirm;
+  const leaveCopy = room?.owned && room.private && room.count <= 1 ? t.leaveConfirm + '\n\n' + t.privateRoomClosing : t.leaveConfirm;
   function requestLeave() {
     if (localRoom && !pending && !running) setAccountPanel('leave');
   }
@@ -476,14 +489,21 @@ export function Library({ id }: { id: string }) {
       void signOut().catch(error => setActionError(message(t, error))).finally(() => setSigningOut(false));
     }
   }
-  const quietToggle = <View style={[ui.card, ui.row]}>
-    <View style={{ flex: 1, gap: 3 }}>
-      <Text style={ui.heading}>{t.quietMode}</Text>
-      <Text style={ui.small}>{t.quietModeHelp}</Text>
-    </View>
-    <Switch value={!!profile?.doNotDisturb} accessibilityLabel={t.quietMode} disabled={pending}
-      onValueChange={enabled => act({ name: 'setDoNotDisturb', payload: { enabled } })} />
-  </View>;
+  const quiet = Boolean(profile?.doNotDisturb);
+  const quietToggle = <Pressable style={[profileStyles.quiet, quiet && profileStyles.quietActive]}
+    accessibilityRole="switch" accessibilityLabel={t.quietMode} accessibilityState={{ checked: quiet, disabled: pending }}
+    disabled={pending} onPress={() => act({ name: 'setDoNotDisturb', payload: { enabled: !quiet } })}>
+    <Text style={quiet ? ui.accent : ui.small}>☾ {t.quietMode}</Text>
+  </Pressable>;
+  function changeRoomVisibility() {
+    if (!room?.owned) return;
+    const makePublic = Boolean(room.private);
+    const title = makePublic ? t.roomMakePublic : t.roomMakePrivate;
+    Alert.alert(title, makePublic ? t.roomPublicConfirm : t.roomPrivateConfirm, [
+      { text: t.cancel, style: 'cancel' },
+      { text: title, onPress: () => act({ name: 'roomVisibility', payload: { room: room.id, public: makePublic } }) },
+    ]);
+  }
   const invitations = <StudyInvitations invites={snapshot.studyInvites} locale={locale} pending={pending} now={observed} t={t}
     answer={(id, answer) => act({ name: 'answerStudyInvite', payload: { id, answer } })} />;
 
@@ -535,11 +555,14 @@ export function Library({ id }: { id: string }) {
           {room && quietToggle}
           {room && !running && <ThemePicker value={theme} room={room.id} aurora={aurora} onChange={setTheme} t={t} />}
           {room && !running && <Invite room={room} t={t} />}
+          {room?.owned && !running && <View style={[ui.card,ui.row]}>
+            <Text style={[ui.small,{ flex: 1 }]}>{room.private ? t.roomMadePrivate : t.roomMadePublic}</Text>
+            <Button compact muted disabled={pending} onPress={changeRoomVisibility}>{room.private ? t.roomMakePublic : t.roomMakePrivate}</Button>
+          </View>}
           {snapshot.session?.state === 'completed' && <>
             <Text style={ui.accent}>{t.reward}</Text>
             <Button muted onPress={() => setCardOpen(true)}>{t.studyCard}</Button>
           </>}
-          {snapshot.session?.state === 'invalid' && <Text style={ui.warning}>{t.invalid}</Text>}
           <Period focus={focus} remaining={focus ? focusRemaining(focus, pendingPauseAt ?? observed) : 0}
             t={t} pending={pending} canStart={Boolean(room)} plans={snapshot.todayPlans} breakRemaining={breakRemaining} onAction={act} />
           {!focus && room && !breakRemaining && <View style={ui.card}>
@@ -563,11 +586,13 @@ export function Library({ id }: { id: string }) {
                 <View style={profileStyles.shortcut}><Button compact muted onPress={() => setRankingOpen(true)}>{t.leaderboard}</Button></View>
               </View>
             </View>
+            {quietToggle}
             {editing ? <AvatarEditor profile={profile} onSave={payload => act({ name: 'profile', payload })} pending={pending} t={t} locale={locale} /> :
               <ProfileOverview profile={profile} accountId={id} equipment={equipped} pending={pending} t={t}
                 onEdit={() => setEditing(true)} onLeave={requestLeave} />}
-            <StudyPlanner id={id} locale={locale} t={t} />
-            <TargetEditor initial={profile.target ?? ''} pending={pending} t={t} save={target => act({ name: 'target', payload: { target } })} />
+            <View style={ui.card}><Disclosure title={t.plannerDisclosure}>
+              <StudyPlanner id={id} locale={locale} t={t} />
+            </Disclosure></View>
             <FocusQuests daily={snapshot.dailyQuests} weekly={snapshot.weeklyQuests} t={t} />
             <View style={[ui.card, { flexDirection: 'row', gap: 12 }]} accessibilityLabel={t.studyTotals}>
               <View style={{ flex: 1 }}><Text style={ui.small}>{t.focusToday}</Text>
@@ -575,13 +600,14 @@ export function Library({ id }: { id: string }) {
               <View style={{ flex: 1 }}><Text style={ui.small}>{t.focusWeek}</Text>
                 <Text style={ui.accent}>{snapshot.weeklyQuests?.goals.find(goal => goal.unit === 'minutes')?.progress ?? 0} {t.minuteUnit}</Text></View>
             </View>
+            <View style={ui.card}><Disclosure title={t.friends}>
             {invitations}
-            <View style={{ marginTop: 6 }}>{quietToggle}</View>
             <FriendsPanel profile={profile} friends={friends} pending={pending} now={observed} t={t}
               add={code => act({ name: 'addFriend', payload: { code } })}
               answer={(id, answer) => act({ name: 'answerFriend', payload: { id, answer } })}
               remove={id => act({ name: 'removeFriend', payload: { id } })}
               invite={id => act({ name: 'inviteFriend', payload: { id } })} />
+            </Disclosure></View>
             <Catalog snapshot={snapshot} inventory t={t} locale={locale} pending={pending}
               action={item => act({ name: 'place', payload: { item } })} />
           </>}

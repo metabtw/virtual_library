@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Image, Pressable, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Image, Share, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { defaultRoomTheme } from '../../public/room-art';
 import { roomGoalMinutes, roomThemeUnlockMinutes } from '../../public/study-rewards';
 import type { Room } from './model';
@@ -19,7 +19,7 @@ export function Directory({ rooms, current, pending, ownsPrivateRoom, coins, loc
   const { width, fontScale } = useWindowDimensions();
   const query = search.trim().toLocaleLowerCase(locale);
   const visible = rooms.filter(room =>
-    [room.name, room.name_en, ...(room.targets ?? [])].some(value => value.toLocaleLowerCase(locale).includes(query)));
+    [room.name, room.name_en].some(value => value.toLocaleLowerCase(locale).includes(query)));
   return <>
     <TextInput accessibilityLabel={t.searchTarget} placeholder={t.searchTarget} placeholderTextColor="#b9a2b7"
       style={ui.input} value={search} onChangeText={searchFor} maxLength={48} />
@@ -50,7 +50,6 @@ export function Directory({ rooms, current, pending, ownsPrivateRoom, coins, loc
         <Text numberOfLines={2} style={styles.name}>{locale === 'tr' ? room.name : room.name_en}</Text>
         {room.private && <PrivateBadge t={t} />}
       </View><Text style={ui.small}>{room.count}/{room.capacity}</Text>
-      {!!room.targets?.length && <Text numberOfLines={2} style={ui.small}>{room.targets.join(' · ')}</Text>}
       <View style={styles.open}><Button disabled={pending || (room.count >= room.capacity && room.id !== current)} onPress={() => join(room.id)}>
         {room.id === current ? t.open : room.count >= room.capacity ? t.roomFull : t.join}
       </Button></View>
@@ -73,24 +72,6 @@ export function Invite({ room, t }: { room: Room; t: Translation }) {
   </>;
 }
 
-export function TargetEditor({ initial, save, pending, t }: {
-  initial: string; save: (target: string) => void; pending: boolean; t: Translation;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [value, setValue] = useState(initial);
-  return <View style={ui.card}>
-    <Pressable accessibilityRole="button" accessibilityLabel={t.studyTarget} accessibilityState={{ expanded }}
-      style={[ui.row, styles.targetToggle]} onPress={() => setExpanded(open => !open)}>
-      <Text style={ui.heading}>{t.studyTarget}</Text>
-      <Text accessible={false} style={ui.accent}>{expanded ? '▴' : '▾'}</Text>
-    </Pressable>
-    {expanded && <>
-      <Field label={t.target} placeholder={t.targetHint} value={value} onChangeText={setValue} maxLength={48} />
-      <Button muted disabled={pending || value.trim() === initial} onPress={() => save(value.trim())}>{t.save}</Button>
-    </>}
-  </View>;
-}
-
 export function RoomGoal({ progress, t }: { progress: number; t: Translation }) {
   return <View><View style={styles.goal}>
     <Text style={styles.goalText}>🎁 {t.chestGoal}</Text>
@@ -107,7 +88,6 @@ const styles = StyleSheet.create({
   wideForms: { flexDirection: 'row', alignItems: 'stretch' },
   privateForm: { flex: 1, minWidth: 0, gap: 8, borderRadius: 10, padding: 10,
     borderWidth: 1, borderColor: '#66495b', backgroundColor: '#261d2a' },
-  targetToggle: { minHeight: 44 },
   roomGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   roomCard: { width: '48.5%', gap: 6, padding: 9, minWidth: 0 },
   preview: { width: '100%', height: 62, borderRadius: 8, backgroundColor: '#31233a' },

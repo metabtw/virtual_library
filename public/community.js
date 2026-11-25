@@ -42,11 +42,12 @@ export function focusQuests(daily, weekly, t, expanded) {
   </details>`).join('');
 }
 
-export function friendsPanel(snapshot, friendCode, t, escape) {
+export function friendsPanel(snapshot, friendCode, t, escape, expanded, locale) {
   const { profile, friends = [] } = snapshot;
   if (!profile.readerCode) return '';
-  return `<section class="card community-card">
-    <h2>${t('friends')}</h2>
+  return `<details class="card community-card quest-panel" data-disclosure="friends" ${expanded ? 'open' : ''}>
+    <summary class="disclosure-summary"><span>${t('friends')}</span><small></small></summary>
+    ${studyInvitations(snapshot, t, escape, locale)}
     ${profile.referralCode ? `<p>${t('referralInfo')}</p>` : ''}
     <form class="friend-form" id="friend-form">
       <label class="field">${t('friendId')} <span class="code-field"><span aria-hidden="true">SK-</span>
@@ -65,5 +66,5 @@ export function friendsPanel(snapshot, friendCode, t, escape) {
             <button class="secondary" data-action="removeFriend" data-value="${id}">${t(friend.status === 'sent' ? 'friendCancel' : 'friendRemove')}</button>`}
         </div></div>`;
     }).join('') : `<p>${t('noFriends')}</p>`}
-  </section>`;
+  </details>`;
 }

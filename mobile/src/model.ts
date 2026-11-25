@@ -21,10 +21,10 @@ export type Drop = ({ item: ItemId } | { coins: number }) & { tier?: BoxTier };
 export type ReactionKind = 'coffee' | 'clap';
 export type DeskReaction = { id: string; kind: ReactionKind; name: string };
 export type CoffeeCup = { id: string; expiresAt: number };
-export type Member = { own: boolean; desk_ref?: string; name: string; status: DeskStatus; activity?: DeskActivity; avatar: Avatar; placed: ItemId[]; target?: string; pet?: Pet | null; acceptsInteractions?: boolean; friendStatus?: Friend['status'] | null; coffeeCup?: CoffeeCup | null };
-export type Profile = { name: string; coins: number; room: string | null; status: DeskStatus | null; avatar: Avatar; target?: string;
+export type Member = { own: boolean; desk_ref?: string; name: string; status: DeskStatus; activity?: DeskActivity; avatar: Avatar; placed: ItemId[]; pet?: Pet | null; acceptsInteractions?: boolean; friendStatus?: Friend['status'] | null; coffeeCup?: CoffeeCup | null };
+export type Profile = { name: string; coins: number; room: string | null; status: DeskStatus | null; avatar: Avatar;
   readerCode?: string; referralCode?: string; shortReaderCode?: string; shortReferralCode?: string; ownsPrivateRoom?: boolean; tourPending?: boolean; doNotDisturb?: boolean };
-export type Room = { id: string; name: string; name_en: string; count: number; capacity: number; private?: boolean; owned?: boolean; invite?: string | null; targets?: string[]; minutes?: number };
+export type Room = { id: string; name: string; name_en: string; count: number; capacity: number; private?: boolean; owned?: boolean; invite?: string | null; minutes?: number };
 export type Focus = {
   start: number; end: number; checks: number; state: 'active' | 'completed' | 'invalid';
   paused_at: number | null; next_check_at?: number | null; check_until?: number | null; disconnectDeadline?: number | null;
@@ -84,7 +84,7 @@ export type Command = {
   verify: undefined;
   buy: { item: ItemId };
   place: { item: ItemId };
-  target: { target: string };
+  roomVisibility: { room: string; public: boolean };
   createRoom: { name: string };
   joinCode: { code: string };
   openBox: { tier: BoxTier; price: number };

@@ -5,17 +5,17 @@ export const sitePages = {
     image: '/room-themes/old-archive.webp', route: 'rooms',
     tr: {
       title: 'Sanal Çalışma Odaları',
-      description: 'Sessiz sanal kütüphane odalarına katıl, çalışma hedefini paylaş veya arkadaşlarınla davet kodlu özel bir oda aç.',
+      description: 'Sessiz sanal kütüphane odalarına katıl, ya da arkadaşlarınla davet kodlu özel bir oda aç.',
       sections: [
-        ['Herkese açık bir oda seç', 'Odalar listesinden katılımcı sayısını ve paylaşılan çalışma hedeflerini gör. Matematik, edebiyat veya gece kütüphanesi gibi odalardan birine yerleş.'],
+        ['Herkese açık bir oda seç', 'Odalar listesinden katılımcı sayısını gör. Matematik, edebiyat veya gece kütüphanesi gibi odalardan birine yerleş.'],
         ['Kendi çalışma grubunu davet et', 'Özel bir oda açıp altı haneli kodu arkadaşlarınla paylaş. Davet kodun varsa Odalar sayfasındaki Özel odalar bölümünden katıl.'],
       ],
     },
     en: {
       title: 'Virtual Study Rooms',
-      description: 'Join a quiet virtual library, share your study target, or open a private room for friends with an invite code.',
+      description: 'Join a quiet virtual library, or open a private room for friends with an invite code.',
       sections: [
-        ['Pick a public room', 'See room occupancy and shared study targets in the directory. Choose a room such as Mathematics, Literature, or the Night Library.'],
+        ['Pick a public room', 'See room occupancy in the directory. Choose a room such as Mathematics, Literature, or the Night Library.'],
         ['Invite your study group', 'Open a private room and share its six-digit code with friends. Use the Private rooms section to join with a code.'],
       ],
     },

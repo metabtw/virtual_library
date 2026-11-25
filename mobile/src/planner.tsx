@@ -54,7 +54,7 @@ export function StudyPlanner({ id, locale, t }: { id: string; locale: Locale; t:
       onChangeText={value => edit({ ...draft, [name]: Math.min(max, Number(value.replace(/\D/g, ''))) })}
       maxLength={String(max).length} />;
   const future = day > today;
-  return <View style={ui.card}>
+  return <View style={{ gap: 10 }}>
     <View style={styles.heading}><Text accessibilityRole="header" style={[ui.heading, styles.title]}>{t.planner}</Text>
       <Button muted compact disabled={pending} onPress={() => select(today)}>{t.plannerToday}</Button></View>
     <Text style={ui.small}>{t.plannerPrivate}</Text>

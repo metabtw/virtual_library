@@ -12,7 +12,7 @@ const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 const auth = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
 const actions = new Set([
   'state', 'profile', 'join', 'leave', 'status', 'start', 'verify', 'buy', 'place',
-  'startAccountDeletion', 'deleteAccount', 'finishTour', 'pushRegister', 'pushRemove', 'target', 'createRoom', 'joinCode',
+  'startAccountDeletion', 'deleteAccount', 'finishTour', 'pushRegister', 'pushRemove', 'target', 'createRoom', 'roomVisibility', 'joinCode',
   'openBox', 'openChest', 'abandon', 'studySummary', 'studyPlanner', 'leaderboard', 'rankingVisibility', 'react',
   'addFriend', 'addDeskFriend', 'setDoNotDisturb', 'answerFriend', 'removeFriend', 'inviteFriend', 'answerStudyInvite', 'adStart', 'roomPresence',
 ]);

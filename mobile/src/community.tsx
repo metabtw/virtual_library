@@ -128,7 +128,6 @@ export function FriendsPanel({ profile, friends = [], pending, now, t, add, answ
   const [code, setCode] = useState('');
   if (!profile.readerCode) return null;
   return <View style={ui.card}>
-    <Text style={ui.heading}>{t.friends}</Text>
     {!!profile.referralCode && <Text style={ui.small}>{t.referralInfo}</Text>}
     <ProfileCodeField label={t.friendId} prefix="SK" value={code} onChange={setCode} t={t} />
     <Button disabled={pending || code.length < 5} onPress={() => add(`SK-${code}`)}>{t.addFriend}</Button>

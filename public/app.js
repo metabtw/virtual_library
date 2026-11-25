@@ -70,7 +70,7 @@ const categories = {
   all: 'catalogAll', wearable: 'catalogClothes', hair: 'catalogHair', desk: 'catalogDesk',
   pet: 'catalogPets', ambience: 'catalogSound', rare: 'catalogChests',
 };
-const draft = { email: '', code: '', avatarName: null, target: null, roomName: '', invite: '', referral: '', friendCode: '' };
+const draft = { email: '', code: '', avatarName: null, roomName: '', invite: '', referral: '', friendCode: '' };
 const seenReactions = new Set();
 const roomConnection = createRoomConnection();
 let locale = initialLanguage();
@@ -163,9 +163,10 @@ function updateCoinNotice() {
 }
 
 function quietModeToggle() {
-  return `<div class="quiet-setting"><div><strong>${t('quietMode')}</strong><small>${t('quietModeHelp')}</small></div>
-    <button type="button" class="secondary" role="switch" aria-label="${t('quietMode')}" aria-checked="${Boolean(data.profile.doNotDisturb)}"
-      data-action="setDoNotDisturb">${t(data.profile.doNotDisturb ? 'quietOn' : 'quietOff')}</button></div>`;
+  const enabled = Boolean(data.profile.doNotDisturb);
+  return `<button type="button" class="secondary quiet-chip" role="switch" aria-label="${t('quietMode')}"
+    aria-checked="${enabled}" title="${t('quietModeHelp')}" data-action="setDoNotDisturb">
+    <span aria-hidden="true">☾</span> ${t('quietMode')}</button>`;
 }
 
 function loadingScreen() {
@@ -390,13 +391,13 @@ async function request(action, payload) {
   try {
     const result = await invokeLibrary(client, action, { ...payload, ...roomConnection.payload(), foreground: !document.hidden });
     if (version !== revision || (data && result.now < data.now)) return false;
+    const lostRoom = disconnected && data?.profile?.room && !result.profile?.room && data.session?.disconnectDeadline;
     const completed = data?.session?.state !== result.session?.state && result.session?.state === 'completed';
     if (completed) toast(t('reward'));
-    if (data?.session?.state !== result.session?.state && result.session?.state === 'invalid') toast(t('invalid'));
+    if (!lostRoom && data?.session?.state === 'active' && result.session?.state === 'invalid') toast(t('invalid'));
     const missedFriends = data?.profile?.doNotDisturb && !result.profile?.doNotDisturb
       ? result.friends?.filter(friend => friend.status === 'incoming').length : 0;
     if (result.profile?.doNotDisturb && !data?.profile?.doNotDisturb) clearReactionNotice();
-    const lostRoom = disconnected && data?.profile?.room && !result.profile?.room && data.session?.disconnectDeadline;
     disconnected = expiredLocally = false;
     if (lostRoom) {
       connectionExpired = true;
@@ -419,7 +420,7 @@ async function request(action, payload) {
     }
     if (missedFriends) toast(t('newFriendCount').replace('{amount}', missedFriends));
     if (result.drop) showBoxReward(result.drop, result.drop.tier ?? payload?.tier ?? 'basic');
-    if (['target', 'place', 'profile', 'react', 'addDeskFriend', 'setDoNotDisturb'].includes(action)) trackPresence(presence, result.now);
+    if (['place', 'profile', 'react', 'addDeskFriend', 'setDoNotDisturb'].includes(action)) trackPresence(presence, result.now);
     return true;
   } catch (error) {
     if (version === revision && error.message === 'networkUnavailable' && data?.profile?.room) disconnected = true;
@@ -458,7 +459,7 @@ function reflectSession(next) {
   if (cardDialog.open) cardDialog.close();
   busy = refreshing = editing = false;
   avatar = { ...defaultAvatar };
-  draft.avatarName = draft.target = null;
+  draft.avatarName = null;
   draft.roomName = draft.invite = draft.referral = draft.friendCode = '';
   referralPrefix = 'DV';
   stateRequest = undefined;
@@ -634,7 +635,6 @@ function seat(member, index, [column, row]) {
     <div class="seat-name">${name}</div>
     ${canReact ? `<button class="desk-select" type="button" data-action="select-desk" data-value="${escape(member.desk_ref)}"
       aria-label="${name} · ${t('deskReaction')}"></button>` : ''}
-    ${member?.target ? `<span class="seat-target">${escape(member.target)}</span>` : ''}
   </div>`;
 }
 
@@ -698,6 +698,10 @@ function roomView(room) {
       ${room && !running() ? `<section class="room-settings" aria-labelledby="room-settings-title">
         <h2 id="room-settings-title">${t('roomSettings')}</h2>
         ${roomPreferences.markup(room, data.inventory)}
+        ${room.owned ? `<div class="room-visibility">
+          <span class="private-badge">${t(room.private ? 'roomMadePrivate' : 'roomMadePublic')}</span>
+          <button type="button" class="secondary" data-action="room-visibility">${t(room.private ? 'roomMakePublic' : 'roomMakePrivate')}</button>
+        </div>` : ''}
         ${room.invite ? `<p class="room-meta">${t('inviteCode')} <b>${escape(room.invite)}</b></p>` : ''}
       </section>` : ''}
     </div>
@@ -735,7 +739,6 @@ function roomsView() {
   <div class="room-grid room-list">${data.rooms.map(room => `<article class="card room-card" data-room-id="${escape(room.id)}">
     <div class="room-preview"><img src="${roomBackdrop(defaultRoomTheme(room.id, (room.minutes ?? 0) >= roomThemeUnlockMinutes))}" alt="" width="384" height="128" loading="lazy"></div>
     <div class="room-card-title"><h2>${escape(localName(room))}</h2>${room.private ? `<span class="private-badge">${t('privateBadge')}</span>` : ''}</div>
-    ${room.targets?.length ? `<p class="room-targets">${escape(room.targets.join(' · '))}</p>` : ''}
     <p><span class="dot"></span> ${room.count} / ${room.capacity} ${t('people')}</p>
     <button class="primary" data-action="join" data-value="${escape(room.id)}" ${room.count >= room.capacity && data.profile?.room !== room.id ? 'disabled' : ''}>${t(data.profile?.room === room.id ? 'open' : room.count >= room.capacity ? 'roomFull' : 'joinRoom')}</button>
   </article>`).join('')}</div>
@@ -746,7 +749,7 @@ function filterRooms() {
   const normalize = name => name.normalize('NFC').toLocaleLowerCase(locale);
   const term = normalize(roomSearch.trim());
   const matches = new Set(data.rooms.filter(room =>
-    [room.name, room.name_en, ...(room.targets ?? [])].some(value => value && normalize(value).includes(term)))
+    [room.name, room.name_en].some(value => value && normalize(value).includes(term)))
     .map(room => room.id));
   for (const card of content.querySelectorAll('.room-card')) card.hidden = !matches.has(card.dataset.roomId);
   document.querySelector('#room-search-empty').hidden = matches.size > 0;
@@ -837,39 +840,32 @@ function profileView() {
   const name = escape(profile?.name);
   const readerCode = profile?.shortReaderCode || profile?.readerCode;
   const referralCode = profile?.shortReferralCode || profile?.referralCode;
-  const targetOpen = content.querySelector('#study-target')?.open;
   return `<div class="heading${profile ? ' profile-heading' : ''}"><h1>${t(profile ? 'profileInventory' : 'newAvatar')}</h1>
     ${profile ? `<div class="profile-shortcuts">
       <button class="secondary" data-action="study-card">${t('studyCardAction')}</button>
       <a class="secondary" href="#ranking">${t('leaderboard')}</a>
     </div>` : ''}
   </div>
+  ${profile ? `<div class="profile-quiet">${quietModeToggle()}</div>` : ''}
   <section class="profile-card${profile && !editing ? ' profile-overview' : ''}">${sprite(editing || !profile ? avatar : dressedAvatar(profile.avatar, placed()))}
   ${editing || !profile ? `<form id="avatar-form"><label>${t('name')}<input name="name" value="${escape(draft.avatarName ?? profile?.name)}" minlength="2" maxlength="24" required></label>
   ${!profile ? `<div class="field"><label for="registration-code">${t('referralField')}</label>
     <div class="code-field"><button type="button" class="secondary" data-referral-prefix aria-label="${t('switchCodePrefix')} · ${referralPrefix}-">${referralPrefix}-</button>
     <input id="registration-code" name="referral" value="${escape(draft.referral)}" maxlength="15" autocapitalize="characters" autocomplete="off"></div></div>` : ''}
   ${avatarPresetPicker()}<div class="form-options">${avatarFields()}</div><button class="primary">${t('saveAvatar')}</button></form>` : `<div class="profile-details"><h2>${name}</h2>
-    ${profile.target ? `<p>${escape(profile.target)}</p>` : ''}
     <dl class="profile-codes">
       ${readerCode ? profileCode('readerCode', readerCode) : profileCode('accountId', userId, false)}
       ${referralCode ? profileCode('referralCode', referralCode) : ''}
     </dl>
     <div class="profile-hero-actions"><button class="secondary" data-action="edit">${t('editAvatar')}</button>
     ${profile.room ? `<button class="secondary" data-action="leave">${t('leave')}</button>` : ''}</div></div>`}</section>
-  ${profile ? `<div data-study-planner></div><details id="study-target" class="card target-editor private-actions" ${targetOpen ? 'open' : ''}>
-      <summary>${t('studyTarget')}</summary>
-      <form id="target-form" class="stacked"><label class="field">${t('target')}
-        <input name="target" maxlength="48" placeholder="${t('targetHint')}" value="${escape(draft.target ?? profile.target)}"></label>
-        <button class="secondary">${t('saveTarget')}</button>
-      </form>
-    </details>
+  ${profile ? `${roomTool('planner', t('plannerDisclosure'), '<div data-study-planner></div>')}
     <section class="card study-totals" aria-label="${t('studyTotals')}">
       <div><small>${t('focusToday')}</small><b>${data.dailyQuests?.minutes ?? 0} ${t('minuteUnit')}</b></div>
       <div><small>${t('focusWeek')}</small><b>${data.weeklyQuests?.goals.find(goal => goal.unit === 'minutes')?.progress ?? 0} ${t('minuteUnit')}</b></div>
     </section>
-    <div class="profile-quiet">${quietModeToggle()}</div>
-    ${focusQuests(data.dailyQuests, data.weeklyQuests, t, expandedPanels)}${studyInvitations(data, t, escape, locale)}${friendsPanel(data, draft.friendCode, t, escape)}
+    ${focusQuests(data.dailyQuests, data.weeklyQuests, t, expandedPanels)}
+    ${friendsPanel(data, draft.friendCode, t, escape, expandedPanels.has('friends'), locale)}
     <h2 class="section-title">${t('inventory')}</h2><p class="equipment-note">${t('equipmentLimit')}</p>${catalog(true)}` : ''}
   <section class="card account-section" aria-labelledby="account-title">
     <h2 id="account-title">${t('myAccount')}</h2>
@@ -965,6 +961,10 @@ function loadPage(view, room) {
   const previous = currentView;
   currentView = view;
   if (!previous) return;
+  if (previous === 'profile') {
+    expandedPanels.delete('planner');
+    expandedPanels.delete('friends');
+  }
 
   const images = ['/app-logo.png'];
   if (view === 'games') images.push(...gameBackdropUrls);
@@ -1042,7 +1042,7 @@ function render() {
     else setTimeout(warm, 1800);
   }
   const signature = JSON.stringify([view, view === 'room'
-    ? [room?.id, onBreak(), room?.minutes, room?.invite, data.profile?.status, data.session, durationChoice, data.inventory, data.todayPlans,
+    ? [room?.id, onBreak(), room?.minutes, room?.invite, room?.private, room?.owned, data.profile?.status, data.session, durationChoice, data.inventory, data.todayPlans,
       data.friends?.some(friend => friend.status === 'accepted'), data.profile?.doNotDisturb]
     : view === 'rooms' ? [data.rooms, data.studyInvites, data.profile.ownsPrivateRoom] : view === 'ranking' ? ranking : view === 'games' ? null
       : [data.profile, data.inventory, data.items, data.dailyQuests, data.weeklyQuests, data.boxes,
@@ -1186,7 +1186,7 @@ async function closeSession(accountDeleted = false) {
 async function leaveRoom() {
   if (busy || !data?.profile?.room || running()) return;
   const room = data.rooms.find(item => item.id === data.profile.room);
-  const warning = room?.owned && room.count <= 1 ? `\n\n${t('privateRoomClosing')}` : '';
+  const warning = room?.owned && room.private && room.count <= 1 ? `\n\n${t('privateRoomClosing')}` : '';
   if (!await accountDialogs.confirm(t('leave'), t('leaveConfirm') + warning)) return;
   if (await request('leave')) {
     location.hash = 'rooms';
@@ -1325,7 +1325,7 @@ document.addEventListener('keydown', event => {
 
 document.addEventListener('submit', async event => {
   const form = event.target;
-  if (!['email-form', 'code-form', 'avatar-form', 'target-form', 'create-room-form', 'join-room-form', 'friend-form'].includes(form.id)) return;
+  if (!['email-form', 'code-form', 'avatar-form', 'create-room-form', 'join-room-form', 'friend-form'].includes(form.id)) return;
   event.preventDefault();
   if (busy || !client) return;
   const fields = new FormData(form);
@@ -1369,12 +1369,6 @@ document.addEventListener('submit', async event => {
       lastView = undefined;
       if (!wasEditing) location.hash = 'rooms';
       render();
-    }
-  } else if (form.id === 'target-form') {
-    if (await request('target', { target: fields.get('target') })) {
-      draft.target = null;
-      const input = content.querySelector('#target-form input');
-      if (input) input.value = data?.profile?.target ?? '';
     }
   } else if (form.id === 'friend-form') {
     const { prefix, suffix } = splitProfileCode(fields.get('friendCode'));
@@ -1497,6 +1491,15 @@ document.addEventListener('click', async event => {
   if (action === 'react' || action === 'addDeskFriend') {
     if (!selectedDesk || button.disabled) return;
     reactionDialog.querySelector('[data-desk-feedback]').textContent = '';
+  }
+  if (action === 'room-visibility') {
+    const room = data.rooms.find(item => item.id === data.profile.room && item.owned);
+    if (!room) return;
+    const publish = Boolean(room.private);
+    const label = t(publish ? 'roomMakePublic' : 'roomMakePrivate');
+    if (await accountDialogs.confirm(label, t(publish ? 'roomPublicConfirm' : 'roomPrivateConfirm'))
+      && await request('roomVisibility', { room: room.id, public: publish })) toast(t(publish ? 'roomMadePublic' : 'roomMadePrivate'));
+    return;
   }
   if (action === 'abandon' && !confirm(t('abandonConfirm'))) return;
   const payload = {

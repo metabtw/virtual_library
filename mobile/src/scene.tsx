@@ -285,7 +285,7 @@ function Desk({ member, width, peerWidth, artHeight, writingClock, itemClock, pe
   const atDesk = activity === 'desk' || activity === 'working';
   const seated = atDesk || activity === 'missedCheck';
   const statusLabel = activity ? t[activity === 'working' ? 'studyWorking' : activity] : '';
-  const description = member && [member.name, member.target, statusLabel].filter(Boolean).join(', ');
+  const description = member && [member.name, statusLabel].filter(Boolean).join(', ');
   const interactive = member?.desk_ref && !member.own && Boolean(onDeskPress);
   const Seat = interactive ? Pressable : View;
   return <Seat style={[styles.seat, { width }]} testID={own ? 'own-desk' : 'room-desk'} accessible accessibilityLabel={description || t.empty}
@@ -310,7 +310,6 @@ function Desk({ member, width, peerWidth, artHeight, writingClock, itemClock, pe
     <Text numberOfLines={1} style={[styles.seatName, own && styles.ownName]}>
       {member ? own ? `${t.you} · ${member.name}` : member.name : t.empty}
     </Text>
-    {!!member?.target && <Text numberOfLines={1} style={styles.target}>{member.target}</Text>}
   </Seat>;
 }
 
@@ -387,7 +386,6 @@ const styles = StyleSheet.create({
   petPath: { overflow: 'hidden', backgroundColor: '#251b2750', borderRadius: 7 },
   pet: { position: 'absolute', top: 4, left: 3 },
   seatName: { color: '#ffe6d0', backgroundColor: '#251b27', fontSize: 10, paddingHorizontal: 5, paddingVertical: 3, borderRadius: 8, maxWidth: '100%', marginTop: 2 },
-  target: { color: '#e5d2af', backgroundColor: '#251b27', fontSize: 9, paddingHorizontal: 4, maxWidth: '100%', borderRadius: 5 },
   ownName: { color: '#ffd095', borderWidth: 1, borderColor: '#ffb362' },
   status: { color: '#d6f8ac', fontSize: 9, fontWeight: '700', backgroundColor: '#25252df3', borderRadius: 6, paddingHorizontal: 4, paddingVertical: 2, maxWidth: '100%' },
   break: { color: '#ffbe7e' },
