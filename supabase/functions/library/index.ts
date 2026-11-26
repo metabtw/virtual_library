@@ -7,7 +7,8 @@ import { adPlatforms, openRewardedAd } from '../_shared/ad-rewards.ts';
 declare const EdgeRuntime: { waitUntil(work: Promise<unknown>): void };
 
 const url = Deno.env.get('SUPABASE_URL')!;
-const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const admin = createClient(url, serviceKey);
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 const auth = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
 const actions = new Set([
@@ -26,9 +27,40 @@ const headers = {
 };
 const reply = (body: unknown, { status = 200 } = {}) => Response.json(body, { status, headers });
 
+const hex = (bytes: Uint8Array) => Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+const utf8 = new TextEncoder();
+let demoSigningKey: Promise<CryptoKey> | undefined;
+
+async function signDemoNetwork(source: string) {
+  demoSigningKey ??= crypto.subtle.importKey('raw', utf8.encode(serviceKey), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return hex(new Uint8Array(await crypto.subtle.sign('HMAC', await demoSigningKey, utf8.encode(source))));
+}
+
+async function runDemo(payload: Record<string, unknown>, operation: string, actor?: string, source?: string) {
+  const fresh = operation === 'new';
+  const key = fresh ? hex(crypto.getRandomValues(new Uint8Array(32))) : payload.key;
+  if (typeof key !== 'string' || (!fresh && typeof payload.id !== 'string')) return reply({ error: 'demoMissing' });
+  const network = fresh ? await signDemoNetwork(source ?? '') : '';
+  const { data, error } = await admin.rpc('study_demo', {
+    key_in: key, id_in: fresh ? '' : payload.id, operation, network_in: network,
+    duration_in: typeof payload.duration === 'number' && [5, 25, 50, 90].includes(payload.duration) ? payload.duration : null,
+    actor: actor ?? null,
+  });
+  if (error) return reply({ error: 'server' }, { status: 500 });
+  return reply(fresh && data?.id ? { ...data, key } : data);
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
   if (request.method !== 'POST') return reply({ error: 'method' }, { status: 405 });
+  const body = await request.json().catch(() => null);
+  const payload = body?.payload && typeof body.payload === 'object' ? body.payload : {};
+  if (body?.action === 'demoStart') {
+    const source = request.headers.get('x-real-ip') ?? request.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim();
+    return runDemo({}, 'new', undefined, source);
+  }
+  if (body?.action === 'demoEvent' && ['state', 'start', 'stop', 'verify'].includes(payload.operation))
+    return runDemo(payload, payload.operation);
   const token = request.headers.get('Authorization')?.match(/^Bearer (.+)$/i)?.[1];
   if (!token) return reply({ error: 'unauthorized' }, { status: 401 });
 
@@ -36,7 +68,7 @@ Deno.serve(async (request) => {
   if (error || !data.user || data.user.is_anonymous) {
     return reply({ error: 'unauthorized' }, { status: 401 });
   }
-  const body = await request.json().catch(() => null);
+  if (body?.action === 'demoClaim') return runDemo(payload, 'claim', data.user.id);
   if (!actions.has(body?.action)) return reply({ error: 'invalidAction' }, { status: 400 });
 
   if (body.action === 'startAccountDeletion' || body.action === 'deleteAccount') {

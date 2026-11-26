@@ -68,12 +68,14 @@ const homeMeta = {
 };
 const accountMeta = {
   tr: {
+    demo: ['Misafir Çalışma Masası', 'Kayıt olmadan odak sayacını ve mola oyunlarını iki saat boyunca dene.'],
     shop: ['Jeton Mağazası', 'Çalışarak kazandığın jetonlarla avatar ve masa eşyalarına göz at. Sandık ödüllerini ve olasılıklarını incele.'],
     profile: ['Profil ve Envanter', 'Çalışma toplamlarını, arkadaşlarını ve avatar envanterini yönet.'],
     ranking: ['Haftalık Çalışma Sıralaması', 'Doğrulanmış çalışma dakikalarına göre haftalık sıralamayı ve ilk üç ödülünü gör.'],
     deletion: ['Hesap ve Veri Silme', 'Virtual Study Crew hesabını ve ilişkili verilerini silmek için kimliğini doğrula.'],
   },
   en: {
+    demo: ['Guest Study Desk', 'Try the focus timer and break games for two hours without signing up.'],
     shop: ['Coin Shop', 'Browse pixel avatar and desk items, chest rewards, and reward odds.'],
     profile: ['Profile and Inventory', 'Manage your study totals, friends, and avatar inventory.'],
     ranking: ['Weekly Study Leaderboard', 'View weekly rankings by verified study minutes and prizes for the top three.'],

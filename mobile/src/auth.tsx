@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { AppState, Image, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { emailAuthMessage } from '../../public/library-client';
 import { authCallbackUrl, completeAuthCode, supabase } from './api';
+import { Demo } from './demo';
+import { TourSheet } from './arrival';
 import { Button, Field, ui } from './ui';
 import { usePreferences, words, type Locale, type Translation } from './strings';
 
@@ -33,6 +35,9 @@ export function Login() {
   const locale = usePreferences(s => s.locale);
   const setLocale = usePreferences(s => s.setLocale);
   const t = words[locale];
+  const [demo, setDemo] = useState(false);
+  const [tour, setTour] = useState(false);
+  const [demoTransfer, setDemoTransfer] = useState(false);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [sentTo, setSentTo] = useState('');
@@ -90,6 +95,7 @@ export function Login() {
     await completeAuthCode(code);
   }
 
+  if (demo) return <Demo locale={locale} t={t} register={hasDemo => { setDemoTransfer(hasDemo); setDemo(false); }} />;
   return <ScrollView contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled">
     <View style={ui.row}>
       <View style={[ui.row, { flexShrink: 1 }]}>
@@ -100,6 +106,9 @@ export function Login() {
     </View>
     {!supabase ? <Text style={ui.warning}>{t.missingConfig}</Text> : <View style={ui.card}>
       <Text accessibilityRole="header" style={ui.heading}>{t.signInTitle}</Text>
+      {demoTransfer && <Text accessibilityLiveRegion="polite" style={ui.accent}>{t.demoPending}</Text>}
+      <Button disabled={busy} onPress={() => setDemo(true)}>{demoTransfer ? t.demoContinue : t.demoTry}</Button>
+      <Button muted disabled={busy} onPress={() => setTour(true)}>{t.tourOpen}</Button>
       {googleEnabled && <Button muted disabled={busy} onPress={() => void run(() => oauth('google'))}>{t.google}</Button>}
       {appleEnabled && <Button muted disabled={busy} onPress={() => void run(() => oauth('apple'))}>{t.apple}</Button>}
       {sentTo ? <>
@@ -131,6 +140,7 @@ export function Login() {
       <Text style={ui.heading}>{t.privacy}</Text><Text style={ui.small}>{t.privacyBody}</Text>
       <PolicyLinks locale={locale} t={t} />
     </View>
+    {tour && <TourSheet t={t} finish={() => setTour(false)} pending={false} error="" />}
   </ScrollView>;
 }
 

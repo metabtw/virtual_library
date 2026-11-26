@@ -905,7 +905,46 @@ try {
   await db.query('delete from auth.users where id=$1',[organizer]);
   assert.equal((await action(unknown,'state')).rooms.some(room=>room.id===owned.id),false);
 
-  console.log('Postgres: rooms, activity, RLS, focus, coins, daily quests, chests, profile codes, referrals, friends, study invites, signed-ad settlement, push leases, shop, pets, ranking and account deletion passed.');
+  // The browser carries a capability, while only the authenticated profile can import it.
+  const guestKey = 'a'.repeat(64);
+  const networkKey = 'b'.repeat(64);
+  const guest = async (op, id = '', duration = null, actor = null, secret = guestKey) =>
+    (await db.query('select public.study_demo($1,$2,$3,$4,$5,$6) as state', [secret, id, op, networkKey, duration, actor])).rows[0].state;
+  const trial = await guest('new');
+  assert.equal(trial.expiresAt - trial.now, 7200000);
+  assert.equal((await guest('state', trial.id, null, null, 'c'.repeat(64))).error, 'demoMissing');
+  assert.equal((await guest('claim', trial.id)).error, 'profileRequired');
+  assert.equal((await guest('start', trial.id, 180)).error, 'invalidDuration');
+  assert.ok((await guest('start', trial.id, 25)).endAt);
+  await db.query(`update public.study_demos set started_ms=public.library_time_ms()-1231000,
+     check_ms=public.library_time_ms()-31000, seen_ms=public.library_time_ms() where id=$1`, [trial.id]);
+  assert.equal((await guest('state', trial.id)).outcome, 'invalid');
+  assert.equal((await guest('state', trial.id)).minutes, 0);
+  await guest('start', trial.id, 25);
+  await db.query(`update public.study_demos set started_ms=public.library_time_ms()-420000,
+     seen_ms=public.library_time_ms()-300100 where id=$1`, [trial.id]);
+  assert.equal((await guest('state', trial.id)).outcome, 'invalid');
+  await guest('start', trial.id, 25);
+  await db.query(`update public.study_demos set started_ms=public.library_time_ms()-1205000,
+     check_ms=public.library_time_ms()-5000, seen_ms=public.library_time_ms() where id=$1`, [trial.id]);
+  const verified = await guest('verify',trial.id);
+  assert.ok(verified.verifyAt > verified.now);
+  assert.equal((await guest('stop',trial.id)).minutes, 20);
+  await db.query('update public.study_demos set expires_ms=public.library_time_ms()-1000 where id=$1', [trial.id]);
+  assert.equal((await guest('start', trial.id, 25)).endAt, null);
+  assert.equal((await guest('claim',trial.id, null, unknown)).minutes, 20);
+  assert.equal((await guest('claim',trial.id, null, unknown)).minutes, 20);
+  assert.equal((await guest('claim',trial.id, null, otherOrganizer)).error, 'demoImported');
+  assert.equal((await db.query("select count(*)::int as n from public.sessions where user_id=$1 and state='completed'", [unknown])).rows[0].n, 1);
+  const next = await guest('new');
+  assert.equal((await guest('claim',next.id, null, unknown)).error, 'demoAccountUsed');
+  await db.query('update public.study_demos set expires_ms=public.library_time_ms()-604801000 where id=$1', [next.id]);
+  assert.equal((await guest('claim',next.id, null, otherOrganizer)).error, 'demoMissing');
+  await db.query('select public.settle_focus_sessions()');
+  assert.equal((await db.query('select id from public.study_demos where id=$1',[next.id])).rows.length, 0);
+  assert.equal((await db.query("select has_function_privilege('anon','public.study_demo(text,text,text,text,integer,uuid)','execute') as allowed")).rows[0].allowed, false);
+
+  console.log('Postgres: rooms, activity, RLS, focus, coins, daily quests, chests, profile codes, referrals, friends, study invites, signed-ad settlement, push leases, shop, pets, ranking, account deletion and guest trial transfer passed.');
 } finally {
   await db.close();
 }

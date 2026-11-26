@@ -1,3 +1,4 @@
+import { demoStorageKey, parseDemo, type DemoAccess, type DemoState } from '../../public/demo';
 import type { StudyCalendar } from '../../public/study-planner';
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
@@ -52,3 +53,11 @@ export const leaderboard = () => invoke<Leaderboard>('leaderboard');
 export const openRewardedAd = (platform: 'android' | 'ios') => invoke<{ attempt: string; unit: string }>('adStart', { platform });
 export const updateDevice = (action: 'pushRegister' | 'pushRemove', token: string, locale?: string) =>
   invoke<{ ok: boolean }>(action, { token, locale });
+
+export const readDemoAccess = async () => parseDemo(await SecureStore.getItemAsync(demoStorageKey));
+export const writeDemoAccess = (access: DemoAccess | null) => access
+  ? SecureStore.setItemAsync(demoStorageKey, JSON.stringify(access)) : SecureStore.deleteItemAsync(demoStorageKey);
+export const startDemo = () => invoke<DemoState & DemoAccess>('demoStart');
+export const demoEvent = (access: DemoAccess, operation: string, duration: number) =>
+  invoke<DemoState>('demoEvent', { ...access, operation, duration });
+export const claimDemo = (access: DemoAccess) => invoke<{ minutes: number }>('demoClaim', access);

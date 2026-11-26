@@ -15,9 +15,8 @@ import { createStudyCardPreview, messageFor, reactionArt } from './web-social.js
 import { webText } from './web-strings.js';
 import { adCooldownSeconds, boxArt, boxLabels, boxOdds, breakPresets, canBuyFromShop, roomGoalMinutes, roomProgressMinutes, roomThemeUnlockMinutes } from './study-rewards.js';
 import { focusQuests, friendsPanel, studyInviteButton, studyInvitations } from './community.js';
-import { gameBackdropUrls, mountGames } from './web-games.js';
+import { demoError, demoStorageKey, parseDemo } from './demo.js';
 import { preloadImage, waitForPage } from './page-loading.js';
-import { mountPlanner } from './web-planner.js';
 import { pageMetadata, siteHref, sitePages } from './site-pages.js';
 import { createWebAnalytics } from './web-analytics.js';
 import { inviteWait, splitProfileCode } from './room-social.js';
@@ -25,7 +24,6 @@ import { inviteWait, splitProfileCode } from './room-social.js';
 const client = config && createClient(config.url, config.key, {
   auth: { flowType: 'pkce', detectSessionInUrl: false },
 });
-if (config?.firebaseGoogle) void import('./google-sign-in.js').catch(() => {});
 let authReady = !client;
 let tourIndex = 0;
 const deletionPage = location.pathname === '/account-deletion';
@@ -33,7 +31,42 @@ const content = document.querySelector('#content');
 const pageLoader = document.querySelector('#page-transition');
 let currentView;
 let pageTransition = 0;
-let gamesWarmed = false;
+let renderedDemo;
+let tourMode;
+let demoLogin = false;
+let demoAccess;
+try { demoAccess = parseDemo(localStorage.getItem(demoStorageKey)); } catch {}
+let claimRequest;
+function saveDemoAccess(access) {
+  demoAccess = access;
+  try {
+    if (access) localStorage.setItem(demoStorageKey, JSON.stringify(access));
+    else localStorage.removeItem(demoStorageKey);
+  } catch {}
+}
+
+async function claimDemo(actor, access) {
+  if (!access || !actor || claimRequest || deletionPage) return;
+  const claim = {};
+  claimRequest = claim;
+  try {
+    const result = await invokeLibrary(client, 'demoClaim', access);
+    if (userId !== actor || demoAccess?.id !== access.id) return;
+    saveDemoAccess(null);
+    planner?.refresh();
+    toast(t('demoClaimed').replace('{minutes}', result.minutes));
+    refreshState();
+  } catch (error) {
+    if (userId !== actor || demoAccess?.id !== access.id) return;
+    const message = demoError(error);
+    if (['demoAccountUsed', 'demoMissing', 'demoImported'].includes(message)) {
+      saveDemoAccess(null);
+      toast(t(message));
+    }
+  } finally {
+    if (claimRequest === claim) claimRequest = undefined;
+  }
+}
 const tourDialog = document.querySelector('#onboarding-dialog');
 const notice = document.querySelector('#notice');
 const coinNotice = document.querySelector('#coin-notice');
@@ -166,45 +199,50 @@ function quietModeToggle() {
   const enabled = Boolean(data.profile.doNotDisturb);
   return `<button type="button" class="secondary quiet-chip" role="switch" aria-label="${t('quietMode')}"
     aria-checked="${enabled}" title="${t('quietModeHelp')}" data-action="setDoNotDisturb">
-    <span aria-hidden="true">☾</span> ${t('quietMode')}</button>`;
+    <span aria-hidden="true">☾</span> <span>${t('quietMode')}</span>
+    <strong>${t(enabled ? 'quietOn' : 'quietOff')}</strong></button>`;
 }
 
 function loadingScreen() {
   return `<div class="startup-screen" role="status" aria-label="${t('loading')}">
     <div class="startup-mark"><div class="startup-ring" aria-hidden="true">${loadingPixels.map(pixel =>
       `<i style="left:${pixel.x}px;top:${pixel.y}px;opacity:${pixel.opacity}"></i>`).join('')}</div>
-      <img src="/app-logo.png" width="126" height="126" alt=""></div>
+      <img src="/app-mark.webp" width="126" height="126" alt=""></div>
     <p>${t('loading')}</p>
   </div>`;
 }
 
-function showTour(index) {
+function showTour(index, mode = tourMode ?? 'profile') {
   const step = tourSteps[index];
+  tourMode = mode;
   tourIndex = index;
   tourDialog.innerHTML = `<p class="tour-welcome" id="onboarding-title">${t('tourTitle')}</p>
-    <img class="tour-art" src="${roomBackdrop(step.art)}" alt="">
+    <nav class="tour-tabs" aria-label="${t('tourOpen')}">${tourSteps.map((item, n) =>
+      `<button class="secondary" type="button" data-tour="${n}" aria-label="${t(item.title)}" ${n === index ? 'aria-current="step"' : ''}>${n + 1}</button>`).join('')}</nav>
+    <img class="tour-art" src="/tour/${step.image}.webp" alt="${t(step.title)}">
     <div class="tour-copy"><h2>${t(step.title)}</h2><p>${t(step.body)}</p></div>
     <div class="tour-actions">
       <button class="secondary" type="button" data-tour="skip">${t('tourSkip')}</button>
-      <small>${index + 1} / ${tourSteps.length}</small>
+      <button class="secondary" type="button" data-tour="back" ${!index ? 'disabled' : ''}>${t('tourPrevious')}</button>
       <button class="primary" type="button" data-tour="next">${t(index + 1 === tourSteps.length ? 'tourStart' : 'tourNext')}</button>
     </div>`;
   if (!tourDialog.open) tourDialog.showModal();
-  else tourDialog.querySelector('[data-tour="next"]').focus();
+  else tourDialog.querySelector('[aria-current="step"]').focus({ preventScroll: true });
 }
 
 async function finishTour() {
-  if (await request('finishTour')) {
-    tourDialog.close();
-    tourIndex = 0;
-    if (!data.profile?.room) location.hash = 'rooms';
-  }
+  if (tourMode === 'profile' && !await request('finishTour')) return;
+  tourDialog.close();
+  tourMode = undefined;
+  tourIndex = 0;
 }
 
 tourDialog.addEventListener('click', event => {
   const action = event.target.closest('[data-tour]')?.dataset.tour;
   if (!action || busy) return;
   if (action === 'next' && tourIndex + 1 < tourSteps.length) showTour(tourIndex + 1);
+  else if (action === 'back') showTour(tourIndex - 1);
+  else if (/^\d+$/.test(action)) showTour(Number(action));
   else void finishTour();
 });
 tourDialog.addEventListener('cancel', event => {
@@ -252,7 +290,10 @@ content.addEventListener('toggle', event => {
   const panel = event.target;
   const id = panel.dataset.disclosure;
   if (!id || !panel.isConnected) return;
-  if (panel.open) expandedPanels.add(id);
+  if (panel.open) {
+    expandedPanels.add(id);
+    if (id === 'planner') mountPlannerHost(panel.querySelector('[data-study-planner]'));
+  }
   else expandedPanels.delete(id);
 }, true);
 
@@ -405,6 +446,7 @@ async function request(action, payload) {
     }
     if (result.profile?.room) connectionExpired = false;
     data = result;
+    if (result.profile) void claimDemo(userId, demoAccess);
     if (completed) planner?.refresh();
     clock = markServerTime(result.now);
     refreshing = false;
@@ -469,6 +511,7 @@ function reflectSession(next) {
   expandedPanels.clear();
   if (rewardDialog.open) rewardDialog.close();
   if (tourDialog.open) tourDialog.close();
+  tourMode = undefined;
   tourIndex = 0;
   lastRead = 0;
   lastView = lastScene = undefined;
@@ -503,8 +546,11 @@ function signInView() {
   if (!client) return `<section class="card account-card">${deletionPage ? backToProfile() : ''}
     <h1>${t('app')}</h1><p>${t('missingConfig')}</p><div class="auth-links"><a class="secondary account-button account-data" href="${privacyHref()}">${t('readPrivacy')}</a>${termsButton()}</div></section>`;
   return `<section class="card account-card auth-card">
-    <div class="auth-heading"><img class="auth-emblem" src="/app-logo.png" width="45" height="45" alt=""><h1>${t(deletionPage ? 'deleteAccount' : 'signInTitle')}</h1></div>
-    ${deletionPage ? '' : `<p>${t('siteIntro')}</p>`}
+    <div class="auth-heading"><img class="auth-emblem" src="/app-mark.webp" width="45" height="45" alt=""><h1>${t(deletionPage ? 'deleteAccount' : 'signInTitle')}</h1></div>
+    ${deletionPage ? '' : `<p>${t('siteIntro')}</p>
+      ${demoLogin && demoAccess ? `<p class="demo-transfer-note" role="status">${t('demoPending')}</p>` : ''}
+      <div class="demo-entry"><a class="primary" href="#demo">${t(demoAccess ? 'demoContinue' : 'demoTry')}</a>
+      <button class="secondary" data-action="open-tour">${t('tourOpen')}</button></div>`}
     ${config.google || config.apple ? `<div class="auth-providers">
       ${config.google ? `<button class="secondary" data-action="oauth" data-value="google">${t('google')}</button>` : ''}
       ${config.apple ? `<button class="secondary" data-action="oauth" data-value="apple">${t('apple')}</button>` : ''}
@@ -846,7 +892,6 @@ function profileView() {
       <a class="secondary" href="#ranking">${t('leaderboard')}</a>
     </div>` : ''}
   </div>
-  ${profile ? `<div class="profile-quiet">${quietModeToggle()}</div>` : ''}
   <section class="profile-card${profile && !editing ? ' profile-overview' : ''}">${sprite(editing || !profile ? avatar : dressedAvatar(profile.avatar, placed()))}
   ${editing || !profile ? `<form id="avatar-form"><label>${t('name')}<input name="name" value="${escape(draft.avatarName ?? profile?.name)}" minlength="2" maxlength="24" required></label>
   ${!profile ? `<div class="field"><label for="registration-code">${t('referralField')}</label>
@@ -857,7 +902,7 @@ function profileView() {
       ${readerCode ? profileCode('readerCode', readerCode) : profileCode('accountId', userId, false)}
       ${referralCode ? profileCode('referralCode', referralCode) : ''}
     </dl>
-    <div class="profile-hero-actions"><button class="secondary" data-action="edit">${t('editAvatar')}</button>
+    <div class="profile-hero-actions">${quietModeToggle()}<button class="secondary" data-action="edit">${t('editAvatar')}</button>
     ${profile.room ? `<button class="secondary" data-action="leave">${t('leave')}</button>` : ''}</div></div>`}</section>
   ${profile ? `${roomTool('planner', t('plannerDisclosure'), '<div data-study-planner></div>')}
     <section class="card study-totals" aria-label="${t('studyTotals')}">
@@ -873,6 +918,7 @@ function profileView() {
       <a class="secondary account-button account-data" href="${privacyHref()}">${t('myData')}</a>
       <button class="secondary account-button account-sign-out" data-action="sign-out">${t('signOut')}</button>
       ${termsButton()}
+      <button class="secondary account-button" data-action="open-tour">${t('tourOpen')}</button>
       ${metrics.control(t('webMeasurement'))}
       <a class="secondary account-button account-danger" href="${deletionHref()}">${t('deleteAccount')}</a>
     </div>
@@ -914,8 +960,28 @@ function loadRanking() {
   return rankingRequest;
 }
 
+function mountPlannerHost(host) {
+  if (!host || planner || host.dataset.loading === 'true') return;
+  host.dataset.loading = 'true';
+  const language = locale;
+  void import('./web-planner.js').then(({ mountPlanner }) => {
+    if (!host.isConnected || language !== locale) return;
+    plannerLocale = language;
+    planner = mountPlanner(host, { t, locale, escape,
+      request: payload => invokeLibrary(client, 'studyPlanner', payload),
+      confirm: (...args) => accountDialogs.confirm(...args),
+      saved: () => { toast(t('plannerReady')); refreshState(); },
+    });
+  }).catch(() => {
+    if (host.isConnected) host.textContent = t('server');
+    delete host.dataset.loading;
+  });
+}
+
 function paint(signature, html) {
   if (signature === lastView) return;
+  renderedDemo?.();
+  renderedDemo = undefined;
   const active = document.activeElement;
   let restore;
   if (active instanceof HTMLInputElement && content.contains(active)) {
@@ -931,14 +997,7 @@ function paint(signature, html) {
   else {
     planner?.close();
     planner = undefined;
-    if (nextPlannerHost) {
-      plannerLocale = locale;
-      planner = mountPlanner(nextPlannerHost, { t, locale, escape,
-        request: payload => invokeLibrary(client, 'studyPlanner', payload),
-        confirm: (...args) => accountDialogs.confirm(...args),
-        saved: () => { toast(t('plannerReady')); refreshState(); },
-      });
-    }
+    if (nextPlannerHost?.closest('details')?.open) mountPlannerHost(nextPlannerHost);
   }
   if (restore) {
     const input = content.querySelector(restore.selector);
@@ -966,12 +1025,13 @@ function loadPage(view, room) {
     expandedPanels.delete('friends');
   }
 
-  const images = ['/app-logo.png'];
-  if (view === 'games') images.push(...gameBackdropUrls);
+  const images = ['/app-mark.webp'];
   if (view === 'room') images.push(roomBackdrop(roomPreferences.themeFor(room)));
   if (view === 'profile') images.push('/library.webp');
   if (view === 'rooms') images.push(...data.rooms.slice(0, 4).map(entry => roomBackdrop(defaultRoomTheme(entry.id))));
   const preparation = images.map(preloadImage);
+  if (view === 'games') preparation.push(import('./web-games.js').then(({ gameBackdropUrls, loadGameStyles }) =>
+    Promise.allSettled([...gameBackdropUrls.map(preloadImage), loadGameStyles()])));
   if (view === 'ranking' && !ranking) preparation.push(loadRanking());
   if (running()) {
     finishPageTransition();
@@ -1002,6 +1062,25 @@ function render() {
   const notification = document.querySelector('#social-unread');
   notification.hidden = !unread;
   notification.textContent = unread || '';
+  if (!userId && client && !deletionPage && page === 'demo') {
+    currentView = 'demo';
+    updatePageMetadata('demo');
+    document.querySelector('#location').textContent = t('demoTitle');
+    paint('demo:' + locale, () => '<div id="demo-view"></div>');
+    const host = content.querySelector('#demo-view');
+    if (!renderedDemo && host && host.dataset.loading !== 'true') {
+      host.dataset.loading = 'true';
+      void import('./web-demo.js').then(({ mountDemo }) => {
+        if (!host.isConnected) return;
+        renderedDemo = mountDemo(host, { t, locale, getAccess: () => demoAccess, saveAccess: saveDemoAccess,
+          invoke: (action, payload) => invokeLibrary(client, action, payload),
+          showTour: () => showTour(0, 'preview'),
+          register: () => { demoLogin = true; location.hash = 'sign-in'; },
+        });
+      }).catch(() => { if (host.isConnected) host.textContent = t('server'); });
+    }
+    return;
+  }
   if (lock || !userId) {
     if (inviteDialog.open) inviteDialog.close();
     if (coinHelp.open) coinHelp.close();
@@ -1015,7 +1094,7 @@ function render() {
     const signIn = !userId;
     updatePageMetadata(deletionPage ? 'deletion' : 'home');
     document.querySelector('#location').textContent = t(signIn ? 'signIn' : deletionPage ? 'deletionPage' : 'library');
-    paint(JSON.stringify([signIn, deletionPage, emailSentTo, emailFeedback, Boolean(data), locale]),
+    paint(JSON.stringify([signIn, deletionPage, emailSentTo, emailFeedback, Boolean(data), locale, demoLogin]),
       signIn ? signInView : deletionPage ? deletionView : loadingScreen);
     updateEmailResend();
     return;
@@ -1033,14 +1112,6 @@ function render() {
   const room = inRoom ? data.rooms.find(item => item.id === data.profile?.room) : undefined;
   updatePageMetadata(view);
   loadPage(view, room);
-  if (!gamesWarmed && data.profile) {
-    gamesWarmed = true;
-    const warm = () => {
-      if (!navigator.connection?.saveData && navigator.onLine) gameBackdropUrls.forEach(preloadImage);
-    };
-    if (window.requestIdleCallback) window.requestIdleCallback(warm, { timeout: 3000 });
-    else setTimeout(warm, 1800);
-  }
   const signature = JSON.stringify([view, view === 'room'
     ? [room?.id, onBreak(), room?.minutes, room?.invite, room?.private, room?.owned, data.profile?.status, data.session, durationChoice, data.inventory, data.todayPlans,
       data.friends?.some(friend => friend.status === 'accepted'), data.profile?.doNotDisturb]
@@ -1051,7 +1122,14 @@ function render() {
   paint(signature, () => view === 'room' ? roomView(room) : view === 'rooms' ? roomsView()
     : view === 'profile' ? profileView() : view === 'ranking' ? rankingView()
       : view === 'games' ? `<section id="games-view"><div class="heading"><h1>${t('games')}</h1></div></section>` : shopView());
-  if (view === 'games' && !renderedGames) renderedGames = mountGames(content.querySelector('#games-view'), locale);
+  const gameHost = view === 'games' && content.querySelector('#games-view');
+  if (gameHost && !renderedGames && gameHost.dataset.loading !== 'true') {
+    gameHost.dataset.loading = 'true';
+    void import('./web-games.js').then(async ({ mountGames, loadGameStyles }) => {
+      await loadGameStyles();
+      if (gameHost.isConnected) renderedGames = mountGames(gameHost, locale);
+    }).catch(() => { if (gameHost.isConnected) gameHost.append(t('server')); });
+  }
   roomPreferences.sync(view === 'room' ? room : null, data.inventory);
   if (view === 'rooms') filterRooms();
   if (data.profile?.tourPending && !tourDialog.open && !lock) showTour(tourIndex);
@@ -1390,6 +1468,7 @@ document.addEventListener('click', async event => {
   const button = event.target.closest('[data-action]');
   if (!button || busy) return;
   const { action, value } = button.dataset;
+  if (action === 'open-tour') { showTour(0, 'preview'); return; }
   if (action === 'change-email') {
     emailSentTo = emailFeedback = draft.code = '';
     render();

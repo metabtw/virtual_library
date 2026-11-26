@@ -10,6 +10,7 @@ const labels = {
     controller: 'Veri sorumlusu', contact: 'İletişim', details: 'Verilerin işlenmesi ve hakların',
     usage: 'Bu bilgileri oturum açmayı, çalışma odalarını, sayaçları, sosyal özellikleri ve envanteri çalıştırmak için kullanırız. Giriş yönteminize göre Google ve Firebase oturum açma sürecine katılabilir. Supabase kimlik doğrulama ve uygulama verilerini, Vercel web sitesini barındırır.',
     choices: 'Profilinden haftalık sıralamaya katılmayı seçebilir ve daha sonra listeden ayrılabilirsin. Bildirim ve kullanım ölçümü tercihlerini uygulamadan değiştirebilirsin.',
+    demo: 'Misafir demoda oturum kimliğin, doğrulanmış çalışma süren ve kötüye kullanımı sınırlamak için ağ adresinin gizli anahtarla oluşturulan özeti tutulur. Aynı cihazdan profilini tamamladığında süreleri aktarabilirsin. Misafir kayıtları demo bittikten yedi gün sonra temizlenir.',
     retention: 'Hesap ve çalışma kayıtların hesabın açıkken ilgili özellikleri sunmak için tutulur. Hesabını sildiğinde profilin ve ona bağlı çalışma, envanter ve sosyal kayıtlar uygulamanın aktif veritabanından kaldırılır.',
     remove: 'Hesabımı ve verilerimi sil',
   },
@@ -22,6 +23,7 @@ const labels = {
     controller: 'Data controller', contact: 'Contact', details: 'Data processing and your rights',
     usage: 'We use this information to provide sign-in, study rooms, timers, social features, and inventory. Google and Firebase may participate in sign-in depending on the method you choose. Supabase hosts authentication and application data. Vercel hosts the website.',
     choices: 'You can join or leave the weekly ranking from your profile. The app lets you change your notification and usage measurement preferences.',
+    demo: 'The guest trial stores a session ID, verified study time and a keyed hash of your network address for rate limiting. You can transfer your time by completing your profile on the same device. Guest trial records are removed seven days after the trial ends.',
     retention: 'We keep account and study records while your account is open to provide these features. When you delete your account, your profile and related study, inventory, and social records are removed from the active application database.',
     remove: 'Delete my account and data',
   },
@@ -56,7 +58,7 @@ export function informationPage(locale, path, title, description, content, featu
     <a class="secondary account-back" href="/?lang=${locale}${feature ? '' : '#profile'}"><span aria-hidden="true">←</span> ${feature ? (locale === 'tr' ? 'Ana sayfa' : 'Home') : words[locale].goBack}</a>
     <a class="secondary account-back" href="${path}?lang=${alternate}" lang="${alternate}">${alternate === 'tr' ? 'Türkçe' : 'English'}</a>
   </nav>
-  <div class="notice-heading"><img class="auth-emblem" src="/app-logo.png" width="45" height="45" alt=""><h1>${title}</h1></div>
+  <div class="notice-heading"><img class="auth-emblem" src="/app-mark.webp" width="45" height="45" alt=""><h1>${title}</h1></div>
   <div class="notice-content">${content}</div>
 </main></body></html>`;
 }
@@ -70,7 +72,7 @@ export function privacyPage(requestedLanguage, env) {
   return informationPage(locale, '/privacy', text.title, text.intro, `
   <p>${text.intro}</p><p>${text.people}</p><p>${text.social}</p><p>${text.optional}</p>
   <h2>${text.details}</h2>
-  <p>${text.usage}</p><p>${text.choices}</p><p>${text.retention}</p>
+  <p>${text.usage}</p><p>${text.demo}</p><p>${text.choices}</p><p>${text.retention}</p>
   ${controller ? `<p><b>${text.controller}</b> ${escape(controller)}</p>` : ''}
   ${contact ? `<p><b>${text.contact}</b> <a href="mailto:${escape(contact)}">${escape(contact)}</a></p>` : ''}
   ${details ? `<p class="notice-details">${escape(details)}</p>` : ''}

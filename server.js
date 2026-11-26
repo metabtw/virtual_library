@@ -10,6 +10,7 @@ import { privacyPage } from './privacy-page.js';
 import { termsPage } from './terms-page.js';
 import { addSiteVerification, analyticsMeasurementId, featurePage } from './feature-pages.js';
 import { sitePages } from './public/site-pages.js';
+import { tourSteps } from './public/onboarding.js';
 import { themedBackdrops } from './public/room-art.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -25,6 +26,7 @@ export const webFiles = new Map([
   ['/styles.css', ['public/styles.css', css]],
   ['/favicon.png', ['public/favicon.png', 'image/png']],
   ['/app-logo.png', ['public/app-logo.png', 'image/png']],
+  ['/app-mark.webp', ['public/app-mark.webp', image]],
   ['/apple-touch-icon.png', ['public/apple-touch-icon.png', 'image/png']],
   ['/study-room-preview.jpg', ['public/study-room-preview.jpg', 'image/jpeg']],
   ['/31a5a3923ac9f414cad6839fb4e04d4a.txt', ['public/31a5a3923ac9f414cad6839fb4e04d4a.txt', 'text/plain; charset=utf-8']],
@@ -34,6 +36,9 @@ export const webFiles = new Map([
   ['/coin-notices.js', ['public/coin-notices.js', script]],
   ['/account-dialogs.js', ['public/account-dialogs.js', script]],
   ['/onboarding.js', ['public/onboarding.js', script]],
+  ['/demo.js', ['public/demo.js', script]],
+  ['/web-demo.js', ['public/web-demo.js', script]],
+  ...tourSteps.map(step => ['/tour/' + step.image + '.webp', ['public/tour/' + step.image + '.webp', image]]),
   ['/room-art.js', ['public/room-art.js', script]],
   ['/site-pages.js', ['public/site-pages.js', script]],
   ['/web-analytics.js', ['public/web-analytics.js', script]],

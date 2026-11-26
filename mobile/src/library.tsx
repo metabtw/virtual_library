@@ -1,14 +1,15 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, AppState, BackHandler, Image, ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text,
   useWindowDimensions, View } from 'react-native';
 import { avatarOptions, avatarPresets, defaultAvatar, hairStyles, pickAvatarStyle } from '../../public/avatar-art';
+import { demoError } from '../../public/demo';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../../public/focus-clock';
 import { defaultRoomTheme } from '../../public/room-art';
 import { displayDeskStatuses, recordDeskStatus, type DeskUpdates } from '../../public/desk-status';
 import { breakPresets, roomProgressMinutes, roomThemeUnlockMinutes } from '../../public/study-rewards';
-import { library, notifyRoomPresence, roomConnection, supabase } from './api';
+import { claimDemo, library, notifyRoomPresence, readDemoAccess, roomConnection, supabase, writeDemoAccess } from './api';
 import type { Avatar, BoxTier, Command, Drop, Focus, ItemId, Profile, Snapshot } from './model';
 import { RoomScene, Sprite } from './scene';
 import { allowReminders, hasExactReminderSettings, openExactReminderSettings, syncRemoteReminders,
@@ -112,9 +113,9 @@ const avatarEditorStyles = StyleSheet.create({
   option: { flexShrink: 1 },
 });
 
-function ProfileOverview({ profile, accountId, equipment, pending, t, onEdit, onLeave }: {
+function ProfileOverview({ profile, accountId, equipment, pending, t, onEdit, onLeave, quietToggle }: {
   profile: Profile; accountId: string; equipment: ItemId[]; pending: boolean;
-  t: Translation; onEdit: () => void; onLeave: () => void;
+  t: Translation; onEdit: () => void; onLeave: () => void; quietToggle: ReactNode;
 }) {
   const { width } = useWindowDimensions();
   const avatarWidth = Math.round(Math.min(113, Math.max(57, width * 0.18)));
@@ -125,6 +126,7 @@ function ProfileOverview({ profile, accountId, equipment, pending, t, onEdit, on
         <Text style={ui.heading}>{profile.name}</Text>
         <ProfileCodes profile={profile} accountId={accountId} t={t} />
         <View style={profileStyles.heroActions}>
+          {quietToggle}
           <View style={profileStyles.heroAction}><Button compact muted disabled={pending} onPress={onEdit}>{t.editAvatar}</Button></View>
           {profile.room && <View style={profileStyles.heroAction}><Button compact muted disabled={pending} onPress={onLeave}>{t.leave}</Button></View>}
         </View>
@@ -134,9 +136,12 @@ function ProfileOverview({ profile, accountId, equipment, pending, t, onEdit, on
 }
 
 const profileStyles = StyleSheet.create({
-  quiet: { minHeight: 36, alignSelf: 'flex-end', borderRadius: 8, borderWidth: 1, borderColor: '#694d5d',
+  quiet: { minHeight: 40, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 8, borderWidth: 1, borderColor: '#694d5d',
     backgroundColor: '#251b28', paddingHorizontal: 9, justifyContent: 'center' },
-  quietActive: { borderColor: '#ab7cb7', backgroundColor: '#513764' },
+  quietActive: { borderColor: '#c091d0', backgroundColor: '#513764' },
+  quietLabel: { borderRadius: 5, paddingHorizontal: 4, paddingVertical: 2, backgroundColor: '#423644',
+    color: '#fff0f8', fontSize: 11, fontWeight: '700' },
+  quietLabelActive: { backgroundColor: '#dcbaf0', color: '#31213b' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { flex: 1, color: '#fff0dc', fontSize: 24, fontWeight: '700', fontFamily: Platform.select({ ios: 'Georgia', default: 'serif' }) },
   shortcuts: { flex: 1.55, flexDirection: 'row', gap: 5 },
@@ -197,6 +202,10 @@ export function Library({ id }: { id: string }) {
   const t = words[locale];
   useEffect(() => { setPage('rooms'); }, [id, setPage]);
   const [prize, setPrize] = useState<{ drop: Drop; tier: BoxTier } | null>(null);
+  const [previewTour, setPreviewTour] = useState(false);
+  const [demoNotice, setDemoNotice] = useState('');
+  const demoClaiming = useRef(false);
+  const demoChecked = useRef(false);
   const [editing, setEditing] = useState(false);
   const [moment, setMoment] = useState(() => performance.now());
   const [foreground, setForeground] = useState((AppState.currentState ?? 'active') === 'active');
@@ -232,6 +241,33 @@ export function Library({ id }: { id: string }) {
     },
   });
   const snapshot = query.data;
+  useEffect(() => {
+    if (!snapshot?.profile || demoClaiming.current || demoChecked.current) return;
+    demoClaiming.current = true;
+    void readDemoAccess().then(async access => {
+      if (!access) { demoChecked.current = true; return; }
+      try {
+        const result = await claimDemo(access);
+        await writeDemoAccess(null);
+        demoChecked.current = true;
+        setDemoNotice(t.demoClaimed.replace('{minutes}', String(result.minutes)));
+        void queryClient.invalidateQueries({ queryKey: ['library', id] });
+        void queryClient.invalidateQueries({ queryKey: ['studyPlanner', id] });
+      } catch (failure) {
+        const key = demoError(failure);
+        if (key === 'demoAccountUsed' || key === 'demoMissing' || key === 'demoImported') {
+          await writeDemoAccess(null);
+          demoChecked.current = true;
+          setDemoNotice(t[key]);
+        }
+      }
+    }).catch(() => {}).finally(() => { demoClaiming.current = false; });
+  }, [id, queryClient, snapshot?.profile, snapshot?.now, t]);
+  useEffect(() => {
+    if (!demoNotice) return;
+    const timer = setTimeout(() => setDemoNotice(''), 7000);
+    return () => clearTimeout(timer);
+  }, [demoNotice]);
   const roomMembers = useMemo(() => displayDeskStatuses(snapshot?.members ?? [], snapshot?.now ?? 0, deskUpdates),
     [snapshot?.members, snapshot?.now, deskUpdates]);
   const selectedPeer = roomMembers.find(member => peer && member.desk_ref === peer && !member.own);
@@ -494,6 +530,7 @@ export function Library({ id }: { id: string }) {
     accessibilityRole="switch" accessibilityLabel={t.quietMode} accessibilityState={{ checked: quiet, disabled: pending }}
     disabled={pending} onPress={() => act({ name: 'setDoNotDisturb', payload: { enabled: !quiet } })}>
     <Text style={quiet ? ui.accent : ui.small}>☾ {t.quietMode}</Text>
+    <Text style={[profileStyles.quietLabel, quiet && profileStyles.quietLabelActive]}>{quiet ? t.quietOn : t.quietOff}</Text>
   </Pressable>;
   function changeRoomVisibility() {
     if (!room?.owned) return;
@@ -586,9 +623,8 @@ export function Library({ id }: { id: string }) {
                 <View style={profileStyles.shortcut}><Button compact muted onPress={() => setRankingOpen(true)}>{t.leaderboard}</Button></View>
               </View>
             </View>
-            {quietToggle}
             {editing ? <AvatarEditor profile={profile} onSave={payload => act({ name: 'profile', payload })} pending={pending} t={t} locale={locale} /> :
-              <ProfileOverview profile={profile} accountId={id} equipment={equipped} pending={pending} t={t}
+              <ProfileOverview profile={profile} accountId={id} equipment={equipped} pending={pending} t={t} quietToggle={quietToggle}
                 onEdit={() => setEditing(true)} onLeave={requestLeave} />}
             <View style={ui.card}><Disclosure title={t.plannerDisclosure}>
               <StudyPlanner id={id} locale={locale} t={t} />
@@ -631,6 +667,7 @@ export function Library({ id }: { id: string }) {
           <Button tone="data" disabled={pending} onPress={() => setAccountPanel('data')}>{t.myData}</Button>
           <Button tone="signOut" disabled={pending} onPress={() => setAccountPanel('signOut')}>{t.signOut}</Button>
           <TermsButton locale={locale} t={t} />
+          <Button muted onPress={() => setPreviewTour(true)}>{t.tourOpen}</Button>
           <Button tone="danger" disabled={pending} onPress={() => setAccountPanel('delete')}>{t.deleteAccount}</Button>
         </View>
       </>}
@@ -656,8 +693,9 @@ export function Library({ id }: { id: string }) {
       equipment={equipped} close={() => setCardOpen(false)} t={t} />}
     {accountPanel && !running && <AccountSheet panel={accountPanel} change={setAccountPanel} confirm={confirmAccount}
       deleted={() => signOut(true)} leaveCopy={leaveCopy} inRoom={!!localRoom} locale={locale} t={t} />}
-    {profile?.tourPending && !accountPanel && !running && !verify && <TourSheet t={t} pending={pending} error={actionError}
-      finish={() => act({ name: 'finishTour' })} />}
+    {demoNotice !== '' && <Text accessibilityLiveRegion="polite" style={[ui.card, ui.accent]}>{demoNotice}</Text>}
+    {(profile?.tourPending || previewTour) && !accountPanel && !running && !verify && <TourSheet t={t} pending={pending} error={actionError}
+      finish={() => { if (previewTour) setPreviewTour(false); else act({ name: 'finishTour' }); }} />}
     <Modal visible={inviteOpen && !!room && !running && !verify} transparent onRequestClose={() => setInviteOpen(false)} accessibilityViewIsModal>
       <View style={ui.modal}><View style={[ui.card, { width: '100%', maxWidth: 450, maxHeight: '80%' }]}>
         <Text style={ui.heading}>{t.friendInvite}</Text>

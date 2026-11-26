@@ -4,6 +4,23 @@ import { gameIds, gameText } from './study-games.js';
 
 export const gameBackdropUrls = ['/library.webp', '/game-art.png', ...gameIds.map(id => roomBackdrop(gameArt[id].room))];
 
+let stylesheet;
+export function loadGameStyles() {
+  stylesheet ??= new Promise((resolve, reject) => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/games.css';
+    link.addEventListener('load', resolve, { once: true });
+    link.addEventListener('error', () => {
+      link.remove();
+      stylesheet = undefined;
+      reject(new Error('Game styles unavailable'));
+    }, { once: true });
+    document.head.append(link);
+  });
+  return stylesheet;
+}
+
 const arrows = { left: '←', up: '↑', down: '↓', right: '→' };
 const keys = { ArrowLeft: 'left', ArrowUp: 'up', ArrowDown: 'down', ArrowRight: 'right' };
 const texture = index => `${(index % atlasColumns) * 100 / (atlasColumns - 1)}% ${Math.floor(index / atlasColumns) * 100 / (atlasRows - 1)}%`;
