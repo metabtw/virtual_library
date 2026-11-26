@@ -594,32 +594,43 @@ try {
   await action(privateReader, 'leave');
   const opened = await action(privateReader, 'createRoom', { name: 'Geçici Oda' });
   const temporary = opened.rooms.find(entry => entry.owned);
+  assert.ok(temporary.expiresAt - opened.now >= 86399000 && temporary.expiresAt - opened.now <= 86400000);
   await action(lifecycleActor, 'joinCode', { ...phone, code: temporary.invite });
-  assert.equal((await action(privateReader, 'leave')).privateRoomClosing, false);
-  assert.equal((await db.query('select empty_since_ms from public.rooms where id = $1', [temporary.id])).rows[0].empty_since_ms, null);
+  await action(privateReader, 'leave');
   await action(lifecycleActor, 'roomPresence', { ...phone, generation: 1, room: temporary.id, mode: 'background' });
   await db.query('update public.room_connections set expires_ms = public.library_time_ms() - 1000 where user_id = $1', [lifecycleActor]);
   await db.query('update public.room_members set seen = public.library_time_ms() - 16000 where user_id = $1', [lifecycleActor]);
   await settle();
   assert.equal((await action(lifecycleActor, 'state', phone)).profile.room, null);
-  assert.ok((await db.query('select empty_since_ms from public.rooms where id = $1', [temporary.id])).rows[0].empty_since_ms);
   assert.equal((await action(privateReader, 'createRoom', { name: 'İkinci Oda' })).error, 'privateRoomOwned');
-  await db.query('update public.rooms set empty_since_ms = public.library_time_ms() - 43199000 where id = $1', [temporary.id]);
   assert.equal((await action(privateReader, 'join', { room: temporary.id })).profile.room, temporary.id);
-  assert.equal((await db.query('select empty_since_ms from public.rooms where id = $1', [temporary.id])).rows[0].empty_since_ms, null);
-  assert.equal((await action(privateReader, 'leave')).privateRoomClosing, true);
-  await db.query('update public.rooms set empty_since_ms = public.library_time_ms() - 43201000 where id = $1', [temporary.id]);
-  assert.equal((await action(privateReader, 'join', { room: temporary.id })).error, 'inviteRequired');
+  assert.equal((await action(privateReader, 'state')).rooms.find(r=>r.id===temporary.id).expiresAt, temporary.expiresAt);
+  assert.equal((await action(privateReader, 'roomVisibility', { room: temporary.id, public: true }))
+    .rooms.find(r=>r.id===temporary.id).expiresAt, temporary.expiresAt);
+  assert.equal((await action(lifecycleActor, 'join', { room: temporary.id })).profile.room, temporary.id);
+  assert.equal((await action(lifecycleActor,'start',{ duration:25, breakMinutes:5 })).session.state, 'active');
+  await db.query('update public.rooms set expires_ms = public.library_time_ms() + 120000 where id = $1', [temporary.id]);
+  assert.equal((await action(privateReader,'start',{duration:5})).error, 'privateRoomCutoff');
+  assert.equal((await action(privateReader,'start',{duration:'5'})).error, 'invalidDuration');
+  assert.equal((await action(lifecycleActor,'status',{status:'break'})).session.state, 'active');
+  assert.equal((await action(lifecycleActor,'status',{status:'desk'})).error, 'privateRoomCutoff');
+  await db.query('update public.rooms set expires_ms = public.library_time_ms() - 1 where id = $1', [temporary.id]);
+  assert.ok(!(await action(legacy, 'state')).rooms.some(r=>r.id===temporary.id), 'expired publicized room is hidden before maintenance');
+  await db.exec('set role authenticated');
+  await db.query("select set_config('request.jwt.claim.sub', $1, false)", [lifecycleActor]);
+  assert.equal((await db.query('select id from public.rooms where id = $1', [temporary.id])).rows.length, 0);
+  assert.equal((await db.query("select id from public.rooms where id = 'garden'")).rows.length, 1);
+  await db.exec('reset role');
+  await settle();
+  assert.equal((await action(lifecycleActor,'state')).profile.room, null);
+  assert.equal((await action(lifecycleActor,'state')).session.state, 'invalid');
   assert.equal((await action(privateReader, 'state')).profile.ownsPrivateRoom, false);
   assert.equal((await action(lifecycleActor, 'joinCode', { code: temporary.invite })).error, 'invalidInvite');
+
   const replacement = (await action(privateReader, 'createRoom', { name: 'Yeni Oda' })).rooms.find(entry => entry.owned);
-  await db.query('update public.room_members set seen = public.library_time_ms() - 16000 where user_id = $1', [privateReader]);
-  await db.query('update public.rooms set empty_since_ms = public.library_time_ms() - 42000000 where id = $1', [replacement.id]);
-  assert.equal((await action(privateReader, 'state')).profile.room, replacement.id);
-  assert.equal((await db.query('select empty_since_ms from public.rooms where id = $1', [replacement.id])).rows[0].empty_since_ms, null);
   await action(privateReader, 'leave');
-  await db.query('update public.rooms set empty_since_ms = public.library_time_ms() - 43201000 where id = $1', [replacement.id]);
-  await settle();
+  await db.query('update public.rooms set expires_ms = public.library_time_ms() - 1 where id = $1', [replacement.id]);
+  assert.equal((await action(privateReader, 'join', { room: replacement.id })).error, 'inviteRequired');
   assert.equal((await action(privateReader, 'state')).profile.ownsPrivateRoom, false);
 
   const [hostDeskUser, receiverDeskUser, separateRoomUser] = [921, 922, 923]
@@ -944,7 +955,7 @@ try {
   assert.equal((await db.query('select id from public.study_demos where id=$1',[next.id])).rows.length, 0);
   assert.equal((await db.query("select has_function_privilege('anon','public.study_demo(text,text,text,text,integer,uuid)','execute') as allowed")).rows[0].allowed, false);
 
-  console.log('Postgres: rooms, activity, RLS, focus, coins, daily quests, chests, profile codes, referrals, friends, study invites, signed-ad settlement, push leases, shop, pets, ranking, account deletion and guest trial transfer passed.');
+  console.log('Postgres: rooms, activity, RLS, focus, coins, daily quests, chests, profile codes, referrals, friends, study invites, signed-ad settlement, push leases, shop, pets, ranking, account deletion, guest trial transfer and private room deadlines passed.');
 } finally {
   await db.close();
 }

@@ -212,22 +212,36 @@ function loadingScreen() {
   </div>`;
 }
 
-function showTour(index, mode = tourMode ?? 'profile') {
+function showTour(index, mode = tourMode ?? 'profile', focus = 'tab') {
   const step = tourSteps[index];
   tourMode = mode;
   tourIndex = index;
-  tourDialog.innerHTML = `<p class="tour-welcome" id="onboarding-title">${t('tourTitle')}</p>
-    <nav class="tour-tabs" aria-label="${t('tourOpen')}">${tourSteps.map((item, n) =>
-      `<button class="secondary" type="button" data-tour="${n}" aria-label="${t(item.title)}" ${n === index ? 'aria-current="step"' : ''}>${n + 1}</button>`).join('')}</nav>
-    <img class="tour-art" src="/tour/${step.image}.webp" alt="${t(step.title)}">
-    <div class="tour-copy"><h2>${t(step.title)}</h2><p>${t(step.body)}</p></div>
-    <div class="tour-actions">
+  const picture = '/tour/' + step.image + '.webp';
+  const wasOpen = tourDialog.open;
+  tourDialog.innerHTML = `<div class="tour-header">
+      <span class="tour-welcome">${t('tourOpen')}</span>
       <button class="secondary" type="button" data-tour="skip">${t('tourSkip')}</button>
+    </div>
+    <nav class="tour-tabs" aria-label="${t('tourOpen')}">${tourSteps.map((item, n) =>
+      `<button class="secondary" type="button" data-tour="${n}" aria-label="${n + 1}. ${t(item.title)}" ${n === index ? 'aria-current="step"' : ''}>${n + 1}</button>`).join('')}</nav>
+    <div class="tour-copy"><h2 id="onboarding-title">${t(step.title)}</h2><p>${t(step.body)}</p></div>
+    <a class="tour-visual" href="${picture}" target="_blank" rel="noopener" aria-label="${t('tourOpenImage')}">
+      <img class="tour-art" src="${picture}" alt="${t(step.title)}">
+      <span aria-hidden="true" class="tour-expand">↗</span>
+    </a>
+    <div class="tour-actions">
       <button class="secondary" type="button" data-tour="back" ${!index ? 'disabled' : ''}>${t('tourPrevious')}</button>
-      <button class="primary" type="button" data-tour="next">${t(index + 1 === tourSteps.length ? 'tourStart' : 'tourNext')}</button>
+      <span aria-hidden="true">${index + 1} / ${tourSteps.length}</span>
+      <button class="primary" type="button" data-tour="next" autofocus>${t(index + 1 === tourSteps.length ? 'tourStart' : 'tourNext')}</button>
     </div>`;
-  if (!tourDialog.open) tourDialog.showModal();
-  else tourDialog.querySelector('[aria-current="step"]').focus({ preventScroll: true });
+  if (!wasOpen) tourDialog.showModal();
+  const strip = tourDialog.querySelector('.tour-tabs');
+  const selected = strip.querySelector('[aria-current="step"]');
+  strip.scrollLeft = selected.offsetLeft - strip.offsetLeft - (strip.clientWidth - selected.offsetWidth) / 2;
+  if (wasOpen) {
+    const control = focus === 'tab' ? selected : tourDialog.querySelector(`[data-tour="${focus}"]:not([disabled])`) ?? selected;
+    control.focus({ preventScroll: true });
+  }
 }
 
 async function finishTour() {
@@ -240,8 +254,8 @@ async function finishTour() {
 tourDialog.addEventListener('click', event => {
   const action = event.target.closest('[data-tour]')?.dataset.tour;
   if (!action || busy) return;
-  if (action === 'next' && tourIndex + 1 < tourSteps.length) showTour(tourIndex + 1);
-  else if (action === 'back') showTour(tourIndex - 1);
+  if (action === 'next' && tourIndex + 1 < tourSteps.length) showTour(tourIndex + 1, tourMode, 'next');
+  else if (action === 'back') showTour(tourIndex - 1, tourMode, 'back');
   else if (/^\d+$/.test(action)) showTour(Number(action));
   else void finishTour();
 });
@@ -433,9 +447,11 @@ async function request(action, payload) {
     const result = await invokeLibrary(client, action, { ...payload, ...roomConnection.payload(), foreground: !document.hidden });
     if (version !== revision || (data && result.now < data.now)) return false;
     const lostRoom = disconnected && data?.profile?.room && !result.profile?.room && data.session?.disconnectDeadline;
+    const oldRoom = data?.rooms.find(room => room.id === data.profile?.room);
+    const timedRoomClosed = oldRoom?.expiresAt && result.now >= oldRoom.expiresAt && !result.profile?.room;
     const completed = data?.session?.state !== result.session?.state && result.session?.state === 'completed';
     if (completed) toast(t('reward'));
-    if (!lostRoom && data?.session?.state === 'active' && result.session?.state === 'invalid') toast(t('invalid'));
+    if (!timedRoomClosed && !lostRoom && data?.session?.state === 'active' && result.session?.state === 'invalid') toast(t('invalid'));
     const missedFriends = data?.profile?.doNotDisturb && !result.profile?.doNotDisturb
       ? result.friends?.filter(friend => friend.status === 'incoming').length : 0;
     if (result.profile?.doNotDisturb && !data?.profile?.doNotDisturb) clearReactionNotice();
@@ -443,6 +459,11 @@ async function request(action, payload) {
     if (lostRoom) {
       connectionExpired = true;
       location.hash = 'rooms';
+    }
+    if (timedRoomClosed) {
+      connectionExpired = false;
+      location.hash = 'rooms';
+      toast(t('privateRoomExpired'));
     }
     if (result.profile?.room) connectionExpired = false;
     data = result;
@@ -720,7 +741,8 @@ function roomView(room) {
   const hasFriends = data.friends?.some(friend => friend.status === 'accepted');
   return `<div class="room-layout">
     <div class="heading compact-heading room-heading"><div class="room-identity"><h1 id="room-title">${name}</h1>
-      ${room?.private ? `<span class="private-badge">${t('privateBadge')}</span>` : ''}</div>
+      ${room?.private ? `<span class="private-badge">${t('privateBadge')}</span>` : ''}
+      ${room?.expiresAt ? `<small class="room-expiry">${t('privateRoomEndsAt')} · <time datetime="${new Date(room.expiresAt).toISOString()}">${new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(room.expiresAt)}</time></small>` : ''}</div>
       ${room && hasFriends && !running() ? `<button class="secondary invite-friends" data-action="invite-dialog"
         aria-label="${t('friendInvite')}" title="${t('friendInvite')}"><span aria-hidden="true">♙+</span><b>${t('friendInvite')}</b></button>` : ''}
     </div>
@@ -770,6 +792,7 @@ function roomsView() {
         ${data.profile.ownsPrivateRoom ? `<p class="room-owned" role="status">${t('privateRoomOwned')}</p>`
           : `<form class="stacked" id="create-room-form"><label class="field">${t('roomName')}
             <input name="roomName" value="${escape(draft.roomName)}" required minlength="2" maxlength="32"></label>
+            <p class="room-expiry-help">${t('privateRoomExpiryHelp')}</p>
             <button class="primary">${t('createRoom')}</button></form>`}
       </section>
       <section>
@@ -1113,7 +1136,7 @@ function render() {
   updatePageMetadata(view);
   loadPage(view, room);
   const signature = JSON.stringify([view, view === 'room'
-    ? [room?.id, onBreak(), room?.minutes, room?.invite, room?.private, room?.owned, data.profile?.status, data.session, durationChoice, data.inventory, data.todayPlans,
+    ? [room?.id, onBreak(), room?.minutes, room?.invite, room?.private, room?.owned, room?.expiresAt, data.profile?.status, data.session, durationChoice, data.inventory, data.todayPlans,
       data.friends?.some(friend => friend.status === 'accepted'), data.profile?.doNotDisturb]
     : view === 'rooms' ? [data.rooms, data.studyInvites, data.profile.ownsPrivateRoom] : view === 'ranking' ? ranking : view === 'games' ? null
       : [data.profile, data.inventory, data.items, data.dailyQuests, data.weeklyQuests, data.boxes,
@@ -1264,11 +1287,10 @@ async function closeSession(accountDeleted = false) {
 async function leaveRoom() {
   if (busy || !data?.profile?.room || running()) return;
   const room = data.rooms.find(item => item.id === data.profile.room);
-  const warning = room?.owned && room.private && room.count <= 1 ? `\n\n${t('privateRoomClosing')}` : '';
+  const warning = room?.owned && room.expiresAt ? `\n\n${t('privateRoomClosing')}` : '';
   if (!await accountDialogs.confirm(t('leave'), t('leaveConfirm') + warning)) return;
   if (await request('leave')) {
     location.hash = 'rooms';
-    if (data.privateRoomClosing) toast(t('privateRoomClosing'));
   }
 }
 

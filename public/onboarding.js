@@ -1,6 +1,7 @@
 export const tourSteps = [
-  ['rooms', 'Rooms'], ['private', 'Private'], ['focus', 'Focus'], ['avatar', 'Inventory'], ['friends', 'Friends'],
-  ['planner', 'Calendar'], ['shop', 'Shop'], ['quests', 'Quests'], ['games', 'Games'], ['account', 'Account'],
+  ['rooms', 'Rooms'], ['private', 'Private'], ['focus', 'Focus'], ['verify', 'Verify'], ['break', 'Break'],
+  ['coins', 'Coins'], ['quests', 'Quests'], ['goal', 'Goal'], ['shop', 'Shop'], ['chests', 'Chests'],
+  ['avatar', 'Inventory'], ['friends', 'Friends'], ['planner', 'Calendar'], ['games', 'Games'], ['account', 'Account'],
 ].map(([image, name]) => ({ image, title: 'tour' + name, body: 'tour' + name + 'Body' }));
 
 export const loadingPixels = Array.from({ length: 16 }, (_, index) => ({

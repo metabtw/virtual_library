@@ -213,6 +213,8 @@ export function Library({ id }: { id: string }) {
   const lastServerTime = useRef(0);
   const returnedBreak = useRef<string | undefined>(undefined);
   const lostConnection = useRef(false);
+  const [roomExpired, setRoomExpired] = useState(false);
+  const previousRoomDeadline = useRef<number | undefined>(undefined);
   const [connectionExpired, setConnectionExpired] = useState(false);
   const [pendingPauseAt, setPendingPauseAt] = useState<number>();
   const [peer, setPeer] = useState<string>();
@@ -282,6 +284,21 @@ export function Library({ id }: { id: string }) {
   const disconnectDeadline = snapshot?.session?.disconnectDeadline;
   const expiredLocally = networkOffline && disconnectDeadline != null && observed >= disconnectDeadline;
   const localRoom = expiredLocally ? null : snapshot?.profile?.room;
+  useEffect(() => {
+    if (networkOffline || !snapshot) return;
+    const prior = previousRoomDeadline.current;
+    previousRoomDeadline.current = snapshot.rooms.find(entry => entry.id === localRoom)?.expiresAt;
+    if (localRoom) setRoomExpired(false);
+    else if (prior && snapshot.now >= prior) {
+      setRoomExpired(true);
+      setPage('rooms');
+    }
+  }, [localRoom, networkOffline, setPage, snapshot]);
+  useEffect(() => {
+    if (!roomExpired) return;
+    const timer = setTimeout(() => setRoomExpired(false), 6000);
+    return () => clearTimeout(timer);
+  }, [roomExpired]);
   const focus = !expiredLocally && snapshot?.session?.state === 'active' ? snapshot.session : null;
   const running = focus?.paused_at === null;
   const autoBreak = snapshot?.autoBreak;
@@ -418,9 +435,9 @@ export function Library({ id }: { id: string }) {
         clearTimeout(reactionTimeout.current);
         reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
       }
-      if (action.name === 'inviteFriend' || (action.name === 'leave' && data.privateRoomClosing)) {
+      if (action.name === 'inviteFriend') {
         incomingReaction.current = false;
-        setReactionMessage(action.name === 'leave' ? t.privateRoomClosing : t.studyInviteSent);
+        setReactionMessage(t.studyInviteSent);
         clearTimeout(reactionTimeout.current);
         reactionTimeout.current = setTimeout(() => setReactionMessage(''), 5000);
       }
@@ -513,7 +530,7 @@ export function Library({ id }: { id: string }) {
     if (running && action.name === 'status' && action.payload?.status === 'break') setPendingPauseAt(observed);
     mutation.mutate(action);
   }
-  const leaveCopy = room?.owned && room.private && room.count <= 1 ? t.leaveConfirm + '\n\n' + t.privateRoomClosing : t.leaveConfirm;
+  const leaveCopy = room?.owned && room.expiresAt ? t.leaveConfirm + '\n\n' + t.privateRoomClosing : t.leaveConfirm;
   function requestLeave() {
     if (localRoom && !pending && !running) setAccountPanel('leave');
   }
@@ -549,6 +566,7 @@ export function Library({ id }: { id: string }) {
         {connectionExpired || expiredLocally ? t.connectionExpired : disconnectDeadline == null ? t.reconnecting
           : t.networkUnavailable + ' ' + t.reconnectIn + ' · ' + formatTime(disconnectDeadline - observed)}
       </Text>}
+    {roomExpired && <Text accessibilityLiveRegion="polite" style={[ui.card, ui.accent]}>{t.privateRoomExpired}</Text>}
     {reactionMessage !== '' && <Text accessibilityLiveRegion="polite" style={[ui.card, ui.accent, { margin: 8 }]}>
       {reactionMessage}
     </Text>}
@@ -583,6 +601,8 @@ export function Library({ id }: { id: string }) {
             <Text style={ui.small}>{room.count}/{room.capacity}</Text>
             {!running && !!accepted.length && <Button muted accessibilityLabel={t.friendInvite} onPress={() => setInviteOpen(true)}>♙+</Button>}
           </View>}
+          {!!room?.expiresAt && <Text style={ui.small}>{t.privateRoomEndsAt} · {new Intl.DateTimeFormat(locale,
+            { dateStyle: 'medium', timeStyle: 'short' }).format(room.expiresAt)}</Text>}
           {room && <RoomGoal progress={roomProgressMinutes(snapshot.roomGoal, observed)} t={t} />}
           <RoomScene room={localRoom ?? null} members={roomMembers} now={snapshot.now}
             aurora={aurora} theme={theme} t={t} onDeskPress={running ? undefined : member => {

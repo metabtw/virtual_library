@@ -30,6 +30,7 @@ export function Directory({ rooms, current, pending, ownsPrivateRoom, coins, loc
             <Text style={ui.heading}>{t.openPrivateRoom}</Text>
             {ownsPrivateRoom ? <Text style={ui.small}>{t.privateRoomOwned}</Text> : <>
               <Field label={t.roomName} value={name} onChangeText={setName} maxLength={32} />
+              <Text style={ui.small}>{t.privateRoomExpiryHelp}</Text>
               <Button disabled={pending || coins < 10 || name.trim().length < 2} onPress={() => create(name.trim())}>{t.createRoom}</Button>
             </>}
           </View>

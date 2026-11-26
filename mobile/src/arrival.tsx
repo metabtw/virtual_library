@@ -10,6 +10,11 @@ const tourImages = {
   rooms: require('../../public/tour/rooms.webp'),
   private: require('../../public/tour/private.webp'),
   focus: require('../../public/tour/focus.webp'),
+  verify: require('../../public/tour/verify.webp'),
+  break: require('../../public/tour/break.webp'),
+  coins: require('../../public/tour/coins.webp'),
+  goal: require('../../public/tour/goal.webp'),
+  chests: require('../../public/tour/chests.webp'),
   avatar: require('../../public/tour/avatar.webp'),
   friends: require('../../public/tour/friends.webp'),
   planner: require('../../public/tour/planner.webp'),
@@ -70,34 +75,58 @@ export function PageLoading({ page, blocked, assets, label }: {
 
 export function TourSheet({ t, finish, pending, error }: { t: Translation; finish: () => void; pending: boolean; error: string }) {
   const [index, setIndex] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  const tabStrip = useRef<ScrollView>(null);
+  const [stripWidth, setStripWidth] = useState(0);
+  useEffect(() => {
+    if (stripWidth) tabStrip.current?.scrollTo({ x: Math.max(0, index * 43 - (stripWidth - 38) / 2), animated: false });
+  }, [expanded, index, stripWidth]);
   const item = tourSteps[index];
+  const source = tourImages[item.image];
+  const asset = Image.resolveAssetSource(source);
+  const aspect = asset?.width && asset.height ? asset.width / asset.height : 1.55;
   const last = index === tourSteps.length - 1;
-  return <Modal visible transparent onRequestClose={() => { if (!pending) finish(); }} accessibilityViewIsModal>
+  return <Modal visible transparent onRequestClose={() => { if (expanded) setExpanded(false); else if (!pending) finish(); }} accessibilityViewIsModal>
     <View style={ui.modal}>
-      <View style={[ui.card, styles.sheet]}>
+      {expanded ? <View style={[ui.card, styles.sheet, styles.lightbox]}>
+        <Button compact muted onPress={() => setExpanded(false)}>{t.tourPrevious}</Button>
+        <ScrollView>
+          <ScrollView horizontal>
+            <Image source={source} style={{ width: 720, height: 720 / aspect }} resizeMode="contain" accessibilityLabel={t[item.title]} />
+          </ScrollView>
+        </ScrollView>
+      </View> : <View style={[ui.card, styles.sheet]}>
         <ScrollView contentContainerStyle={styles.tourContent}>
-          <Text style={ui.accent}>{t.tourTitle}</Text>
-          <View style={styles.tabs}>
+          <View style={styles.tourHeader}>
+            <Text style={ui.accent}>{t.tourOpen}</Text>
+            <Button compact muted disabled={pending} onPress={finish}>{t.tourSkip}</Button>
+          </View>
+          <ScrollView ref={tabStrip} horizontal contentContainerStyle={styles.tabs}
+            onLayout={event => setStripWidth(event.nativeEvent.layout.width)}>
             {tourSteps.map((step, n) => <Pressable key={step.image} accessibilityRole="button"
               accessibilityLabel={t[step.title]} accessibilityState={{ selected: n === index, disabled: pending }}
               style={[styles.tab, n === index && styles.tabActive]} disabled={pending} onPress={() => setIndex(n)}>
               <Text style={n === index ? styles.tabTextActive : ui.small}>{n + 1}</Text>
             </Pressable>)}
-          </View>
-          <Image source={tourImages[item.image]} style={styles.tourArt} resizeMode="contain" accessibilityLabel={t[item.title]} />
+          </ScrollView>
           <Text accessibilityRole="header" style={ui.heading}>{t[item.title]}</Text>
           <Text style={styles.copy}>{t[item.body]}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={t.tourOpenImage} onPress={() => setExpanded(true)}>
+            <Image source={source} style={[styles.tourArt, { aspectRatio: Math.max(1.18, Math.min(2.4, aspect)) }]}
+              resizeMode="contain" accessible={false} />
+            <Text accessible={false} style={styles.expandIcon}>↗</Text>
+          </Pressable>
         </ScrollView>
         {error !== '' && <Text accessibilityLiveRegion="polite" style={ui.warning}>{error}</Text>}
         <View style={ui.row}>
-          <View style={styles.button}><Button compact muted disabled={pending} onPress={finish}>{t.tourSkip}</Button></View>
           <View style={styles.button}><Button compact muted disabled={pending || !index}
             onPress={() => setIndex(index - 1)}>{t.tourPrevious}</Button></View>
+          <Text style={ui.small}>{index + 1} / {tourSteps.length}</Text>
           <View style={styles.button}><Button compact disabled={pending} onPress={last ? finish : () => setIndex(index + 1)}>
             {last ? t.tourStart : t.tourNext}
           </Button></View>
         </View>
-      </View>
+      </View>}
     </View>
   </Modal>;
 }
@@ -108,10 +137,14 @@ const styles = StyleSheet.create({
   logo: { width: 126, height: 126 },
   pixel: { position: 'absolute', width: 8, height: 8, backgroundColor: '#ffbd7e' },
   sheet: { width: '100%', maxWidth: 620, maxHeight: '90%' },
-  tourContent: { gap: 10 },
-  tourArt: { height: 235, width: '100%', backgroundColor: '#201923', borderRadius: 12 },
-  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  tab: { minWidth: 29, minHeight: 36, alignItems: 'center', justifyContent: 'center',
+  tourContent: { gap: 10, paddingBottom: 10 },
+  tourHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  tourArt: { width: '100%', backgroundColor: '#201923', borderRadius: 12 },
+  lightbox: { gap: 10 },
+  expandIcon: { position: 'absolute', bottom: 6, right: 6, color: '#fff0dc',
+    backgroundColor: '#241b26', paddingHorizontal: 6, borderRadius: 5 },
+  tabs: { gap: 5, paddingBottom: 5 },
+  tab: { width: 38, minHeight: 38, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: '#75546e', borderRadius: 6 },
   tabActive: { backgroundColor: '#ffbd7e', borderColor: '#ffbd7e' },
   tabTextActive: { color: '#251923', fontWeight: '800' },

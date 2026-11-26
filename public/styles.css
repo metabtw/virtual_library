@@ -963,18 +963,23 @@ dialog {max-height:calc(100dvh - 24px);overflow:auto}
 .action-sheet .stacked > p {margin:0;min-height:1.3em}
 #deletion-confirmation input {letter-spacing:.22em;text-align:center;font-size:1.2rem}
 
-.tour-sheet {width:min(48rem,calc(100% - 24px));max-height:92dvh;overflow:auto}
-.tour-welcome {margin:0 0 10px;color:var(--accent);font-weight:700}
-.tour-tabs {display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:4px;margin-bottom:10px}
-.tour-tabs button {padding:0;min-height:36px}
+.tour-sheet {width:min(48rem,calc(100% - 24px));max-height:92dvh;overflow:auto;padding:clamp(12px,2.4vw,22px)}
+.tour-header {display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.tour-welcome {color:var(--accent);font-weight:800}
+.tour-tabs {display:flex;gap:5px;overflow-x:auto;scrollbar-width:thin;padding:2px 2px 6px}
+.tour-tabs button {flex:1 0 36px;padding:0;min-height:36px}
 .tour-tabs button[aria-current=step] {background:var(--accent);color:#251923;border-color:var(--accent);font-weight:800}
-.tour-art {display:block;width:100%;height:clamp(150px,42dvh,390px);object-fit:contain;border-radius:12px;background:#201923}
-.tour-copy {padding:12px 0 0}
-.tour-copy h2 {font-size:1.2rem}
-.tour-copy p {margin:8px 0 14px}
-.tour-actions {display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:center;text-align:center}
-.tour-actions button {min-height:44px;white-space:normal}
-
+.tour-copy {margin:12px 0}
+.tour-copy h2 {font-size:clamp(1.15rem,3.7vw,1.6rem);margin:0}
+.tour-copy p {margin:5px 0 0;line-height:1.45}
+.tour-visual {position:relative;display:grid;place-items:center;overflow:hidden;border-radius:12px;
+  background:#1d171f;border:1px solid #553d52}
+.tour-art {display:block;max-width:100%;height:auto;max-height:clamp(164px,39dvh,385px);object-fit:contain}
+.tour-expand {position:absolute;right:8px;bottom:8px;padding:3px 8px;border:1px solid #765860;border-radius:7px;
+  background:#211924;color:var(--ink);font-weight:800}
+.tour-actions {display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:12px;align-items:center;text-align:center;margin-top:12px}
+.tour-actions button {min-height:42px;white-space:normal}
+.tour-actions span {color:var(--muted);font-variant-numeric:tabular-nums}
 
 .startup-screen {position:fixed;inset:0;z-index:30;display:grid;place-content:center;justify-items:center;
   gap:20px;background:radial-gradient(ellipse at center,#342438,#18121e 65%);text-align:center}
@@ -1113,4 +1118,6 @@ dialog {max-height:calc(100dvh - 24px);overflow:auto}
   .demo-scene {min-height:150px}
   .demo-scene img {width:49px}
 }
-@media(max-width:420px) {.tour-tabs {grid-template-columns:repeat(5,minmax(0,1fr))}}
+
+.room-expiry {color:var(--muted);font-size:.8rem}
+.room-expiry-help {margin:0;color:var(--muted);line-height:1.5}
