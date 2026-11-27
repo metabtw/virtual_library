@@ -61,3 +61,6 @@ export const startDemo = () => invoke<DemoState & DemoAccess>('demoStart');
 export const demoEvent = (access: DemoAccess, operation: string, duration: number) =>
   invoke<DemoState>('demoEvent', { ...access, operation, duration });
 export const claimDemo = (access: DemoAccess) => invoke<{ minutes: number }>('demoClaim', access);
+
+export const studyTogether = <T>(payload?: object) => invoke<T>('studyTogether', payload);
+export const meetPreview = (id: string) => invoke<import('../../public/study-together').Meet>('studyMeetPreview', { id });

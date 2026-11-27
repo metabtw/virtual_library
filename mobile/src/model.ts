@@ -41,6 +41,7 @@ export type Answer = 'accept' | 'reject';
 
 export type Snapshot = {
   now: number;
+  meetingMinutes?: number;
   profile: Profile | null;
   rooms: Room[];
   members: Member[];
@@ -66,7 +67,7 @@ export type Snapshot = {
   adPlatforms?: Partial<Record<'web' | 'android' | 'ios', boolean>>;
 };
 
-export type StudySummary = { date: string; minutes: number; streak: number };
+export type StudySummary = { date: string; minutes: number; streak: number; week?: import('../../public/study-together').WeekSummary };
 export type Leaderboard = {
   starts: string; ends: string; visible: boolean;
   own: { rank: number; minutes: number } | null;
@@ -77,6 +78,7 @@ export type Command = {
   profile: Avatar & { name: string; referral?: string };
   finishTour: undefined;
   join: { room: string };
+  joinStudyMeet: { id: string };
   leave: undefined;
   status: { status: DeskStatus };
   start: { duration: number; breakMinutes: number; planId?: string };

@@ -43,6 +43,8 @@ export const webFiles = new Map([
   ['/site-pages.js', ['public/site-pages.js', script]],
   ['/web-analytics.js', ['public/web-analytics.js', script]],
   ['/study-planner.js', ['public/study-planner.js', script]],
+  ['/study-together.js', ['public/study-together.js', script]],
+  ['/web-together.js', ['public/web-together.js', script]],
   ['/web-planner.js', ['public/web-planner.js', script]],
   ['/page-loading.js', ['public/page-loading.js', script]],
   ['/app.js', ['public/app.js', script]],

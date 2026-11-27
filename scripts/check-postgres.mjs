@@ -955,7 +955,61 @@ try {
   assert.equal((await db.query('select id from public.study_demos where id=$1',[next.id])).rows.length, 0);
   assert.equal((await db.query("select has_function_privilege('anon','public.study_demo(text,text,text,text,integer,uuid)','execute') as allowed")).rows[0].allowed, false);
 
-  console.log('Postgres: rooms, activity, RLS, focus, coins, daily quests, chests, profile codes, referrals, friends, study invites, signed-ad settlement, push leases, shop, pets, ranking, account deletion, guest trial transfer and private room deadlines passed.');
+  const host = '00000000-0000-4000-a000-000000000950';
+  const studyGuest = '00000000-0000-4000-a000-000000000951';
+  for (const user of [host,studyGuest]) {
+    await db.query('insert into auth.users values($1)',[user]);
+    await action(user,'profile',{...basic,name: user === host ? 'Plan sahibi' : 'Ortak okur'});
+  }
+  const social = (user,op,payload = {}) => action(user,'studyTogether',{...payload,op});
+  const soon = Date.now() + 600000;
+  const meet = await social(host,'createMeet',{ topic:'Geometri', startsAt:soon, minutes:25, room:'mathematics' });
+  assert.ok(meet.id,JSON.stringify(meet));
+  assert.equal(meet.owner,true);
+  assert.equal(meet.joined,true);
+  const preview = (await db.query('select public.study_meet_preview($1) as result',[meet.id])).rows[0].result;
+  assert.equal(preview.topic,'Geometri');
+  assert.equal(preview.joined,false);
+  assert.equal((await social(studyGuest,'read')).meets.length,0);
+  assert.equal((await social(studyGuest,'cancelMeet',{id:meet.id})).error,'meetUnavailable');
+  assert.equal((await action(studyGuest,'joinStudyMeet',{id:meet.id})).error,'meetUnavailable');
+  assert.equal((await social(studyGuest,'rsvp',{id:meet.id,remind:true})).remind,true);
+  assert.equal((await social(studyGuest,'rsvp',{id:meet.id,remind:true})).remind,true);
+  const reminders = await db.query("select id from public.study_plans where user_id=$1 and topic='Geometri'",[studyGuest]);
+  assert.equal(reminders.rows.length,1);
+  assert.equal((await action(studyGuest,'joinStudyMeet',{id:meet.id})).error,'meetTooEarly');
+  await db.query('update public.study_meets set starts_ms=public.library_time_ms()+30000 where id=$1',[meet.id]);
+  assert.equal((await action(studyGuest,'joinStudyMeet',{id:meet.id})).profile.room, 'mathematics');
+  assert.equal((await social(host,'cancelMeet',{id:meet.id})).ok,true);
+  assert.equal((await db.query('select id from public.study_plans where id=$1',[reminders.rows[0].id])).rows.length,0);
+  assert.equal((await social(studyGuest,'meet',{id:meet.id})).error,'meetUnavailable');
+
+  const hostCode = (await action(host,'state')).profile.readerCode;
+  const goalRelation = (await action(studyGuest,'addFriend',{code:hostCode})).friends[0].id;
+  await action(host,'answerFriend',{id:goalRelation,answer:'accept'});
+  assert.equal((await social(host,'createGoal',{id:goalRelation,target:1,avatar:true})).ok,true);
+  const goal = (await social(studyGuest,'read')).goals[0];
+  assert.equal(goal.invite,true);
+  assert.equal((await social(host,'acceptGoal',{id:goal.id})).error,'pairInvalid');
+  assert.equal((await social(studyGuest,'acceptGoal',{id:goal.id,avatar:false})).ok,true);
+  assert.equal((await social(studyGuest,'createGoal',{id:goalRelation,target:1})).error,'pairExists');
+  const start = Math.max((await db.query("select (extract(epoch from (date_trunc('week',clock_timestamp() at time zone 'Europe/Istanbul') at time zone 'Europe/Istanbul'))*1000)::bigint as week")).rows[0].week,Date.now()-600000);
+  await db.query('update public.study_pair_goals set accepted_ms=$2 where id=$1',[goal.id,start-1000]);
+  await db.query("insert into public.sessions(user_id,start_ms,end_ms,state,room_id,study_topic) values ($1,$3,$3::bigint+300000,'completed','mathematics','Üçgenler'),($2,$3,$3::bigint+300000,'completed','history','Tarih')",[host,studyGuest,start]);
+  assert.equal((await social(studyGuest,'read')).goals[0].progress,0);
+  await db.query("update public.sessions set room_id='mathematics' where user_id=$1",[studyGuest]);
+  const completedGoal = (await social(host,'read')).goals[0];
+  assert.equal(completedGoal.progress,1);
+  assert.equal(completedGoal.partnerAvatar,null);
+  await social(studyGuest,'shareGoalAvatar',{id:goal.id,avatar:true});
+  assert.ok((await social(host,'read')).goals[0].partnerAvatar);
+  assert.equal((await social(legacy,'read')).goals.length,0);
+  assert.equal((await social(legacy,'leaveGoal',{id:goal.id})).error,'pairInvalid');
+  const summary = await action(host,'studySummary');
+  assert.equal(summary.week.minutes,5);
+  assert.deepEqual(summary.week.topics,['Üçgenler']);
+
+  console.log('Postgres: rooms, activity, RLS, focus, coins, daily quests, chests, profile codes, referrals, friends, study invites, signed-ad settlement, push leases, shop, pets, ranking, account deletion, guest trial transfer, private room deadlines, appointments, shared goals and weekly recaps passed.');
 } finally {
   await db.close();
 }

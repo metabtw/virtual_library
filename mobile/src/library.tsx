@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, AppState, BackHandler, Image, ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text,
   useWindowDimensions, View } from 'react-native';
 import { avatarOptions, avatarPresets, defaultAvatar, hairStyles, pickAvatarStyle } from '../../public/avatar-art';
+import type { PairGoal } from '../../public/study-together';
+import { TogetherSheet } from './together';
 import { demoError } from '../../public/demo';
 import { focusRemaining, markServerTime, serverTimeAt, verificationRemaining } from '../../public/focus-clock';
 import { defaultRoomTheme } from '../../public/room-art';
@@ -197,7 +199,7 @@ function Period({ focus, remaining, breakRemaining, pending, onAction, t, canSta
   </View>;
 }
 
-export function Library({ id }: { id: string }) {
+export function Library({ id, invitation }: { id: string; invitation?: string }) {
   const { locale, setLocale, page, setPage, alerts, setAlerts, usage, setUsage, theme, setTheme } = usePreferences();
   const t = words[locale];
   useEffect(() => { setPage('rooms'); }, [id, setPage]);
@@ -220,6 +222,13 @@ export function Library({ id }: { id: string }) {
   const [peer, setPeer] = useState<string>();
   const [rankingOpen, setRankingOpen] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
+  const [pairCard, setPairCard] = useState<PairGoal>();
+  const [togetherOpen, setTogetherOpen] = useState(false);
+  const [togetherInvite, setTogetherInvite] = useState<string>();
+  useEffect(() => {
+    if (invitation) { setTogetherInvite(invitation); setTogetherOpen(true); }
+  }, [invitation]);
+  function openTogether() { setTogetherInvite(undefined); setTogetherOpen(true); }
   const [accountPanel, setAccountPanel] = useState<AccountPanel | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [reactionMessage, setReactionMessage] = useState('');
@@ -416,6 +425,15 @@ export function Library({ id }: { id: string }) {
         setEditing(false);
         if (data.profile?.tourPending) setPage('rooms');
       }
+      if (action.name === 'joinStudyMeet') {
+        const preferences = usePreferences.getState();
+        preferences.setDurationChoice('custom');
+        if (data.meetingMinutes) preferences.setDuration(String(data.meetingMinutes));
+        setTogetherOpen(false);
+        setTogetherInvite(undefined);
+        setPage('room');
+        trackUsage('room_joined');
+      }
       if (['join', 'joinCode', 'createRoom'].includes(action.name)) { setPage('room'); trackUsage('room_joined'); }
       if (action.name === 'answerStudyInvite' && data.joinedInvite) { setPage('room'); trackUsage('room_joined'); }
       if (action.name === 'start') trackUsage('focus_started');
@@ -587,6 +605,7 @@ export function Library({ id }: { id: string }) {
         effectivePage === 'rooms' ? <>
           <View style={ui.row}><Text style={ui.heading}>{t.rooms}</Text>
             <View style={{ flexShrink: 1 }}><Button muted onPress={() => setRankingOpen(true)}>{t.leaderboard}</Button></View></View>
+          <Button onPress={openTogether}>{t.together}</Button>
           {invitations}
           <Directory rooms={snapshot.rooms} current={profile.room} pending={pending} ownsPrivateRoom={!!profile.ownsPrivateRoom}
           coins={profile.coins} locale={locale} t={t}
@@ -647,6 +666,7 @@ export function Library({ id }: { id: string }) {
               <ProfileOverview profile={profile} accountId={id} equipment={equipped} pending={pending} t={t} quietToggle={quietToggle}
                 onEdit={() => setEditing(true)} onLeave={requestLeave} />}
             <View style={ui.card}><Disclosure title={t.plannerDisclosure}>
+              <Button compact muted onPress={openTogether}>{t.meetings}</Button>
               <StudyPlanner id={id} locale={locale} t={t} />
             </Disclosure></View>
             <FocusQuests daily={snapshot.dailyQuests} weekly={snapshot.weeklyQuests} t={t} />
@@ -709,12 +729,22 @@ export function Library({ id }: { id: string }) {
       ]} />
     {rankingOpen && !running && !verify && <LeaderboardModal user={id} t={t} close={() => setRankingOpen(false)}
       pending={pending} changeVisibility={visible => act({ name: 'rankingVisibility', payload: { visible } })} />}
-    {cardOpen && profile && !running && !verify && <StudyCardModal user={id} profile={profile}
-      equipment={equipped} close={() => setCardOpen(false)} t={t} />}
+    {togetherOpen && profile && !running && !verify && <TogetherSheet user={id} locale={locale} t={t} initial={togetherInvite}
+      close={() => setTogetherOpen(false)}
+      join={async meet => { if (!pending) await mutation.mutateAsync({ name:'joinStudyMeet',payload:{id:meet.id} }); }}
+      changed={remind => {
+        if (remind && !alerts) void allowReminders().then(setAlerts).catch(() => {});
+        void queryClient.invalidateQueries({ queryKey: ['studyPlanner',id] });
+        void queryClient.invalidateQueries({ queryKey: ['planner-reminders',id] });
+        void queryClient.invalidateQueries({ queryKey: key });
+      }}
+      pairCard={goal => { setTogetherOpen(false); setPairCard(goal); setCardOpen(true); }} />}
+    {cardOpen && profile && !running && !verify && <StudyCardModal user={id} profile={profile} partner={pairCard}
+      equipment={equipped} close={() => { setCardOpen(false); setPairCard(undefined); }} t={t} />}
     {accountPanel && !running && <AccountSheet panel={accountPanel} change={setAccountPanel} confirm={confirmAccount}
       deleted={() => signOut(true)} leaveCopy={leaveCopy} inRoom={!!localRoom} locale={locale} t={t} />}
     {demoNotice !== '' && <Text accessibilityLiveRegion="polite" style={[ui.card, ui.accent]}>{demoNotice}</Text>}
-    {(profile?.tourPending || previewTour) && !accountPanel && !running && !verify && <TourSheet t={t} pending={pending} error={actionError}
+    {(profile?.tourPending || previewTour) && !togetherOpen && !accountPanel && !running && !verify && <TourSheet t={t} pending={pending} error={actionError}
       finish={() => { if (previewTour) setPreviewTour(false); else act({ name: 'finishTour' }); }} />}
     <Modal visible={inviteOpen && !!room && !running && !verify} transparent onRequestClose={() => setInviteOpen(false)} accessibilityViewIsModal>
       <View style={ui.modal}><View style={[ui.card, { width: '100%', maxWidth: 450, maxHeight: '80%' }]}>

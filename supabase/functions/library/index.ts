@@ -14,7 +14,7 @@ const auth = createClient(url, anonKey, { auth: { persistSession: false, autoRef
 const actions = new Set([
   'state', 'profile', 'join', 'leave', 'status', 'start', 'verify', 'buy', 'place',
   'startAccountDeletion', 'deleteAccount', 'finishTour', 'pushRegister', 'pushRemove', 'target', 'createRoom', 'roomVisibility', 'joinCode',
-  'openBox', 'openChest', 'abandon', 'studySummary', 'studyPlanner', 'leaderboard', 'rankingVisibility', 'react',
+  'openBox', 'openChest', 'abandon', 'studySummary', 'studyTogether', 'joinStudyMeet', 'studyPlanner', 'leaderboard', 'rankingVisibility', 'react',
   'addFriend', 'addDeskFriend', 'setDoNotDisturb', 'answerFriend', 'removeFriend', 'inviteFriend', 'answerStudyInvite', 'adStart', 'roomPresence',
 ]);
 
@@ -61,6 +61,12 @@ Deno.serve(async (request) => {
   }
   if (body?.action === 'demoEvent' && ['state', 'start', 'stop', 'verify'].includes(payload.operation))
     return runDemo(payload, payload.operation);
+  if (body?.action === 'studyMeetPreview') {
+    if (typeof payload.id !== 'string' || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(payload.id))
+      return reply({ error: 'meetUnavailable' });
+    const { data, error } = await admin.rpc('study_meet_preview', { meet_id: payload.id });
+    return error ? reply({ error: 'server' }, { status: 500 }) : reply(data);
+  }
   const token = request.headers.get('Authorization')?.match(/^Bearer (.+)$/i)?.[1];
   if (!token) return reply({ error: 'unauthorized' }, { status: 401 });
 

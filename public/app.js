@@ -19,6 +19,7 @@ import { demoError, demoStorageKey, parseDemo } from './demo.js';
 import { preloadImage, waitForPage } from './page-loading.js';
 import { pageMetadata, siteHref, sitePages } from './site-pages.js';
 import { createWebAnalytics } from './web-analytics.js';
+import { readMeetId } from './study-together.js';
 import { inviteWait, splitProfileCode } from './room-social.js';
 
 const client = config && createClient(config.url, config.key, {
@@ -27,11 +28,19 @@ const client = config && createClient(config.url, config.key, {
 let authReady = !client;
 let tourIndex = 0;
 const deletionPage = location.pathname === '/account-deletion';
+const meetingId = () => !deletionPage && location.hash.startsWith('#meet/') ? readMeetId(location.hash) : null;
+if (!location.hash && new URLSearchParams(location.search).has('code') && !deletionPage) {
+  try {
+    const remembered = readMeetId(sessionStorage.getItem('vsc-meet-pending'));
+    if (remembered) history.replaceState(null, '', '#meet/' + remembered);
+  } catch {}
+}
 const content = document.querySelector('#content');
 const pageLoader = document.querySelector('#page-transition');
 let currentView;
 let pageTransition = 0;
 let renderedDemo;
+let renderedTogether;
 let tourMode;
 let demoLogin = false;
 let demoAccess;
@@ -77,6 +86,9 @@ const connectionBanner = document.querySelector('#connection-banner');
 const breakBanner = document.querySelector('#break-banner');
 const cardDialog = document.querySelector('#study-card-dialog');
 let cardUrl;
+let cardFile;
+let cardModel;
+let cardGeneration = 0;
 let renderedGames;
 let planner;
 let plannerLocale;
@@ -97,7 +109,7 @@ const shareCodeDialog = document.querySelector('#share-code-dialog');
 const shareCodeText = document.querySelector('#share-code-text');
 const shareCodeStatus = document.querySelector('#share-code-status');
 const languageToggle = document.querySelector('#language-toggle');
-const labels = { room: 'library', rooms: 'rooms', shop: 'shop', profile: 'profileInventory', ranking: 'leaderboard', games: 'games' };
+const labels = { room: 'library', rooms: 'rooms', shop: 'shop', profile: 'profileInventory', ranking: 'leaderboard', games: 'games', together: 'together', meet: 'meetTitle' };
 const palette = ['#bd7050', '#789078', '#7988ab', '#ad7963'];
 const categories = {
   all: 'catalogAll', wearable: 'catalogClothes', hair: 'catalogHair', desk: 'catalogDesk',
@@ -364,7 +376,10 @@ async function copyText(text) {
 
 async function shareProfileCode(code, label) {
   const title = t('app');
-  const text = `${title} · ${label} ${code}`;
+  await shareText(title, `${title} · ${label} ${code}`);
+}
+
+async function shareText(title, text) {
   if (navigator.share) {
     try { await navigator.share({ title, text }); return; }
     catch (error) { if (error?.name === 'AbortError') return; }
@@ -509,7 +524,7 @@ function reflectSession(next) {
   accessToken = next?.access_token;
   const id = next?.user?.id;
   if (id === userId && lastView !== undefined && authReady) return;
-  if (id && !userId && authReady && !deletionPage) history.replaceState(null, '', '#rooms');
+  if (id && !userId && authReady && !deletionPage && !meetingId()) history.replaceState(null, '', '#rooms');
   authReady = true;
   revision++;
   userId = id;
@@ -572,6 +587,7 @@ function signInView() {
       ${demoLogin && demoAccess ? `<p class="demo-transfer-note" role="status">${t('demoPending')}</p>` : ''}
       <div class="demo-entry"><a class="primary" href="#demo">${t(demoAccess ? 'demoContinue' : 'demoTry')}</a>
       <button class="secondary" data-action="open-tour">${t('tourOpen')}</button></div>`}
+    ${meetingId() ? '<div data-study-together></div>' : ''}
     ${config.google || config.apple ? `<div class="auth-providers">
       ${config.google ? `<button class="secondary" data-action="oauth" data-value="google">${t('google')}</button>` : ''}
       ${config.apple ? `<button class="secondary" data-action="oauth" data-value="apple">${t('apple')}</button>` : ''}
@@ -782,7 +798,7 @@ function roomTool(id, title, contents) {
 }
 
 function roomsView() {
-  return `<div class="heading compact-heading"><h1>${t('rooms')}</h1><a class="secondary" href="#ranking">${t('leaderboard')}</a></div>
+  return `<div class="heading compact-heading"><h1>${t('rooms')}</h1><div class="together-actions"><a class="primary" href="#together">${t('together')}</a><a class="secondary" href="#ranking">${t('leaderboard')}</a></div></div>
   <div class="room-tools">
     <label class="room-search"><span aria-hidden="true">⌕</span>
       <input type="search" id="room-search" placeholder="${t('searchTarget')}" aria-label="${t('searchTarget')}" value="${escape(roomSearch)}"></label>
@@ -927,7 +943,7 @@ function profileView() {
     </dl>
     <div class="profile-hero-actions">${quietModeToggle()}<button class="secondary" data-action="edit">${t('editAvatar')}</button>
     ${profile.room ? `<button class="secondary" data-action="leave">${t('leave')}</button>` : ''}</div></div>`}</section>
-  ${profile ? `${roomTool('planner', t('plannerDisclosure'), '<div data-study-planner></div>')}
+  ${profile ? `${roomTool('planner', t('plannerDisclosure'), `<a class="secondary" href="#together">${t('meetings')}</a><div data-study-planner></div>`)}
     <section class="card study-totals" aria-label="${t('studyTotals')}">
       <div><small>${t('focusToday')}</small><b>${data.dailyQuests?.minutes ?? 0} ${t('minuteUnit')}</b></div>
       <div><small>${t('focusWeek')}</small><b>${data.weeklyQuests?.goals.find(goal => goal.unit === 'minutes')?.progress ?? 0} ${t('minuteUnit')}</b></div>
@@ -1005,6 +1021,8 @@ function paint(signature, html) {
   if (signature === lastView) return;
   renderedDemo?.();
   renderedDemo = undefined;
+  renderedTogether?.();
+  renderedTogether = undefined;
   const active = document.activeElement;
   let restore;
   if (active instanceof HTMLInputElement && content.contains(active)) {
@@ -1071,9 +1089,94 @@ function loadPage(view, room) {
   });
 }
 
+function loadTogether(id, signedIn) {
+  const host = content.querySelector('[data-study-together]');
+  if (!host || renderedTogether || host.dataset.loading === 'true') return;
+  host.dataset.loading = 'true';
+  void import('./web-together.js').then(({ mountTogether }) => {
+    if (!host.isConnected) return;
+    renderedTogether = mountTogether(host, { id, signedIn, t, locale, escape,
+      invoke: (action, payload) => invokeLibrary(client, action, payload),
+      join: async meet => {
+        if (await request('joinStudyMeet', { id: meet.id })) {
+          durationChoice = 'custom';
+          customDuration = String(meet.minutes);
+          location.hash = 'room';
+        }
+      },
+      share: (text) => shareText(t('meetTitle'), text),
+      confirm: (...args) => accountDialogs.confirm(...args),
+      changed: () => { planner?.refresh(); refreshState(); },
+      card: goal => void openStudyCard(goal),
+    });
+  }).catch(() => { if (host.isConnected) host.textContent = t('server'); });
+}
+
+async function openStudyCard(partner) {
+  if (!data?.profile) return;
+  const actor = userId;
+  const profile = { ...data.profile, avatar: dressedAvatar(data.profile.avatar, placed()) };
+  try {
+    const summary = partner ? null : await invokeLibrary(client, 'studySummary');
+    if (actor !== userId || running()) return;
+    cardModel = { summary, partner, profile, mode: 'daily', name: true, minutes: true, streak: true, topics: false };
+    const controls = cardDialog.querySelector('[data-card-options]');
+    cardDialog.querySelector('img').alt = t(partner ? 'pairShare' : 'studyCard');
+    cardDialog.querySelector('h2').textContent = t(partner ? 'pairShare' : 'studyCard');
+    controls.innerHTML = partner ? '' : `<label>${t('studyCardAction')} <select name="mode">
+      <option value="daily">${t('cardDaily')}</option><option value="weekly" ${summary.week ? '' : 'disabled'}>${t('cardWeekly')}</option>
+      </select></label><div class="together-actions">${Object.entries({ name:'cardName',minutes:'cardMinutes',streak:'cardStreak',topics:'cardTopics' })
+      .map(([key,label]) => `<label class="together-check" data-card-field="${key}"><input type="checkbox" name="${key}" ${cardModel[key] ? 'checked' : ''}> ${t(label)}</label>`).join('')}</div>`;
+    if (!cardDialog.open) cardDialog.showModal();
+    await renderStudyCard();
+  } catch { toast(t('downloadFailed')); }
+}
+
+async function renderStudyCard() {
+  if (!cardModel) return;
+  const generation = ++cardGeneration;
+  const { summary, profile, ...options } = cardModel;
+  cardDialog.querySelectorAll('[data-card-field]').forEach(field => {
+    field.hidden = field.dataset.cardField === 'topics' ? options.mode !== 'weekly' : field.dataset.cardField === 'streak' && options.mode === 'weekly';
+  });
+  cardDialog.querySelector('img').removeAttribute('src');
+  cardDialog.querySelector('[data-card-download]').replaceChildren();
+  cardFile = undefined;
+  try {
+    const preview = await createStudyCardPreview(summary, profile, locale, options);
+    if (generation !== cardGeneration || !cardDialog.open) return;
+    if (cardUrl) URL.revokeObjectURL(cardUrl);
+    cardUrl = URL.createObjectURL(preview.blob);
+    cardFile = new File([preview.blob], preview.filename, { type: 'image/png' });
+    cardDialog.querySelector('img').src = cardUrl;
+    const footer = cardDialog.querySelector('[data-card-download]');
+    const download = Object.assign(document.createElement('a'), {
+      className: 'primary', href: cardUrl, download: preview.filename, textContent: t('downloadCard'),
+    });
+    footer.replaceChildren(download);
+    if (navigator.canShare?.({ files: [cardFile] })) {
+      const share = Object.assign(document.createElement('button'), { className: 'secondary', textContent: t('cardShare') });
+      share.onclick = () => { if (cardFile) void navigator.share({ files: [cardFile] }).catch(() => {}); };
+      footer.append(share);
+    }
+  } catch { if (generation === cardGeneration) toast(t('downloadFailed')); }
+}
+
+cardDialog.addEventListener('change', event => {
+  const field = event.target;
+  if (!cardModel || !['mode', 'name', 'minutes', 'streak', 'topics'].includes(field.name)) return;
+  cardModel[field.name] = field.name === 'mode' ? field.value : field.checked;
+  void renderStudyCard();
+});
+
 function render() {
   if (!authReady) { paint('auth-loading', loadingScreen); return; }
-  const page = location.hash.slice(1);
+  const meet = meetingId();
+  try {
+    if (meet) sessionStorage.setItem('vsc-meet-pending', meet);
+    else sessionStorage.removeItem('vsc-meet-pending');
+  } catch {}
+  const page = meet ? 'meet' : location.hash.slice(1);
   const lock = running();
   const sidebar = document.querySelector('.sidebar');
   sidebar.inert = lock || !userId || deletionPage;
@@ -1117,8 +1220,9 @@ function render() {
     const signIn = !userId;
     updatePageMetadata(deletionPage ? 'deletion' : 'home');
     document.querySelector('#location').textContent = t(signIn ? 'signIn' : deletionPage ? 'deletionPage' : 'library');
-    paint(JSON.stringify([signIn, deletionPage, emailSentTo, emailFeedback, Boolean(data), locale, demoLogin]),
+    paint(JSON.stringify([signIn, deletionPage, emailSentTo, emailFeedback, Boolean(data), locale, demoLogin, meet]),
       signIn ? signInView : deletionPage ? deletionView : loadingScreen);
+    if (meet && signIn && client) loadTogether(meet, false);
     updateEmailResend();
     return;
   }
@@ -1135,6 +1239,13 @@ function render() {
   const room = inRoom ? data.rooms.find(item => item.id === data.profile?.room) : undefined;
   updatePageMetadata(view);
   loadPage(view, room);
+  if (view === 'meet' || view === 'together') {
+    roomPreferences.sync(null);
+    paint(JSON.stringify([view, locale, meet]), () => '<div data-study-together></div>');
+    loadTogether(view === 'meet' ? meet : null, true);
+    updateClock();
+    return;
+  }
   const signature = JSON.stringify([view, view === 'room'
     ? [room?.id, onBreak(), room?.minutes, room?.invite, room?.private, room?.owned, room?.expiresAt, data.profile?.status, data.session, durationChoice, data.inventory, data.todayPlans,
       data.friends?.some(friend => friend.status === 'accepted'), data.profile?.doNotDisturb]
@@ -1467,7 +1578,7 @@ document.addEventListener('submit', async event => {
       draft.referral = '';
       referralPrefix = 'DV';
       lastView = undefined;
-      if (!wasEditing) location.hash = 'rooms';
+      if (!wasEditing && !meetingId()) location.hash = 'rooms';
       render();
     }
   } else if (form.id === 'friend-form') {
@@ -1560,24 +1671,7 @@ document.addEventListener('click', async event => {
   if (action === 'ranking-retry') { ranking = undefined; render(); return; }
   if (action === 'study-card') {
     button.disabled = true;
-    const profile = { ...data.profile, avatar: dressedAvatar(data.profile.avatar, placed()) };
-    const actor = userId;
-    try {
-      const summary = await invokeLibrary(client, 'studySummary');
-      const preview = await createStudyCardPreview(summary, profile, locale);
-      if (actor !== userId || running()) return;
-      if (cardUrl) URL.revokeObjectURL(cardUrl);
-      cardUrl = URL.createObjectURL(preview.blob);
-      cardDialog.querySelector('img').src = cardUrl;
-      const download = document.createElement('a');
-      download.className = 'primary';
-      download.href = cardUrl;
-      download.download = preview.filename;
-      download.textContent = t('downloadCard');
-      cardDialog.querySelector('[data-card-download]').replaceChildren(download);
-      if (!cardDialog.open) cardDialog.showModal();
-    } catch { toast(t('downloadFailed')); }
-    finally { button.disabled = false; }
+    try { await openStudyCard(); } finally { button.disabled = false; }
     return;
   }
   if (action === 'select-desk') {
@@ -1630,6 +1724,8 @@ document.addEventListener('click', async event => {
 roomPreferences.attach(document, () => busy || running());
 translateChrome();
 cardDialog.addEventListener('close', () => {
+  cardGeneration++;
+  cardModel = cardFile = undefined;
   if (cardUrl) URL.revokeObjectURL(cardUrl);
   cardDialog.querySelector('img').removeAttribute('src');
   cardDialog.querySelector('[data-card-download]').replaceChildren();

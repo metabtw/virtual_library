@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { AppState, Image, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { emailAuthMessage } from '../../public/library-client';
 import { authCallbackUrl, completeAuthCode, supabase } from './api';
+import { MeetPreview } from './together';
 import { Demo } from './demo';
 import { TourSheet } from './arrival';
 import { Button, Field, ui } from './ui';
@@ -31,7 +32,7 @@ export function PolicyLinks({ locale, t }: { locale: Locale; t: Translation }) {
   </>;
 }
 
-export function Login() {
+export function Login({ invitation }: { invitation?: string } = {}) {
   const locale = usePreferences(s => s.locale);
   const setLocale = usePreferences(s => s.setLocale);
   const t = words[locale];
@@ -104,6 +105,7 @@ export function Login() {
       </View>
       <Button muted onPress={() => setLocale(locale === 'tr' ? 'en' : 'tr')}>{locale === 'tr' ? 'EN' : 'TR'}</Button>
     </View>
+    {invitation && supabase && <MeetPreview id={invitation} locale={locale} t={t} />}
     {!supabase ? <Text style={ui.warning}>{t.missingConfig}</Text> : <View style={ui.card}>
       <Text accessibilityRole="header" style={ui.heading}>{t.signInTitle}</Text>
       {demoTransfer && <Text accessibilityLiveRegion="polite" style={ui.accent}>{t.demoPending}</Text>}

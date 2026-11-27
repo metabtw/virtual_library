@@ -1121,3 +1121,23 @@ dialog {max-height:calc(100dvh - 24px);overflow:auto}
 
 .room-expiry {color:var(--muted);font-size:.8rem}
 .room-expiry-help {margin:0;color:var(--muted);line-height:1.5}
+
+.together-actions {display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.together-actions > :is(button,a) {white-space:normal;text-align:center}
+.together-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.together-grid > section {display:grid;align-content:start;gap:9px}
+.together-grid :is(h2,p) {margin:0}
+.together-entry {display:grid;gap:9px}
+.together-entry h3,.together-entry p {margin:0}
+.together-entry small {color:var(--muted)}
+.together-entry progress {width:100%;accent-color:var(--accent)}
+.together-page summary {cursor:pointer;font-weight:700}
+.together-page form {margin-top:10px}
+.together-page .field select {width:100%}
+.together-check {display:flex;align-items:center;gap:5px;color:var(--muted);font-size:.87rem}
+.together-check input {width:auto;accent-color:var(--accent)}
+.together-check[hidden],.study-card-preview:not([src]) {display:none}
+.together-actions [aria-pressed=true] {border-color:var(--accent);color:var(--accent)}
+[data-card-options] {display:grid;gap:8px;margin-bottom:10px}
+[data-card-download] {display:flex;flex-wrap:wrap;gap:7px}
+@media(max-width:690px) {.together-grid {grid-template-columns:minmax(0,1fr)}}

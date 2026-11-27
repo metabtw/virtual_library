@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import * as Sharing from 'expo-sharing';
 import { useMemo, useRef, useState } from 'react';
-import { Image, ImageBackground, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, ImageBackground, Modal, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { captureRef, releaseCapture } from 'react-native-view-shot';
 import { leaderboard, studySummary } from './api';
 import { avatarAssets } from './asset-art';
@@ -10,7 +10,8 @@ import type { ItemId, Profile } from './model';
 import { avatarPng } from './scene';
 import { message, type Translation } from './strings';
 import { roomThemes } from './themes';
-import { Button, ui } from './ui';
+import type { PairGoal } from '../../public/study-together';
+import { Button, Options, ui } from './ui';
 
 export function LeaderboardModal({ user, close, t, pending, changeVisibility }: {
   user: string; close: () => void; t: Translation; pending: boolean; changeVisibility: (visible: boolean) => void;
@@ -46,11 +47,16 @@ export function LeaderboardModal({ user, close, t, pending, changeVisibility }: 
   </Modal>;
 }
 
-export function StudyCardModal({ user, profile, equipment, close, t }: {
-  user: string; profile: Profile; equipment: ItemId[]; close: () => void; t: Translation;
+export function StudyCardModal({ user, profile, equipment, close, partner, t }: {
+  user: string; profile: Profile; equipment: ItemId[]; close: () => void; partner?: PairGoal; t: Translation;
 }) {
-  const summary = useQuery({ queryKey: ['studySummary', user], queryFn: studySummary, staleTime: 0 });
+  const summary = useQuery({ queryKey: ['studySummary', user], queryFn: studySummary, staleTime: 0, enabled: !partner });
   const avatar = useMemo(() => avatarPng(dressedAvatar(profile.avatar, equipment)), [profile.avatar, equipment]);
+  const friendAvatar = useMemo(() => partner?.partnerAvatar ? avatarPng(partner.partnerAvatar) : undefined, [partner]);
+  const [mode, setMode] = useState<'daily' | 'weekly'>('daily');
+  const [visible, setVisible] = useState({ name: true, minutes: true, streak: true, topics: false });
+  const [friendLoaded, setFriendLoaded] = useState(false);
+  const week = mode === 'weekly' ? summary.data?.week : undefined;
   const card = useRef<View>(null);
   const [avatarLoaded, setAvatarLoaded] = useState(false);
   const [backgroundLoaded, setBackgroundLoaded] = useState(false);
@@ -59,7 +65,7 @@ export function StudyCardModal({ user, profile, equipment, close, t }: {
   const [shareError, setShareError] = useState(false);
 
   async function share() {
-    if (!card.current || !summary.data || sharing) return;
+    if (!card.current || (!summary.data && !partner) || sharing) return;
     setSharing(true);
     setShareError(false);
     let image;
@@ -68,21 +74,30 @@ export function StudyCardModal({ user, profile, equipment, close, t }: {
       image = await captureRef(card, { format: 'png', result: 'tmpfile', width: 720, height: 1280 });
       await Sharing.shareAsync(image, { mimeType: 'image/png', dialogTitle: t.studyCard, UTI: 'public.png' });
     } catch {
-      if (image) releaseCapture(image);
       setShareError(true);
     } finally {
+      if (image) releaseCapture(image);
       setSharing(false);
     }
   }
 
   return <Modal transparent onRequestClose={close} accessibilityViewIsModal>
     <View style={ui.modal}><View style={[ui.card, styles.sheet]}>
-      <Text style={ui.heading}>{t.studyCard}</Text>
-      {summary.isPending ? <Text style={ui.small}>{t.loading}</Text>
-        : summary.isError ? <>
+      <Text style={ui.heading}>{t[partner ? 'pairShare' : 'studyCard']}</Text>
+      {!partner && summary.isPending ? <Text style={ui.small}>{t.loading}</Text>
+        : !partner && summary.isError ? <>
           <Text style={ui.warning}>{message(t, summary.error)}</Text>
           <Button muted onPress={() => void summary.refetch()}>{t.retry}</Button>
         </> : <ScrollView contentContainerStyle={styles.cardScroll}>
+          {!partner && summary.data && <View style={styles.options}>
+            {summary.data.week && <Options label={t.studyCardAction} values={[['daily',t.cardDaily],['weekly',t.cardWeekly]] as const}
+              value={mode} onChange={setMode} />}
+            {(['name','minutes',week ? 'topics' : 'streak'] as const).map(field => {
+              const label = t[({ name:'cardName',minutes:'cardMinutes',topics:'cardTopics',streak:'cardStreak' })[field] as keyof Translation];
+              return <View style={styles.switchRow} key={field}><Text style={ui.small}>{label}</Text>
+                <Switch accessibilityLabel={label} value={visible[field]} onValueChange={value => setVisible(previous => ({ ...previous,[field]:value }))} /></View>;
+            })}
+          </View>}
           <View ref={card} collapsable={false} style={styles.capture}>
             <ImageBackground source={roomThemes.classic.image} onLoadEnd={() => setBackgroundLoaded(true)} style={styles.poster}>
               <View style={styles.frame}>
@@ -91,22 +106,27 @@ export function StudyCardModal({ user, profile, equipment, close, t }: {
                     accessible={false} onLoad={() => setLogoLoaded(true)} />
                   <Text style={styles.brand}>{t.app}</Text>
                 </View>
-                <Image source={avatar ? { uri: avatar } : avatarAssets[profile.avatar.gender]} style={styles.avatar}
-                  accessible={false} resizeMode="contain" onLoadEnd={() => setAvatarLoaded(true)} />
-                <Text style={styles.reader} numberOfLines={1}>{profile.name}</Text>
-                <View style={styles.stat}>
-                  <Text style={styles.minutes}>{summary.data.minutes}</Text>
-                  <Text style={styles.copy}>{t.studyToday}</Text>
+                <View style={styles.avatars}>
+                  <Image source={avatar ? { uri: avatar } : avatarAssets[profile.avatar.gender]} style={styles.avatar}
+                    accessible={false} resizeMode="contain" onLoadEnd={() => setAvatarLoaded(true)} />
+                  {partner?.partnerAvatar && <Image source={friendAvatar ? { uri: friendAvatar } : avatarAssets[partner.partnerAvatar.gender]}
+                    style={styles.avatar} accessible={false} resizeMode="contain" onLoadEnd={() => setFriendLoaded(true)} />}
                 </View>
-                <Text style={styles.streak}>{summary.data.streak} {t.studyStreak}</Text>
-                <Text style={styles.copy}>{summary.data.date}</Text>
+                {(partner || visible.name) && <Text style={styles.reader} numberOfLines={1}>{partner ? profile.name + ' & ' + partner.friend : profile.name}</Text>}
+                <View style={styles.stat}>
+                  {(partner || visible.minutes) && <Text style={styles.minutes}>{partner ? partner.progress + ' / ' + partner.target : week?.minutes ?? summary.data?.minutes}</Text>}
+                  <Text style={styles.copy}>{t[partner ? 'pairComplete' : week ? 'cardWeeklyName' : 'studyToday']}</Text>
+                </View>
+                {week && visible.topics && week.topics.map(topic => <Text key={topic} numberOfLines={1} style={styles.copy}>{topic}</Text>)}
+                {!partner && !week && visible.streak && <Text style={styles.streak}>{summary.data?.streak} {t.studyStreak}</Text>}
+                <Text style={styles.copy}>{partner?.week ?? (week ? week.starts + ' – ' + week.ends : summary.data?.date)}</Text>
               </View>
             </ImageBackground>
           </View>
         </ScrollView>}
       {shareError && <Text accessibilityLiveRegion="polite" style={ui.warning}>{t.shareError}</Text>}
-      <Button disabled={!summary.data || !avatarLoaded || !backgroundLoaded || !logoLoaded || sharing} onPress={() => void share()}>
-        {sharing ? t.loading : t.downloadCard}
+      <Button disabled={(!summary.data && !partner) || (!!partner && !friendLoaded) || !avatarLoaded || !backgroundLoaded || !logoLoaded || sharing} onPress={() => void share()}>
+        {sharing ? t.loading : t.cardShare}
       </Button>
       <Button muted disabled={sharing} onPress={close}>{t.done}</Button>
     </View></View>
@@ -127,7 +147,10 @@ const styles = StyleSheet.create({
   brandRow: { alignItems: 'center', justifyContent: 'center', gap: 3 },
   logo: { width: 53, height: 53 },
   brand: { color: '#ffd9ac', textAlign: 'center', fontSize: 14, fontWeight: '800', flexShrink: 1 },
-  avatar: { width: '46%', height: '29%' },
+  options: { width:'100%', gap:4, marginBottom:8 },
+  switchRow: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', gap:6 },
+  avatars: { height:'25%', width:'100%', flexDirection:'row', justifyContent:'center', gap:8 },
+  avatar: { width: '41%', height: '100%' },
   reader: { color: '#fff0dc', fontWeight: '700', textAlign: 'center', fontSize: 18 },
   stat: { alignItems: 'center', justifyContent: 'center' },
   minutes: { color: '#ffc275', fontSize: 48, fontWeight: '800', fontVariant: ['tabular-nums'] },
